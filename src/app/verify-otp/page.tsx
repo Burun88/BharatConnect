@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, type FormEvent, useEffect, useRef, type ChangeEvent, type KeyboardEvent } from 'react';
+import { useState, type FormEvent, useEffect, useRef, type ChangeEvent, type KeyboardEvent, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +18,9 @@ export default function VerifyOtpPage() {
   const [error, setError] = useState('');
   const router = useRouter();
   const { toast } = useToast();
-  const [userProfile] = useLocalStorage('userProfile', { phone: '', name: '' });
+
+  const initialProfile = useMemo(() => ({ phone: '', name: '' }), []);
+  const [userProfile] = useLocalStorage('userProfile', initialProfile);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [onboardingComplete, ] = useLocalStorage('onboardingComplete', false);
 

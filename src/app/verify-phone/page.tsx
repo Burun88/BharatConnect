@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, type FormEvent, useEffect } from 'react';
+import { useState, type FormEvent, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +16,9 @@ export default function VerifyPhonePage() {
   const [error, setError] = useState('');
   const router = useRouter();
   const { toast } = useToast();
-  const [, setUserProfile] = useLocalStorage('userProfile', { phone: '', name: '' });
+
+  const initialProfile = useMemo(() => ({ phone: '', name: '' }), []);
+  const [, setUserProfile] = useLocalStorage('userProfile', initialProfile);
   const [onboardingComplete, ] = useLocalStorage('onboardingComplete', false);
 
   useEffect(() => {

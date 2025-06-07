@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,10 @@ export default function HomePage() {
   const [auraBarItems, setAuraBarItems] = useState<User[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [userProfile] = useLocalStorage('userProfile', { name: '', phone: '' });
+  
+  const initialUserProfile = useMemo(() => ({ name: '', phone: '' }), []);
+  const [userProfile] = useLocalStorage('userProfile', initialUserProfile);
+  
   const [onboardingComplete] = useLocalStorage('onboardingComplete', false);
   const [currentUserAuraId] = useLocalStorage<string | null>('currentUserAuraId', null);
 

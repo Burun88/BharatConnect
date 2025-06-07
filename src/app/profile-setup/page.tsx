@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, type FormEvent, type ChangeEvent, useEffect } from 'react';
+import { useState, type FormEvent, type ChangeEvent, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,9 @@ export default function ProfileSetupPage() {
   const [error, setError] = useState('');
   const router = useRouter();
   const { toast } = useToast();
-  const [userProfile, setUserProfile] = useLocalStorage('userProfile', { phone: '', name: '' });
+
+  const initialProfile = useMemo(() => ({ phone: '', name: '' }), []);
+  const [userProfile, setUserProfile] = useLocalStorage('userProfile', initialProfile);
   const [, setOnboardingComplete] = useLocalStorage('onboardingComplete', false);
   const [appOnboardingComplete, ] = useLocalStorage('onboardingComplete', false);
 
