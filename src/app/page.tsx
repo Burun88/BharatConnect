@@ -123,7 +123,7 @@ export default function HomePage() {
           {/* Header */}
           <header className={cn(
             "flex items-center justify-between p-4 bg-background z-10 h-16 sticky top-0",
-            "transition-transform duration-300 ease-in-out",
+            "transition-transform duration-200 ease-in-out", // Changed duration-300 to duration-200
             isHeaderVisible ? "translate-y-0" : "-translate-y-full"
           )}>
             <Logo size="medium" />
