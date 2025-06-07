@@ -1,9 +1,9 @@
 
 "use client";
 
-import type { User, UserAura } from '@/types';
+import type { User } from '@/types';
 import { AURA_OPTIONS } from '@/types';
-import Image from 'next/image';
+// Removed unused Image import
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Plus } from 'lucide-react';
@@ -22,77 +22,81 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
   }
 
-  if (isCurrentUser && !aura) {
-    // "Your Story" UI for the current user without an aura
-    return (
-      <div
-        className="flex flex-col items-center space-y-1 text-center p-1"
-        onClick={onClick}
-        role={onClick ? "button" : undefined}
-        tabIndex={onClick ? 0 : undefined}
-        onKeyDown={(e) => onClick && e.key === 'Enter' && onClick?.()}
-        aria-label="Set your story or aura"
-      >
-        <div className="relative w-20 h-20">
-          <Avatar className="w-full h-full">
-            {user.avatarUrl ? (
-              <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
-            ) : (
-              <AvatarFallback className="bg-card text-card-foreground">
-                {getInitials(user.name)}
-              </AvatarFallback>
-            )}
-          </Avatar>
-          <div className="absolute bottom-0 right-0 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border-2 border-background">
-            <Plus className="w-4 h-4 text-white" />
-          </div>
-        </div>
-        <span className="text-xs text-foreground truncate w-20">Your Story</span>
-      </div>
-    );
-  }
+  const avatarSizeClasses = "w-16 h-16";
+  const smallCircleClasses = "w-7 h-7 rounded-full flex items-center justify-center border-2 border-background";
+  const emojiInCircleClasses = "text-sm"; 
+  const nameTextClasses = "text-xs text-foreground truncate w-16"; // w-16 to match avatar width
 
-  // UI for users with an aura (gradient ring + emoji)
-  if (aura) {
-    return (
-      <div
-        className="flex flex-col items-center space-y-1 text-center p-1"
-        onClick={onClick}
-        role={onClick ? "button" : undefined}
-        tabIndex={onClick ? 0 : undefined}
-        onKeyDown={(e) => onClick && e.key === 'Enter' && onClick?.()}
-        aria-label={user.name}
-      >
-        <div // Gradient ring container
-          className={cn(
-            "relative w-20 h-20 rounded-full flex items-center justify-center p-1 animate-spin-slow", 
-            aura.gradient 
-          )}
-        >
-          <div // Inner content area (emoji)
-            className="w-full h-full rounded-full bg-background flex items-center justify-center overflow-hidden"
-          >
-            <span className="text-4xl inline-block animate-spin-slow-counter">{aura.emoji}</span>
-          </div>
-        </div>
-        <span className="text-xs text-foreground truncate w-20">
-          {isCurrentUser ? "Your Aura" : user.name}
-        </span>
-      </div>
-    );
-  }
-
-  // Default UI for other users without an aura (plain avatar)
-  return (
+  // Wrapper for common layout and click handling
+  const ItemContainer: React.FC<{ children: React.ReactNode; 'aria-label': string }> = ({ children, ...props }) => (
     <div
-      className="flex flex-col items-center space-y-1 text-center p-1"
+      className="flex flex-col items-center space-y-1.5 text-center p-1 w-[76px] shrink-0 cursor-pointer" // w-[76px] accommodates w-16 avatar + p-1 on ring + p-1 on container
       onClick={onClick}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={(e) => onClick && e.key === 'Enter' && onClick?.()}
-      aria-label={user.name}
+      aria-label={props['aria-label']}
     >
-      <Avatar className="w-20 h-20">
+      {children}
+    </div>
+  );
+
+  if (isCurrentUser && !aura) {
+    // "Your Story" UI: Avatar, then Plus in a circle, then "Your Story" text
+    return (
+      <ItemContainer aria-label="Set your story or aura">
+        <Avatar className={cn(avatarSizeClasses)}>
+          {user.avatarUrl ? (
+            <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
+          ) : (
+            <AvatarFallback className="bg-card text-card-foreground">
+              {getInitials(user.name)}
+            </AvatarFallback>
+          )}
+        </Avatar>
+        <div className={cn(smallCircleClasses, "bg-primary")}>
+          <Plus className="w-4 h-4 text-primary-foreground" />
+        </div>
+        <span className={nameTextClasses}>Your Story</span>
+      </ItemContainer>
+    );
+  }
+
+  if (aura) {
+    // Aura UI: Avatar in spinning gradient ring, then Emoji in a circle, then Name/Your Aura text
+    return (
+      <ItemContainer aria-label={user.name}>
+        <div // Gradient ring container
+          className={cn(
+            "relative rounded-full flex items-center justify-center p-1 animate-spin-slow", 
+            avatarSizeClasses, // This div itself is w-16 h-16, p-1 is for ring thickness
+            aura.gradient 
+          )}
+        >
+          <Avatar className="w-full h-full"> {/* Avatar takes full space of the p-1 padded parent */}
+            {user.avatarUrl ? (
+              <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
+            ) : (
+              <AvatarFallback className="bg-background text-card-foreground"> {/* bg-background to cover gradient */}
+                {getInitials(user.name)}
+              </AvatarFallback>
+            )}
+          </Avatar>
+        </div>
+        <div className={cn(smallCircleClasses, "bg-card")}>
+            <span className={emojiInCircleClasses}>{aura.emoji}</span>
+        </div>
+        <span className={nameTextClasses}>
+          {isCurrentUser ? "Your Aura" : user.name}
+        </span>
+      </ItemContainer>
+    );
+  }
+
+  // Default UI (other users, no aura): Avatar, empty space (for alignment), then Name text
+  return (
+    <ItemContainer aria-label={user.name}>
+      <Avatar className={cn(avatarSizeClasses)}>
         {user.avatarUrl ? (
           <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
         ) : (
@@ -101,7 +105,9 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
           </AvatarFallback>
         )}
       </Avatar>
-      <span className="text-xs text-foreground truncate w-20">{user.name}</span>
-    </div>
+      {/* Placeholder div to maintain consistent spacing with items that have an emoji/plus circle */}
+      <div className={cn(smallCircleClasses, "invisible")} aria-hidden="true"></div>
+      <span className={nameTextClasses}>{user.name}</span>
+    </ItemContainer>
   );
 }
