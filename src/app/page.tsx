@@ -3,9 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-// Removed Link import as it's not directly used after search bar removal for direct navigation
 import { Button } from '@/components/ui/button';
-// Input removed as search bar is gone
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import BottomNavigationBar from '@/components/bottom-navigation-bar';
@@ -13,15 +11,16 @@ import AuraItem from '@/components/aura-item';
 import ChatItem from '@/components/chat-item';
 import type { User, Chat } from '@/types';
 import { mockCurrentUser, mockAuraBarItemsData, mockChats } from '@/lib/mock-data';
-import { Search, Plus } from 'lucide-react'; // Search can be removed if not used in header
+import { Search, Plus } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import Logo from '@/components/shared/Logo'; // Import the new Logo component
 
 export default function HomePage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [auraBarItems, setAuraBarItems] = useState<User[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
-  const [searchTerm, setSearchTerm] = useState(''); // Retained for potential future use or if header search is different
+  const [searchTerm, setSearchTerm] = useState('');
   
   const initialUserProfile = useMemo(() => ({ name: '', phone: '' }), []);
   const [userProfile] = useLocalStorage('userProfile', initialUserProfile);
@@ -69,7 +68,7 @@ export default function HomePage() {
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
       <header className="flex items-center justify-between p-4 sticky top-0 bg-background z-10 h-16">
-        <h1 className="text-2xl font-bold font-headline text-gradient-bharatconnect">BharatConnect</h1>
+        <Logo /> {/* Use the new Logo component */}
         <div className="flex items-center space-x-2">
           <Button variant="ghost" size="icon" aria-label="Search">
             <Search className="w-5 h-5" />
@@ -78,7 +77,7 @@ export default function HomePage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-grow flex flex-col overflow-y-auto bg-background"> {/* Applied bg-background here */}
+      <main className="flex-grow flex flex-col overflow-y-auto bg-background">
         {/* Aura Bar */}
         <div className="px-2 py-3 bg-background aura-horizontal-scroll">
           <ScrollArea className="w-full">
@@ -105,11 +104,11 @@ export default function HomePage() {
         </div>
         
         {/* Chat List */}
-        <ScrollArea className="flex-grow"> {/* This will inherit bg-background from main */}
-          <div className=""> {/* Removed divide-y divide-border */}
+        <ScrollArea className="flex-grow bg-background">
+          <div className="">
             {isLoading ? (
               Array.from({ length: 10 }).map((_, index) => (
-                <div key={index} className="flex items-center p-3"> {/* Removed bg-muted from skeleton container */}
+                <div key={index} className="flex items-center p-3">
                   <Skeleton className="w-12 h-12 rounded-full mr-3" />
                   <div className="flex-1 space-y-2">
                     <Skeleton className="w-3/4 h-4 rounded" />
