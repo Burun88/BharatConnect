@@ -3,9 +3,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+// Removed Link import as it's not directly used after search bar removal for direct navigation
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+// Input removed as search bar is gone
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import BottomNavigationBar from '@/components/bottom-navigation-bar';
@@ -13,7 +13,7 @@ import AuraItem from '@/components/aura-item';
 import ChatItem from '@/components/chat-item';
 import type { User, Chat } from '@/types';
 import { mockCurrentUser, mockAuraBarItemsData, mockChats } from '@/lib/mock-data';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus } from 'lucide-react'; // Search can be removed if not used in header
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 export default function HomePage() {
@@ -21,7 +21,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [auraBarItems, setAuraBarItems] = useState<User[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(''); // Retained for potential future use or if header search is different
   
   const initialUserProfile = useMemo(() => ({ name: '', phone: '' }), []);
   const [userProfile] = useLocalStorage('userProfile', initialUserProfile);
@@ -78,7 +78,7 @@ export default function HomePage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-grow flex flex-col overflow-y-auto">
+      <main className="flex-grow flex flex-col overflow-y-auto bg-card"> {/* Applied bg-card here */}
         {/* Aura Bar */}
         <div className="px-2 py-3 border-b border-border bg-card">
           <ScrollArea className="w-full aura-horizontal-scroll">
@@ -105,7 +105,7 @@ export default function HomePage() {
         </div>
         
         {/* Chat List */}
-        <ScrollArea className="flex-grow bg-card">
+        <ScrollArea className="flex-grow bg-card"> {/* This bg-card is now consistent with main */}
           <div className="divide-y divide-border">
             {isLoading ? (
               Array.from({ length: 10 }).map((_, index) => (
