@@ -61,10 +61,10 @@ export default function HomePage() {
   );
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen bg-background">
       {/* Header */}
-      <header className="flex items-center justify-between p-4 border-b sticky top-0 bg-background z-10 h-16">
-        <h1 className="text-2xl font-bold font-headline text-gradient-primary-accent">BharatConnect</h1>
+      <header className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-background z-10 h-16">
+        <h1 className="text-2xl font-bold font-headline text-foreground">BharatConnect</h1>
         <div className="flex items-center space-x-2">
           <Button variant="ghost" size="icon" aria-label="Search">
             <Search className="w-5 h-5" />
@@ -75,7 +75,7 @@ export default function HomePage() {
       {/* Main Content Area */}
       <main className="flex-grow overflow-hidden flex flex-col">
         {/* Aura Bar */}
-        <div className="px-2 py-3 border-b">
+        <div className="px-2 py-3 border-b border-border bg-card">
           <ScrollArea className="w-full whitespace-nowrap">
             <div className="flex space-x-3 pb-2">
               {isLoading ? (
@@ -100,7 +100,7 @@ export default function HomePage() {
         </div>
         
         {/* Search Bar for Chats */}
-        <div className="p-4 border-b">
+        <div className="p-4 border-b border-border">
           <Input 
             type="search" 
             placeholder="Search chats..." 
@@ -115,7 +115,7 @@ export default function HomePage() {
           <div className="divide-y divide-border">
             {isLoading ? (
               Array.from({ length: 7 }).map((_, index) => (
-                <div key={index} className="flex items-center p-3">
+                <div key={index} className="flex items-center p-3 bg-muted">
                   <Skeleton className="w-12 h-12 rounded-full mr-3" />
                   <div className="flex-1 space-y-2">
                     <Skeleton className="w-3/4 h-4 rounded" />
@@ -143,7 +143,7 @@ export default function HomePage() {
         size="icon"
         className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity z-10"
         aria-label="New chat"
-        onClick={() => router.push('/new-chat')} // Placeholder, /new-chat doesn't exist yet
+        onClick={() => router.push('/new-chat')} 
       >
         <Plus className="w-7 h-7" />
       </Button>

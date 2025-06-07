@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -20,7 +19,7 @@
     --secondary: 240 4% 18%; /* A dark blue/purple */
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 0 0% 15%; /* Muted dark gray */
+    --muted: 0 0% 15%; /* Muted dark gray - Good for chat item backgrounds */
     --muted-foreground: 0 0% 60%; /* Lighter gray for muted text */
 
     --accent: 276 100% 50%; /* InstaBharat Purple (#a100ff) */
@@ -72,12 +71,11 @@
     --system-message-bubble-dark: 200 50% 15%; /* Darker shade of system blue, adjusted for new dark theme */
 
     /* Home Page Specific Gradients (if still applicable or need remapping) */
-    /* These were from previous "BharatConnect" theme, might need to be updated or removed if not used by "InstaBharat" */
     --gradient-title-bharatconnect-from: #D81B60; 
     --gradient-title-bharatconnect-to: #FFB300;   
-    --gradient-fab-home-from: var(--instabharat-logo-from); /* Updated to InstaBharat logo gradient 'from' color */
-    --gradient-fab-home-to: var(--instabharat-logo-to);   /* Updated to InstaBharat logo gradient 'to' color */
-    --tab-active-underline-color: var(--instabharat-logo-from); /* Updated to InstaBharat primary purple */
+    --gradient-fab-home-from: var(--instabharat-logo-from); 
+    --gradient-fab-home-to: var(--instabharat-logo-to);   
+    --tab-active-underline-color: var(--instabharat-logo-from); 
   }
 
 }
@@ -87,7 +85,7 @@
     @apply border-border;
   }
   body {
-    @apply text-foreground; 
+    @apply bg-background text-foreground; 
     font-family: var(--font-inter), sans-serif;
     @apply antialiased; 
   }
@@ -185,6 +183,10 @@ body::-webkit-scrollbar {
   
   .text-gradient-instabharat-logo {
     @apply bg-gradient-to-r from-[var(--instabharat-logo-from)] via-[var(--instabharat-logo-via)] to-[var(--instabharat-logo-to)] text-transparent bg-clip-text;
+  }
+
+  .text-gradient-primary-accent {
+    @apply bg-gradient-to-r from-primary via-accent to-accent text-transparent bg-clip-text;
   }
 
   .text-gradient-bharatconnect {
