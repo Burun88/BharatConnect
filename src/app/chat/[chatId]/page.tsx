@@ -7,14 +7,14 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input'; // Using Input as base for textarea-like component
 import { Textarea } from '@/components/ui/textarea';
-import { ScrollArea } from '@/components/ui/scroll-area';
+// import { ScrollArea } from '@/components/ui/scroll-area'; // No longer needed here
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import MessageBubble from '@/components/message-bubble';
 import type { Message, User, Chat } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 import { mockMessagesData, mockUsers, mockChats, mockCurrentUser } from '@/lib/mock-data';
-import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera } from 'lucide-react'; // Added Camera
+import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function ChatPage() {
@@ -28,7 +28,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null); // Ref for scrolling to bottom
 
   useEffect(() => {
     // Simulate fetching chat details and messages
@@ -47,12 +47,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     // Scroll to bottom when messages change
-    if (scrollAreaRef.current) {
-      const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
-      if (viewport) {
-        viewport.scrollTop = viewport.scrollHeight;
-      }
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
 
   const handleSendMessage = (e: FormEvent) => {
@@ -98,25 +93,27 @@ export default function ChatPage() {
   if (isLoading) {
     return (
       <div className="flex flex-col h-screen">
-        {/* Header Skeleton */}
-        <header className="flex items-center p-3 border-b sticky top-0 bg-background z-10 h-16">
-          <Skeleton className="w-8 h-8 rounded-full mr-2" />
-          <Skeleton className="w-10 h-10 rounded-full mr-3" />
-          <div className="flex-1 space-y-1.5">
-            <Skeleton className="w-2/4 h-4" />
-            <Skeleton className="w-1/3 h-3" />
-          </div>
-          <Skeleton className="w-8 h-8 rounded-full ml-auto" />
-        </header>
-        {/* Message Area Skeleton */}
-        <div className="flex-grow p-4 space-y-4 overflow-y-auto">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
-              <Skeleton className={`w-3/5 h-12 rounded-lg ${i % 2 === 0 ? 'bg-secondary' : 'bg-primary/80'}`} />
+        <div className="flex-grow overflow-y-auto">
+          {/* Header Skeleton - No longer sticky */}
+          <header className="flex items-center p-3 border-b bg-background h-16">
+            <Skeleton className="w-8 h-8 rounded-full mr-2" />
+            <Skeleton className="w-10 h-10 rounded-full mr-3" />
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="w-2/4 h-4" />
+              <Skeleton className="w-1/3 h-3" />
             </div>
-          ))}
+            <Skeleton className="w-8 h-8 rounded-full ml-auto" />
+          </header>
+          {/* Message Area Skeleton */}
+          <div className="p-4 space-y-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+                <Skeleton className={`w-3/5 h-12 rounded-lg ${i % 2 === 0 ? 'bg-secondary' : 'bg-primary/80'}`} />
+              </div>
+            ))}
+          </div>
         </div>
-        {/* Input Footer Skeleton */}
+        {/* Input Footer Skeleton - Remains sticky */}
         <footer className="p-3 border-t bg-background sticky bottom-0 z-10">
           <div className="flex items-center space-x-2">
             <Skeleton className="w-8 h-10 rounded-md" />
@@ -139,38 +136,40 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-screen">
-      {/* Header */}
-      <header className="flex items-center p-2.5 border-b sticky top-0 bg-background z-10 h-16">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <Avatar className="w-10 h-10 mr-3">
-          {contact.avatarUrl && (
-            <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar" />
-          )}
-          <AvatarFallback className={cn(contactAura?.gradient)}>
-            {contactAura ? contactAura.emoji : getInitials(contact.name)}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-semibold">{contact.name}</h2>
-          <p className="text-xs text-muted-foreground truncate">{contactStatus || 'Offline'}</p>
-        </div>
-        <Button variant="ghost" size="icon" className="ml-auto">
-          <MoreVertical className="w-5 h-5" />
-        </Button>
-      </header>
+      {/* This div is now the main scrollable area for header + messages */}
+      <div className="flex-grow overflow-y-auto">
+        {/* Header - No longer sticky */}
+        <header className="flex items-center p-2.5 border-b bg-background h-16">
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <Avatar className="w-10 h-10 mr-3">
+            {contact.avatarUrl && (
+              <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar" />
+            )}
+            <AvatarFallback className={cn(contactAura?.gradient)}>
+              {contactAura ? contactAura.emoji : getInitials(contact.name)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-semibold">{contact.name}</h2>
+            <p className="text-xs text-muted-foreground truncate">{contactStatus || 'Offline'}</p>
+          </div>
+          <Button variant="ghost" size="icon" className="ml-auto">
+            <MoreVertical className="w-5 h-5" />
+          </Button>
+        </header>
 
-      {/* Message Area */}
-      <ScrollArea className="flex-grow" ref={scrollAreaRef}>
-        <div className="flex flex-col p-4 space-y-2 pb-6">
+        {/* Message Area - Now a simple div, scrolling handled by parent */}
+        <div className="flex flex-col p-4 space-y-2 pb-4">
           {messages.map(msg => (
             <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
           ))}
+          <div ref={messagesEndRef} /> {/* Empty div to scroll to for new messages */}
         </div>
-      </ScrollArea>
+      </div>
 
-      {/* Message Input Footer */}
+      {/* Message Input Footer - Remains sticky */}
       <footer className="p-2 border-t bg-background sticky bottom-0 z-10">
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
           <Button variant="ghost" size="icon" type="button">
