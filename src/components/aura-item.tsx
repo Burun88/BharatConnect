@@ -23,23 +23,26 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
   };
 
   const IMAGE_SIZE_CLASS = "w-[72px] h-[72px]"; // 72px
-  const mainElementSize = "w-20 h-20"; // 80px. Ring padding 4px on each side, so 8px total. Overall size = 72px + 8px = 80px.
+  const mainElementSize = "w-20 h-20"; // 80px. Ring padding 4px on each side. Overall size = 72px + 4px*2 = 80px.
 
   const smallCircleSize = "w-7 h-7"; // 28px
   const smallCircleIconSize = "w-4 h-4";
   const smallCircleEmojiFontSize = "text-sm";
 
-  // Position the top of the 28px emoji circle such that its center aligns with the bottom edge of the 72px avatar image.
-  // Avatar image (72px high) is centered in mainElementSize (80px high).
-  // Top of avatar image = (80-72)/2 = 4px from top of mainElement.
-  // Bottom of avatar image = 4px + 72px = 76px from top of mainElement.
-  // Top of emoji circle = 76px (avatar_image_bottom) - 14px (half_emoji_height) = 62px.
+  // Position the top of the 28px emoji circle such that its center aligns with the bottom edge of the 80px main element.
+  // Main element (80px high).
+  // Bottom of main element = 80px from top of mainElement.
+  // Top of emoji circle = 80px (main_element_bottom) - 14px (half_emoji_height) = 66px.
+  // However, visually it looked better when the emoji slightly more "under" the main circle.
+  // Current mainElement is h-20 (80px). emoji circle is h-7 (28px).
+  // To center emoji's center on the main avatar's bottom edge: top = 80px - (28px/2) = 66px.
+  // top-[62px] means the emoji top starts 62px down from the 80px container's top. Emoji bottom is 62+28=90px. Extends 10px.
   const emojiOverlapTopClass = "top-[62px]";
 
 
   const ItemContainer: React.FC<{ children: React.ReactNode; 'aria-label': string }> = ({ children, ...props }) => (
     <div
-      className="flex flex-col items-center space-y-1 text-center p-1 shrink-0 cursor-pointer"
+      className="flex flex-col items-center space-y-3 text-center p-1 shrink-0 cursor-pointer" // Changed space-y-1 to space-y-3
       onClick={onClick}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -68,8 +71,8 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
         )}
         <div className={cn(
           "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden",
-          IMAGE_SIZE_CLASS, 
-          isRing && "bg-background p-0" // Ensure avatar content itself isn't padded by ring; bg-background for opacity
+          IMAGE_SIZE_CLASS,
+          isRing && "bg-background p-1" // p-1 creates 4px ring thickness (p-1 = 4px padding)
         )}>
           {React.cloneElement(avatarContent as React.ReactElement, {
             className: cn((avatarContent as React.ReactElement).props.className, "w-full h-full"),
@@ -93,7 +96,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
 
 
   const nameText = (
-    <span className={cn("text-xs text-foreground truncate text-center mt-0.5", `w-20`)}>
+    <span className={cn("text-xs text-foreground truncate text-center", `w-20`)}> {/* Removed mt-0.5 */}
       {isCurrentUser ? (aura ? "Your Aura" : "Your Story") : user.name}
     </span>
   );
@@ -171,7 +174,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
   // Fallback for users without an aura (not the current user)
   return (
     <ItemContainer aria-label={user.name}>
-       <div className={cn("relative", mainElementSize)}> {/* Container maintains size for layout consistency */}
+       <div className={cn("relative", mainElementSize)}>
          <div className={cn(
             "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden",
             IMAGE_SIZE_CLASS
@@ -186,13 +189,12 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
               )}
             </Avatar>
           </div>
-          {/* Placeholder for the small circle to maintain consistent spacing, but invisible */}
            <div
             className={cn(
               "absolute left-1/2 -translate-x-1/2",
               smallCircleSize,
               emojiOverlapTopClass,
-              "invisible" // Ensures it takes up space for layout but is not seen
+              "invisible" 
             )}
           />
       </div>
