@@ -14,13 +14,13 @@ const Logo: FC<LogoProps> = ({ size = 'medium', className }) => {
       sizeClass = 'text-xl';
       break;
     case 'medium':
-      sizeClass = 'text-2xl'; // Adjusted to maintain current logo visual size
+      sizeClass = 'text-3xl'; // Changed from text-2xl to text-3xl
       break;
     case 'large':
       sizeClass = 'text-4xl';
       break;
     default:
-      sizeClass = 'text-2xl'; // Default to current logo visual size
+      sizeClass = 'text-3xl'; // Changed from text-2xl to text-3xl
   }
 
   return (
