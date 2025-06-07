@@ -76,58 +76,61 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-grow flex flex-col overflow-y-auto bg-background">
-        {/* Aura Bar */}
-        <div className="px-2 py-3 bg-background aura-horizontal-scroll">
-          <ScrollArea className="w-full">
-            <div className="flex space-x-1 pb-2 whitespace-nowrap">
+      {/* Main Content Area - Now a flex container, scrolling handled by child */}
+      <main className="flex-grow flex flex-col bg-background">
+        {/* This div is now the main scrollable area for Aura Bar + Chat List */}
+        <div className="flex-grow overflow-y-auto hide-scrollbar">
+          {/* Aura Bar */}
+          <div className="px-2 py-3 bg-background aura-horizontal-scroll">
+            <ScrollArea className="w-full"> {/* Horizontal scroll for auras */}
+              <div className="flex space-x-1 pb-2 whitespace-nowrap">
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <div key={index} className="flex flex-col items-center space-y-1 p-1">
+                      <Skeleton className="w-20 h-20 rounded-full" />
+                      <Skeleton className="w-16 h-4 rounded" />
+                    </div>
+                  ))
+                ) : (
+                  auraBarItems.map(user => (
+                    <AuraItem
+                      key={user.id}
+                      user={user}
+                      isCurrentUser={user.id === mockCurrentUser.id}
+                      onClick={user.id === mockCurrentUser.id ? () => router.push('/aura-select') : undefined}
+                    />
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+          
+          {/* Chat List - No longer a ScrollArea for vertical scroll */}
+          <div className="bg-background">
+            <div className="">
               {isLoading ? (
-                Array.from({ length: 5 }).map((_, index) => (
-                  <div key={index} className="flex flex-col items-center space-y-1 p-1">
-                    <Skeleton className="w-20 h-20 rounded-full" />
-                    <Skeleton className="w-16 h-4 rounded" />
+                Array.from({ length: 10 }).map((_, index) => (
+                  <div key={index} className="flex items-center p-3">
+                    <Skeleton className="w-12 h-12 rounded-full mr-3" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="w-3/4 h-4 rounded" />
+                      <Skeleton className="w-1/2 h-3 rounded" />
+                    </div>
                   </div>
+                ))
+              ) : filteredChats.length > 0 ? (
+                filteredChats.map(chat => (
+                  <ChatItem key={chat.id} chat={chat} />
                 ))
               ) : (
-                auraBarItems.map(user => (
-                  <AuraItem
-                    key={user.id}
-                    user={user}
-                    isCurrentUser={user.id === mockCurrentUser.id}
-                    onClick={user.id === mockCurrentUser.id ? () => router.push('/aura-select') : undefined}
-                  />
-                ))
+                <div className="text-center py-10 text-muted-foreground">
+                  <p>No chats found{searchTerm && ` for "${searchTerm}"`}.</p>
+                  {!searchTerm && <p>Start a new conversation!</p>}
+                </div>
               )}
             </div>
-          </ScrollArea>
-        </div>
-        
-        {/* Chat List */}
-        <ScrollArea className="flex-grow bg-background hide-vertical-scrollbar">
-          <div className="">
-            {isLoading ? (
-              Array.from({ length: 10 }).map((_, index) => (
-                <div key={index} className="flex items-center p-3">
-                  <Skeleton className="w-12 h-12 rounded-full mr-3" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="w-3/4 h-4 rounded" />
-                    <Skeleton className="w-1/2 h-3 rounded" />
-                  </div>
-                </div>
-              ))
-            ) : filteredChats.length > 0 ? (
-              filteredChats.map(chat => (
-                <ChatItem key={chat.id} chat={chat} />
-              ))
-            ) : (
-              <div className="text-center py-10 text-muted-foreground">
-                <p>No chats found{searchTerm && ` for "${searchTerm}"`}.</p>
-                {!searchTerm && <p>Start a new conversation!</p>}
-              </div>
-            )}
           </div>
-        </ScrollArea>
+        </div>
       </main>
 
       {/* Floating Action Button */}
@@ -146,4 +149,3 @@ export default function HomePage() {
     </div>
   );
 }
-
