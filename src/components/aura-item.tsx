@@ -22,8 +22,8 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const mainElementSize = "w-16 h-16"; // 64px
-  const smallCircleSize = "w-7 h-7"; // 28px
+  const mainElementSize = "w-20 h-20"; // Changed from w-16 h-16
+  const smallCircleSize = "w-7 h-7"; 
   const smallCircleIconSize = "w-4 h-4";
   const smallCircleEmojiFontSize = "text-sm";
 
@@ -41,25 +41,22 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
   );
 
   const AvatarWithOverlap: React.FC<{
-    avatarContent: React.ReactNode; // This will be the <Avatar> component
+    avatarContent: React.ReactNode;
     overlapContent?: React.ReactNode;
     isRing?: boolean;
     ringGradient?: string;
   }> = ({ avatarContent, overlapContent, isRing, ringGradient }) => {
     return (
-      <div className={cn("relative", mainElementSize)}> {/* Base container, w-16 h-16 */}
+      <div className={cn("relative", mainElementSize)}>
         {isRing && ringGradient && (
           <>
-            {/* Spinning Gradient Ring (Background Layer) */}
             <div
               className={cn(
                 "absolute inset-0 rounded-full animate-spin-slow",
                 ringGradient
               )}
             />
-            {/* Static Avatar Container (Foreground Layer) - Padded to reveal the ring */}
-            <div className="relative w-full h-full rounded-full p-1.5"> {/* p-1.5 for 6px ring thickness */}
-              {/* Masking div for avatar content to ensure bg and overflow */}
+            <div className="relative w-full h-full rounded-full p-1.5"> 
               <div className="w-full h-full rounded-full bg-background overflow-hidden">
                 {React.cloneElement(avatarContent as React.ReactElement, { className: cn((avatarContent as React.ReactElement).props.className, "w-full h-full") })}
               </div>
@@ -67,7 +64,6 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
           </>
         )}
         {!isRing && (
-          // If not a ring, render avatarContent directly, assuming it's an <Avatar> sized appropriately
           React.cloneElement(avatarContent as React.ReactElement, { className: cn((avatarContent as React.ReactElement).props.className, mainElementSize) })
         )}
 
@@ -76,9 +72,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
             className={cn(
               "absolute left-1/2 -translate-x-1/2 rounded-full flex items-center justify-center border-2 border-background",
               smallCircleSize,
-              // top-14 on a 64px (h-16) container means the small circle's top edge is 8px from the bottom of the container.
-              // The small circle is h-7 (28px), so 8px of it will overlap upwards.
-              "top-[calc(theme(spacing.16)-theme(spacing.2))]"
+              "top-[calc(theme(spacing.20)-theme(spacing.2))]" // Changed from spacing.16
             )}
           >
             {overlapContent}
@@ -90,13 +84,13 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
 
 
   const nameText = (
-    <span className="text-xs text-foreground truncate w-16 text-center mt-0.5">
+    <span className={cn("text-xs text-foreground truncate w-20 text-center mt-0.5", mainElementSize === "w-20 h-20" ? "w-20" : "w-16")}> {/* Changed from w-16 */}
       {isCurrentUser ? (aura ? "Your Aura" : "Your Story") : user.name}
     </span>
   );
 
   const currentUserAvatar = (
-    <Avatar> {/* Default Avatar sizing will be used, w-full h-full will make it fit its container */}
+    <Avatar>
       {user.avatarUrl ? (
         <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
       ) : (
@@ -121,12 +115,11 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
 
 
   if (isCurrentUser && !aura) {
-    // "Your Story" UI: Avatar (no ring), then Plus in an overlapping circle
     return (
       <ItemContainer aria-label="Set your story or aura">
         <AvatarWithOverlap
-          isRing={false} // No ring for "Your Story"
-          avatarContent={ // Avatar should be sized mainElementSize and have bg-card
+          isRing={false}
+          avatarContent={
              <Avatar className="bg-card">
               {user.avatarUrl ? (
                 <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
@@ -149,7 +142,6 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
   }
 
   if (aura) {
-    // Aura UI: Static Avatar inside a spinning gradient ring, then Emoji in an overlapping circle
     return (
       <ItemContainer aria-label={`${user.name} - ${aura.name} aura`}>
         <AvatarWithOverlap
@@ -167,12 +159,11 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
     );
   }
 
-  // Default UI (other users, no aura): Avatar, no overlapping circle, no ring
   return (
     <ItemContainer aria-label={user.name}>
       <AvatarWithOverlap
         isRing={false}
-        avatarContent={ // Avatar should be sized mainElementSize and have bg-card
+        avatarContent={ 
             <Avatar className="bg-card">
             {user.avatarUrl ? (
                 <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
@@ -188,4 +179,3 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
     </ItemContainer>
   );
 }
-
