@@ -31,7 +31,7 @@ export default function ChatItem({ chat }: ChatItemProps) {
   return (
     <Link 
       href={`/chat/${chat.id}`} 
-      className="flex items-center p-3 transition-colors rounded-lg bg-muted"
+      className="flex items-center p-3 transition-colors rounded-lg bg-background hover:bg-muted/50" // Changed bg-muted to bg-background
     >
       <div className="relative mr-3">
         <Avatar className="w-12 h-12">
@@ -40,7 +40,7 @@ export default function ChatItem({ chat }: ChatItemProps) {
            )}
           <AvatarFallback 
             className={cn(
-              "bg-muted text-muted-foreground", 
+              "bg-muted text-muted-foreground", // Kept fallback muted for contrast if no image/aura
               contactAura?.gradient
             )}
             style={contactAura?.gradient ? { backgroundImage: contactAura.gradient.replace('bg-gradient-to-r ', 'linear-gradient(to right, ').replace(/from-(\w+)-(\d+)/g, 'var(--color-$1-$2)').replace(/via-(\w+)-(\d+)/g, ', var(--color-$1-$2)').replace(/to-(\w+)-(\d+)/g, ', var(--color-$1-$2)')+ ')' } : {}}
@@ -78,4 +78,3 @@ export default function ChatItem({ chat }: ChatItemProps) {
     </Link>
   );
 }
-
