@@ -150,17 +150,17 @@ body::-webkit-scrollbar {
   background: hsl(var(--foreground) / 0.8);
 }
 
-.aura-horizontal-scroll > div[data-radix-scroll-area-viewport] {
+.aura-horizontal-scroll div[data-radix-scroll-area-viewport] {
   overflow-x: auto !important;
   overflow-y: hidden !important;
   padding-bottom: 8px; /* Add some padding if scrollbar takes space, though it's hidden */
 }
 
 /* Hide scrollbar for the specific aura horizontal scroll area */
-.aura-horizontal-scroll > div[data-radix-scroll-area-viewport]::-webkit-scrollbar {
+.aura-horizontal-scroll div[data-radix-scroll-area-viewport]::-webkit-scrollbar {
   display: none;
 }
-.aura-horizontal-scroll > div[data-radix-scroll-area-viewport] {
+.aura-horizontal-scroll div[data-radix-scroll-area-viewport] {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE and Edge */
 }
