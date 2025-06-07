@@ -39,6 +39,27 @@ export const mockUsers: User[] = [
     currentAuraId: 'chill',
     status: 'Feeling Chill 😎',
   },
+  {
+    id: 'user5',
+    name: 'Deepika Iyer',
+    avatarUrl: 'https://picsum.photos/seed/user5/100/100',
+    currentAuraId: 'energetic',
+    status: 'Ready to go!',
+  },
+  {
+    id: 'user6',
+    name: 'Arjun Reddy',
+    avatarUrl: 'https://picsum.photos/seed/user6/100/100',
+    currentAuraId: null, 
+    status: 'Away',
+  },
+  {
+    id: 'user7',
+    name: 'Sneha Kapoor',
+    avatarUrl: 'https://picsum.photos/seed/user7/100/100',
+    currentAuraId: 'playful',
+    status: 'Feeling playful! 🎉',
+  },
 ];
 
 const getAuraById = (id: string | null | undefined): UserAura | undefined => AURA_OPTIONS.find(a => a.id === id);
@@ -60,6 +81,17 @@ export const mockMessagesData: { [chatId: string]: Message[] } = {
    chat4: [
     { id: 'msg4_1', chatId: 'chat4', senderId: 'user4', text: 'Just chilling, wbu?', timestamp: Date.now() - 1000 * 60 * 120, type: 'text' },
     { id: 'msg4_2', chatId: 'chat4', senderId: 'currentUser', text: 'Same here, enjoying the weekend!', timestamp: Date.now() - 1000 * 60 * 115, type: 'text', status: 'sent' },
+  ],
+  chat5: [
+    { id: 'msg5_1', chatId: 'chat5', senderId: 'user5', text: 'Morning! Coffee?', timestamp: Date.now() - 1000 * 60 * 60 * 3, type: 'text' },
+    { id: 'msg5_2', chatId: 'chat5', senderId: 'currentUser', text: 'Good morning! Sounds great.', timestamp: Date.now() - 1000 * 60 * 50, type: 'text', status: 'read' },
+  ],
+  chat6: [
+    { id: 'msg6_1', chatId: 'chat6', senderId: 'user6', text: 'Project update?', timestamp: Date.now() - 1000 * 60 * 40, type: 'text' },
+  ],
+  chat7: [
+    { id: 'msg7_1', chatId: 'chat7', senderId: 'user7', text: 'Party tonight! You in?', timestamp: Date.now() - 1000 * 60 * 15, type: 'text' },
+    { id: 'msg7_2', chatId: 'chat7', senderId: 'currentUser', text: 'Definitely! What time?', timestamp: Date.now() - 1000 * 60 * 10, type: 'text', status: 'sent'},
   ],
 };
 
@@ -104,6 +136,36 @@ export const mockChats: Chat[] = [
     unreadCount: 0,
     avatarUrl: mockUsers.find(u => u.id === 'user4')?.avatarUrl,
   },
+  {
+    id: 'chat5',
+    type: 'individual',
+    name: 'Deepika Iyer',
+    contactUserId: 'user5',
+    participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user5')!], // Ensure user5 exists in mockUsers
+    lastMessage: mockMessagesData.chat5[mockMessagesData.chat5.length -1],
+    unreadCount: 0,
+    avatarUrl: mockUsers.find(u => u.id === 'user5')?.avatarUrl,
+  },
+  {
+    id: 'chat6',
+    type: 'individual',
+    name: 'Arjun Reddy',
+    contactUserId: 'user6',
+    participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user6')!], // Ensure user6 exists
+    lastMessage: mockMessagesData.chat6[mockMessagesData.chat6.length - 1],
+    unreadCount: 1,
+    avatarUrl: mockUsers.find(u => u.id === 'user6')?.avatarUrl,
+  },
+  {
+    id: 'chat7',
+    type: 'individual',
+    name: 'Sneha Kapoor',
+    contactUserId: 'user7',
+    participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user7')!], // Ensure user7 exists
+    lastMessage: mockMessagesData.chat7[mockMessagesData.chat7.length - 1],
+    unreadCount: 3,
+    avatarUrl: mockUsers.find(u => u.id === 'user7')?.avatarUrl,
+  },
 ];
 
 
@@ -119,4 +181,3 @@ export const mockAuraBarItemsData = (): User[] => {
   });
   return usersWithAura;
 };
-
