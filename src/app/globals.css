@@ -19,7 +19,7 @@
     --secondary: 240 4% 18%; /* A dark blue/purple */
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 0 0% 15%; /* Muted dark gray - Good for chat item backgrounds */
+    --muted: 0 0% 15%; /* Muted dark gray */
     --muted-foreground: 0 0% 60%; /* Lighter gray for muted text */
 
     --accent: 276 100% 50%; /* InstaBharat Purple (#a100ff) */
@@ -190,7 +190,7 @@ body::-webkit-scrollbar {
   }
 
   .text-gradient-bharatconnect {
-    @apply bg-gradient-to-r from-[var(--gradient-title-bharatconnect-from)] to-[var(--gradient-title-bharatconnect-to)];
+    @apply bg-gradient-to-r from-[var(--instabharat-logo-from)] via-[var(--instabharat-logo-via)] to-[var(--instabharat-logo-to)];
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
