@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -149,6 +150,22 @@ body::-webkit-scrollbar {
   background: hsl(var(--foreground) / 0.8);
 }
 
+.aura-horizontal-scroll > div[data-radix-scroll-area-viewport] {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  padding-bottom: 8px; /* Add some padding if scrollbar takes space, though it's hidden */
+}
+
+/* Hide scrollbar for the specific aura horizontal scroll area */
+.aura-horizontal-scroll > div[data-radix-scroll-area-viewport]::-webkit-scrollbar {
+  display: none;
+}
+.aura-horizontal-scroll > div[data-radix-scroll-area-viewport] {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+
 @layer utilities {
   .message-bubble {
     @apply p-2.5 rounded-xl max-w-[70%] sm:max-w-[60%] md:max-w-[50%] mb-1 shadow-sm break-words;
@@ -205,3 +222,4 @@ body::-webkit-scrollbar {
     box-shadow: 0 0 0 2px hsl(var(--primary) / 0.5);
   }
 }
+

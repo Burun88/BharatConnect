@@ -43,12 +43,10 @@ export default function HomePage() {
 
         const currentUserDisplayData = allUsersFromMock.find(u => u.id === updatedCurrentUser.id) || updatedCurrentUser;
         
-        // Filter other users: only include those with a currentAuraId
         const otherUsersWithAura = allUsersFromMock.filter(
             u => u.id !== updatedCurrentUser.id && u.currentAuraId
         );
 
-        // Current user always comes first, then other users with auras
         const finalAuraItems = [currentUserDisplayData, ...otherUsersWithAura];
         
         setAuraBarItems(finalAuraItems);
@@ -79,7 +77,7 @@ export default function HomePage() {
       <main className="flex-grow overflow-hidden flex flex-col">
         {/* Aura Bar */}
         <div className="px-2 py-3 border-b border-border bg-card">
-          <ScrollArea className="w-full" type="auto">
+          <ScrollArea className="w-full aura-horizontal-scroll">
             <div className="flex space-x-3 pb-2 whitespace-nowrap">
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, index) => (
