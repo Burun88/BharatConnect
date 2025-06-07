@@ -1,10 +1,11 @@
+
 import type { User, Chat, Message, UserAura } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 
 export const mockCurrentUser: User = {
   id: 'currentUser',
   name: 'You',
-  avatarUrl: 'https://placehold.co/100x100.png',
+  avatarUrl: 'https://placehold.co/100x100.png', // Generic placeholder
   currentAuraId: null,
 };
 
@@ -13,28 +14,28 @@ export const mockUsers: User[] = [
   {
     id: 'user1',
     name: 'Priya Sharma',
-    avatarUrl: 'https://placehold.co/100x100.png',
+    avatarUrl: 'https://placehold.co/100x100/E8A0BF/4A2E39.png', // Placeholder with color scheme
     currentAuraId: 'happy',
     status: 'Online',
   },
   {
     id: 'user2',
     name: 'Rahul Kumar',
-    avatarUrl: 'https://placehold.co/100x100.png',
+    avatarUrl: 'https://placehold.co/100x100/A0E8BF/2E4A39.png', // Placeholder with color scheme
     currentAuraId: 'focused',
     status: 'Last seen yesterday at 10:30 PM',
   },
   {
     id: 'user3',
     name: 'Anjali Singh',
-    avatarUrl: 'https://placehold.co/100x100.png',
+    avatarUrl: 'https://placehold.co/100x100/BFA0E8/392E4A.png', // Placeholder with color scheme
     currentAuraId: null,
     status: 'Typing...',
   },
   {
     id: 'user4',
     name: 'Vikram Patel',
-    avatarUrl: 'https://placehold.co/100x100.png',
+    avatarUrl: 'https://placehold.co/100x100/E8BFA0/4A392E.png', // Placeholder with color scheme
     currentAuraId: 'chill',
     status: 'Feeling Chill 😎',
   },
@@ -107,12 +108,15 @@ export const mockChats: Chat[] = [
 
 
 export const mockAuraBarItemsData = (): User[] => {
+  // Ensure consistent avatarUrl from mockUsers
   const usersWithAura = mockUsers.map(user => {
-    const aura = getAuraById(user.currentAuraId);
+    const baseUser = mockUsers.find(u => u.id === user.id) || user; // Get the user with potentially updated avatar
+    const aura = getAuraById(baseUser.currentAuraId);
     return {
-      ...user,
-      status: aura ? `Feeling ${aura.name} ${aura.emoji}` : user.status || 'Offline',
+      ...baseUser,
+      status: aura ? `Feeling ${aura.name} ${aura.emoji}` : baseUser.status || 'Offline',
     };
   });
   return usersWithAura;
 };
+
