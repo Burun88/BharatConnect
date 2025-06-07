@@ -4,54 +4,51 @@
 
 @layer base {
   :root {
-    --background: 0 0% 0%; /* Black */
-    --foreground: 0 0% 98%; /* Light Gray / White */
+    --background: 0 0% 7.5%; /* Dark Grey #121212 */
+    --foreground: 0 0% 98%; /* Light Gray */
 
-    --card: 0 0% 7%; /* Darker Gray, almost black */
-    --card-foreground: 0 0% 98%;
+    --card: 0 0% 10%; /* Slightly Lighter Dark Grey */
+    --card-foreground: 0 0% 95%;
 
-    --popover: 0 0% 5%; /* Even darker for popovers */
+    --popover: 0 0% 5%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 276 100% 50%; /* InstaBharat Purple (#a100ff) */
-    --primary-foreground: 0 0% 98%; /* White text on primary */
+    --primary: 207 90% 54%; /* Saturated Blue #42A5F5 */
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 240 4% 18%; /* A dark blue/purple */
+    --secondary: 240 4% 18%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 0 0% 15%; /* Muted dark gray */
-    --muted-foreground: 0 0% 60%; /* Lighter gray for muted text */
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
 
-    --accent: 276 100% 50%; /* InstaBharat Purple (#a100ff) */
-    --accent-foreground: 0 0% 98%; /* White text on purple accent */
+    --accent: 291 64% 58%; /* Vibrant Violet #AB47BC */
+    --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 70% 50%; /* Standard destructive red */
+    --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 20%; /* Dark gray border, slightly lighter for visibility */
-    --input: 0 0% 12%; /* Dark gray input background */
-    --ring: 276 100% 45%; /* Darker purple for rings, derived from new accent */
+    --border: 0 0% 20%;
+    --input: 0 0% 12%;
+    --ring: 207 90% 48%; /* Slightly darker blue for focus rings */
 
     --radius: 0.5rem;
 
-    /* Chart colors (defaults, can be adjusted if charts are used) */
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
 
-    /* Sidebar specific colors, themed for dark mode */
     --sidebar-background: 0 0% 5%;
     --sidebar-foreground: 0 0% 80%;
-    --sidebar-primary: 276 100% 50%;
+    --sidebar-primary: 207 90% 54%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 276 100% 50%;
+    --sidebar-accent: 291 64% 58%;
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 0 0% 15%;
-    --sidebar-ring: 276 100% 45%;
-
-    /* Custom InstaBharat Colors */
+    --sidebar-ring: 207 90% 48%;
+    
     --instabharat-logo-from: #a100ff;
     --instabharat-logo-via: #ffc300;
     --instabharat-logo-to: #ff7300;
@@ -59,25 +56,15 @@
     --instabharat-action-btn-from: #bc1888;
     --instabharat-action-btn-to: #f09433;
 
-    /* Original "Gemini Gradient" - Deep Blue to Violet (for reference or if needed later) */
-    --gradient-primary-from: #4A148C;
-    --gradient-primary-to: #880E4F;
+    --incoming-message-bubble-dark: 0 0% 12%;
+    --system-message-bubble-dark: 200 50% 15%;
     
-    --incoming-message-bubble-light: 0 0% 100%; /* White - Kept for light mode if ever re-enabled */
-    --system-message-bubble-light: 200 89% 94%; /* #E1F5FE - Kept for light mode */
-    
-    /* Dark Mode Message Bubbles (based on new dark theme) */
-    --incoming-message-bubble-dark: 0 0% 12%; /* Slightly off-black for incoming messages */
-    --system-message-bubble-dark: 200 50% 15%; /* Darker shade of system blue, adjusted for new dark theme */
-
-    /* Home Page Specific Gradients (if still applicable or need remapping) */
     --gradient-title-bharatconnect-from: var(--instabharat-logo-from);
-    --gradient-title-bharatconnect-to: var(--instabharat-logo-to);   
-    --gradient-fab-home-from: var(--instabharat-logo-from); 
-    --gradient-fab-home-to: var(--instabharat-logo-to);   
-    --tab-active-underline-color: var(--instabharat-logo-from); 
+    --gradient-title-bharatconnect-to: var(--instabharat-logo-to);
+    --gradient-fab-home-from: var(--instabharat-logo-from);
+    --gradient-fab-home-to: var(--instabharat-logo-to);
+    --tab-active-underline-color: var(--instabharat-logo-from);
   }
-
 }
 
 @layer base {
@@ -85,19 +72,15 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground; 
+    @apply bg-background text-foreground;
     font-family: var(--font-inter), sans-serif;
-    @apply antialiased; 
+    @apply antialiased;
   }
-  a:not([class*="bg-"], [class*="text-"], [class*="border-"], [data-nostyle-link]) { 
-    @apply bg-gradient-to-r from-[var(--instabharat-logo-from)] via-[var(--instabharat-logo-via)] to-[var(--instabharat-logo-to)] text-transparent bg-clip-text;
-  }
-  a:not([class*="bg-"], [class*="text-"], [class*="border-"], [data-nostyle-link]):hover {
-    @apply opacity-80;
+  a:not([class*="bg-"], [class*="text-"], [class*="border-"], [data-nostyle-link]) {
+    @apply text-primary hover:text-primary/80; /* Default link to primary blue */
   }
 }
 
-/* Original spinning animation */
 @keyframes spin {
   from {
     transform: rotate(0deg);
@@ -107,71 +90,63 @@
   }
 }
 
-/* New slow spinning animation for story rings - Updated speed */
 @keyframes spin-slow {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
 .animate-spin-slow {
-  animation: spin-slow 2s linear infinite;
+  animation: spin-slow 10s linear infinite;
 }
 
-/* Counter-rotation animation for emoji */
 @keyframes spin-slow-counter {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(-360deg); }
 }
 
 .animate-spin-slow-counter {
-  animation: spin-slow-counter 2s linear infinite;
+  animation: spin-slow-counter 10s linear infinite;
 }
 
-
-/* Scrollbar hiding utilities */
 .hide-scrollbar {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE 10+ */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 .hide-scrollbar::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
+  display: none;
 }
 
-/* Global scrollbar hiding for the entire page */
 html, body {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE 10+ */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 html::-webkit-scrollbar,
 body::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
+  display: none;
 }
 
-/* Custom Scrollbar for Dark Theme */
 .custom-scrollbar-dark {
-  /* For Firefox */
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--muted-foreground)) hsl(var(--border));
 }
 
-/* For Webkit browsers */
 .custom-scrollbar-dark::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 .custom-scrollbar-dark::-webkit-scrollbar-track {
-  background: hsl(var(--border)); /* Darker track */
+  background: hsl(var(--border));
   border-radius: 10px;
 }
 
 .custom-scrollbar-dark::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground)); /* Lighter thumb */
+  background: hsl(var(--muted-foreground));
   border-radius: 10px;
 }
 
 .custom-scrollbar-dark::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--foreground) / 0.8); /* Even lighter on hover, with alpha */
+  background: hsl(var(--foreground) / 0.8);
 }
 
 @layer utilities {
@@ -179,7 +154,7 @@ body::-webkit-scrollbar {
     @apply p-2.5 rounded-xl max-w-[70%] sm:max-w-[60%] md:max-w-[50%] mb-1 shadow-sm break-words;
   }
   .message-bubble-outgoing {
-    @apply bg-gradient-to-r from-[var(--instabharat-action-btn-from)] to-[var(--instabharat-action-btn-to)] text-primary-foreground ml-auto;
+    @apply bg-primary text-primary-foreground ml-auto;
   }
   .message-bubble-incoming {
     @apply bg-[hsl(var(--incoming-message-bubble-dark))] text-foreground mr-auto;
@@ -188,16 +163,12 @@ body::-webkit-scrollbar {
     @apply bg-[hsl(var(--system-message-bubble-dark))] text-muted-foreground mx-auto text-center text-xs p-1.5 rounded-md;
   }
 
-  .gradient-primary {
-    @apply bg-gradient-to-r from-[var(--instabharat-action-btn-from)] to-[var(--instabharat-action-btn-to)];
+  .text-gradient-primary-accent {
+    @apply bg-gradient-to-r from-[var(--primary)] via-[var(--accent)] to-[var(--accent)] text-transparent bg-clip-text;
   }
   
   .text-gradient-instabharat-logo {
     @apply bg-gradient-to-r from-[var(--instabharat-logo-from)] via-[var(--instabharat-logo-via)] to-[var(--instabharat-logo-to)] text-transparent bg-clip-text;
-  }
-
-  .text-gradient-primary-accent {
-    @apply bg-gradient-to-r from-primary via-accent to-accent text-transparent bg-clip-text;
   }
 
   .text-gradient-bharatconnect {
@@ -208,7 +179,7 @@ body::-webkit-scrollbar {
   }
 
   .bg-gradient-fab-home {
-    @apply bg-gradient-to-br from-[var(--instabharat-logo-from)] via-[var(--instabharat-logo-via)] to-[var(--instabharat-logo-to)];
+    @apply bg-gradient-to-br from-[var(--gradient-fab-home-from)] via-[var(--instabharat-logo-via)] to-[var(--gradient-fab-home-to)];
   }
 
   .bg-gradient-header-dark {
@@ -216,21 +187,21 @@ body::-webkit-scrollbar {
   }
 
   .bg-true-black {
-    background-color: #000000; 
+    background-color: #000000;
   }
   .text-true-black-foreground {
-    color: hsl(var(--foreground)); 
+    color: hsl(var(--foreground));
   }
   .border-true-black-muted {
-    border-color: hsl(var(--muted)); 
+    border-color: hsl(var(--muted));
   }
   .placeholder-true-black-muted::placeholder {
     color: hsl(var(--muted-foreground));
   }
-  .focus-ring-purple:focus { 
+  .focus-ring-purple:focus {
     outline: 2px solid transparent;
     outline-offset: 2px;
-    border-color: hsl(var(--primary)); 
+    border-color: hsl(var(--primary));
     box-shadow: 0 0 0 2px hsl(var(--primary) / 0.5);
   }
 }

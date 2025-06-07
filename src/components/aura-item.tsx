@@ -33,7 +33,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
         onKeyDown={(e) => onClick && e.key === 'Enter' && onClick?.()}
         aria-label="Set your story or aura"
       >
-        <div className="relative w-16 h-16">
+        <div className="relative w-20 h-20">
           <Avatar className="w-full h-full">
             {user.avatarUrl ? (
               <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
@@ -43,11 +43,11 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
               </AvatarFallback>
             )}
           </Avatar>
-          <div className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center border-2 border-background">
-            <Plus className="w-3 h-3 text-white" />
+          <div className="absolute bottom-0 right-0 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border-2 border-background">
+            <Plus className="w-4 h-4 text-white" />
           </div>
         </div>
-        <span className="text-xs text-white truncate w-16">Your Story</span>
+        <span className="text-xs text-foreground truncate w-20">Your Story</span>
       </div>
     );
   }
@@ -65,17 +65,17 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
       >
         <div // Gradient ring container
           className={cn(
-            "relative w-16 h-16 rounded-full flex items-center justify-center p-1 animate-spin-slow", // p-1 for thicker ring
-            aura.gradient // Apply gradient classes here
+            "relative w-20 h-20 rounded-full flex items-center justify-center p-1 animate-spin-slow", 
+            aura.gradient 
           )}
         >
           <div // Inner content area (emoji)
             className="w-full h-full rounded-full bg-background flex items-center justify-center overflow-hidden"
           >
-            <span className="text-4xl inline-block animate-spin-slow-counter">{aura.emoji}</span>
+            <span className="text-5xl inline-block animate-spin-slow-counter">{aura.emoji}</span>
           </div>
         </div>
-        <span className="text-xs text-white truncate w-16">
+        <span className="text-xs text-foreground truncate w-20">
           {isCurrentUser ? "Your Aura" : user.name}
         </span>
       </div>
@@ -83,8 +83,6 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
   }
 
   // Default UI for other users without an aura (plain avatar)
-  // This case should ideally not be hit if filtering on homepage is correct,
-  // but kept as a fallback.
   return (
     <div
       className="flex flex-col items-center space-y-1 text-center p-1"
@@ -94,7 +92,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
       onKeyDown={(e) => onClick && e.key === 'Enter' && onClick?.()}
       aria-label={user.name}
     >
-      <Avatar className="w-16 h-16">
+      <Avatar className="w-20 h-20">
         {user.avatarUrl ? (
           <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
         ) : (
@@ -103,7 +101,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
           </AvatarFallback>
         )}
       </Avatar>
-      <span className="text-xs text-white truncate w-16">{user.name}</span>
+      <span className="text-xs text-foreground truncate w-20">{user.name}</span>
     </div>
   );
 }
