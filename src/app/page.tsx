@@ -68,7 +68,7 @@ export default function HomePage() {
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
       <header className="flex items-center justify-between p-4 sticky top-0 bg-background z-10 h-16">
-        <Logo /> {/* Use the new Logo component */}
+        <Logo size="large" /> {/* Use the new Logo component with large size */}
         <div className="flex items-center space-x-2">
           <Button variant="ghost" size="icon" aria-label="Search">
             <Search className="w-5 h-5" />
