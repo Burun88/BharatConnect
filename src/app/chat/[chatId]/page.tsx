@@ -154,8 +154,9 @@ export default function ChatPage() {
         </Avatar>
         <div className="flex-1 min-w-0">
           <h2 className={cn(
-            "text-sm font-semibold", // Removed truncate
-            contactAura && "text-gradient-primary-accent"
+            "text-sm font-semibold" 
+            // Removed conditional text-gradient-primary-accent, it was:
+            // contactAura && "text-gradient-primary-accent"
             )}>{contact.name}</h2>
           <p className="text-xs text-muted-foreground truncate">{contactStatus || 'Offline'}</p>
         </div>
@@ -166,7 +167,7 @@ export default function ChatPage() {
 
       {/* Message Area */}
       <ScrollArea className="flex-grow" ref={scrollAreaRef}>
-        <div className="flex flex-col p-4 space-y-2 pb-6"> {/* Added flex flex-col */}
+        <div className="flex flex-col p-4 space-y-2 pb-6">
           {messages.map(msg => (
             <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
           ))}
