@@ -6,7 +6,6 @@ import BottomNavigationBar from "@/components/bottom-navigation-bar";
 import PageHeader from "@/components/page-header";
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import StatusListItem from '@/components/status-list-item';
 import { mockCurrentUser, mockUsers, mockStatusUpdates } from '@/lib/mock-data';
 import type { StatusUpdate, User } from '@/types';

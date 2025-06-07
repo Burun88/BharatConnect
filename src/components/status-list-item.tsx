@@ -52,7 +52,7 @@ export default function StatusListItem({ statusUpdate, user, onClick }: StatusLi
         >
           <Avatar className="w-12 h-12 border-2 border-background">
             {user.avatarUrl && (
-              <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint={`${user.name.split(' ')[0] || 'person'} avatar`} />
+              <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
             )}
             <AvatarFallback className="bg-muted text-muted-foreground">
               {getInitials(user.name)}
