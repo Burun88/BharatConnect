@@ -68,7 +68,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
-      <header className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-card z-10 h-16">
+      <header className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-background z-10 h-16">
         <h1 className="text-2xl font-bold font-headline text-gradient-bharatconnect">BharatConnect</h1>
         <div className="flex items-center space-x-2">
           <Button variant="ghost" size="icon" aria-label="Search">
@@ -78,9 +78,9 @@ export default function HomePage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-grow flex flex-col overflow-y-auto bg-card"> {/* Applied bg-card here */}
+      <main className="flex-grow flex flex-col overflow-y-auto bg-background"> {/* Applied bg-background here */}
         {/* Aura Bar */}
-        <div className="px-2 py-3 border-b border-border bg-card">
+        <div className="px-2 py-3 border-b border-border bg-background">
           <ScrollArea className="w-full aura-horizontal-scroll">
             <div className="flex space-x-1 pb-2 whitespace-nowrap">
               {isLoading ? (
@@ -105,7 +105,7 @@ export default function HomePage() {
         </div>
         
         {/* Chat List */}
-        <ScrollArea className="flex-grow bg-card"> {/* This bg-card is now consistent with main */}
+        <ScrollArea className="flex-grow"> {/* This will inherit bg-background from main */}
           <div className="divide-y divide-border">
             {isLoading ? (
               Array.from({ length: 10 }).map((_, index) => (
@@ -147,3 +147,4 @@ export default function HomePage() {
     </div>
   );
 }
+
