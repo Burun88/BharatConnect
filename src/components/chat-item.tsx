@@ -1,7 +1,8 @@
+
 "use client";
 
 import type { Chat } from '@/types';
-import { AURA_OPTIONS } from '@/types'; // Corrected import
+import { AURA_OPTIONS } from '@/types';
 import { mockUsers } from '@/lib/mock-data';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -30,7 +31,7 @@ export default function ChatItem({ chat }: ChatItemProps) {
   return (
     <Link 
       href={`/chat/${chat.id}`} 
-      className="flex items-center p-3 hover:bg-accent/50 transition-colors rounded-lg bg-muted" // Added bg-muted
+      className="flex items-center p-3 hover:bg-accent/50 transition-colors rounded-lg bg-muted"
     >
       <div className="relative mr-3">
         <Avatar className="w-12 h-12">
@@ -39,7 +40,7 @@ export default function ChatItem({ chat }: ChatItemProps) {
            )}
           <AvatarFallback 
             className={cn(
-              "bg-muted text-muted-foreground", // Kept bg-muted for fallback as base
+              "bg-muted text-muted-foreground", 
               contactAura?.gradient
             )}
             style={contactAura?.gradient ? { backgroundImage: contactAura.gradient.replace('bg-gradient-to-r ', 'linear-gradient(to right, ').replace(/from-(\w+)-(\d+)/g, 'var(--color-$1-$2)').replace(/via-(\w+)-(\d+)/g, ', var(--color-$1-$2)').replace(/to-(\w+)-(\d+)/g, ', var(--color-$1-$2)')+ ')' } : {}}
@@ -55,10 +56,7 @@ export default function ChatItem({ chat }: ChatItemProps) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-center">
-          <h3 className={cn(
-            "text-sm font-semibold text-foreground truncate",
-            contactAura && "text-gradient-primary-accent" // This will make it purple
-          )}>
+          <h3 className="text-sm font-semibold text-primary truncate">
             {chat.name}
           </h3>
           <span className="text-xs text-muted-foreground whitespace-nowrap">

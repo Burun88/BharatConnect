@@ -64,7 +64,7 @@ export default function HomePage() {
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
       <header className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-background z-10 h-16">
-        <h1 className="text-2xl font-bold font-headline text-foreground">BharatConnect</h1>
+        <h1 className="text-2xl font-bold font-headline text-gradient-bharatconnect">BharatConnect</h1>
         <div className="flex items-center space-x-2">
           <Button variant="ghost" size="icon" aria-label="Search">
             <Search className="w-5 h-5" />
@@ -141,7 +141,7 @@ export default function HomePage() {
       <Button
         variant="default"
         size="icon"
-        className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity z-10"
+        className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-fab-home text-primary-foreground hover:opacity-90 transition-opacity z-10"
         aria-label="New chat"
         onClick={() => router.push('/new-chat')} 
       >
