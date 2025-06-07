@@ -22,10 +22,18 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const mainElementSize = "w-20 h-20"; // Changed from w-16 h-16
-  const smallCircleSize = "w-7 h-7"; 
+  const IMAGE_SIZE_CLASS = "w-20 h-20"; // 80px
+  // Ring thickness is p-1.5 (6px on each side), so 12px total.
+  // Overall size = 80px + 12px = 92px.
+  const mainElementSize = "w-[92px] h-[92px]";
+
+  const smallCircleSize = "w-7 h-7";
   const smallCircleIconSize = "w-4 h-4";
   const smallCircleEmojiFontSize = "text-sm";
+  // For an h-[92px] main container, and h-7 (28px) emoji circle.
+  // To have ~8px of emoji below the main item, emoji starts at 92px - 8px = 84px.
+  const emojiOverlapTopClass = "top-[84px]";
+
 
   const ItemContainer: React.FC<{ children: React.ReactNode; 'aria-label': string }> = ({ children, ...props }) => (
     <div
@@ -49,30 +57,29 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
     return (
       <div className={cn("relative", mainElementSize)}>
         {isRing && ringGradient && (
-          <>
-            <div
-              className={cn(
-                "absolute inset-0 rounded-full animate-spin-slow",
-                ringGradient
-              )}
-            />
-            <div className="relative w-full h-full rounded-full p-1.5"> 
-              <div className="w-full h-full rounded-full bg-background overflow-hidden">
-                {React.cloneElement(avatarContent as React.ReactElement, { className: cn((avatarContent as React.ReactElement).props.className, "w-full h-full") })}
-              </div>
-            </div>
-          </>
+          <div
+            className={cn(
+              "absolute inset-0 rounded-full animate-spin-slow",
+              ringGradient
+            )}
+          />
         )}
-        {!isRing && (
-          React.cloneElement(avatarContent as React.ReactElement, { className: cn((avatarContent as React.ReactElement).props.className, mainElementSize) })
-        )}
+        <div className={cn(
+          "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden",
+          IMAGE_SIZE_CLASS, // This div is w-20 h-20
+          isRing && "bg-background" // Covers the ring part it sits on
+        )}>
+          {React.cloneElement(avatarContent as React.ReactElement, {
+            className: cn((avatarContent as React.ReactElement).props.className, "w-full h-full"),
+          })}
+        </div>
 
         {overlapContent && (
           <div
             className={cn(
               "absolute left-1/2 -translate-x-1/2 rounded-full flex items-center justify-center border-2 border-background",
               smallCircleSize,
-              "top-[calc(theme(spacing.20)-theme(spacing.2))]" // Changed from spacing.16
+              emojiOverlapTopClass
             )}
           >
             {overlapContent}
@@ -84,17 +91,17 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
 
 
   const nameText = (
-    <span className={cn("text-xs text-foreground truncate w-20 text-center mt-0.5", mainElementSize === "w-20 h-20" ? "w-20" : "w-16")}> {/* Changed from w-16 */}
+    <span className={cn("text-xs text-foreground truncate text-center mt-0.5", "w-[92px]")}>
       {isCurrentUser ? (aura ? "Your Aura" : "Your Story") : user.name}
     </span>
   );
 
   const currentUserAvatar = (
-    <Avatar>
+    <Avatar className={IMAGE_SIZE_CLASS}>
       {user.avatarUrl ? (
         <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
       ) : (
-        <AvatarFallback className={cn(isRing && aura ? "bg-transparent" : "bg-card text-card-foreground")}>
+        <AvatarFallback className={cn(aura ? "bg-transparent" : "bg-card text-card-foreground")}>
           {getInitials(user.name)}
         </AvatarFallback>
       )}
@@ -102,11 +109,11 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
   );
 
   const otherUserAvatar = (
-    <Avatar>
+    <Avatar className={IMAGE_SIZE_CLASS}>
         {user.avatarUrl ? (
             <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
         ) : (
-            <AvatarFallback className={cn(isRing && aura ? "bg-transparent" : "bg-card text-card-foreground")}>
+            <AvatarFallback className={cn(aura ? "bg-transparent" : "bg-card text-card-foreground")}>
             {getInitials(user.name)}
             </AvatarFallback>
         )}
@@ -120,7 +127,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
         <AvatarWithOverlap
           isRing={false}
           avatarContent={
-             <Avatar className="bg-card">
+             <Avatar className={IMAGE_SIZE_CLASS}>
               {user.avatarUrl ? (
                 <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
               ) : (
@@ -159,22 +166,28 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
     );
   }
 
+  // Fallback for other users without an aura (no ring, no overlap emoji)
+  // To maintain layout consistency, we can include an empty AvatarWithOverlap structure
+  // or simplify if the layout doesn't strictly require the overlapContent space.
+  // For simplicity now, directly render the avatar and name.
   return (
     <ItemContainer aria-label={user.name}>
-      <AvatarWithOverlap
-        isRing={false}
-        avatarContent={ 
-            <Avatar className="bg-card">
-            {user.avatarUrl ? (
-                <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
-            ) : (
-                <AvatarFallback className="bg-card text-card-foreground">
-                {getInitials(user.name)}
-                </AvatarFallback>
-            )}
+       <div className={cn("relative", mainElementSize)}>
+         <div className={cn(
+            "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden",
+            IMAGE_SIZE_CLASS
+          )}>
+            <Avatar className={IMAGE_SIZE_CLASS}>
+              {user.avatarUrl ? (
+                  <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
+              ) : (
+                  <AvatarFallback className="bg-card text-card-foreground">
+                  {getInitials(user.name)}
+                  </AvatarFallback>
+              )}
             </Avatar>
-        }
-      />
+          </div>
+      </div>
       {nameText}
     </ItemContainer>
   );
