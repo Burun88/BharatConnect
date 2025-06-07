@@ -5,7 +5,7 @@ import { AURA_OPTIONS } from '@/types';
 export const mockCurrentUser: User = {
   id: 'currentUser',
   name: 'You',
-  avatarUrl: 'https://placehold.co/100x100.png', // Generic placeholder
+  avatarUrl: 'https://picsum.photos/seed/currentUser/100/100', 
   currentAuraId: null,
 };
 
@@ -14,28 +14,28 @@ export const mockUsers: User[] = [
   {
     id: 'user1',
     name: 'Priya Sharma',
-    avatarUrl: 'https://placehold.co/100x100/E8A0BF/4A2E39.png', // Placeholder with color scheme
+    avatarUrl: 'https://picsum.photos/seed/user1/100/100', 
     currentAuraId: 'happy',
     status: 'Online',
   },
   {
     id: 'user2',
     name: 'Rahul Kumar',
-    avatarUrl: 'https://placehold.co/100x100/A0E8BF/2E4A39.png', // Placeholder with color scheme
+    avatarUrl: 'https://picsum.photos/seed/user2/100/100', 
     currentAuraId: 'focused',
     status: 'Last seen yesterday at 10:30 PM',
   },
   {
     id: 'user3',
     name: 'Anjali Singh',
-    avatarUrl: 'https://placehold.co/100x100/BFA0E8/392E4A.png', // Placeholder with color scheme
+    avatarUrl: 'https://picsum.photos/seed/user3/100/100', 
     currentAuraId: null,
     status: 'Typing...',
   },
   {
     id: 'user4',
     name: 'Vikram Patel',
-    avatarUrl: 'https://placehold.co/100x100/E8BFA0/4A392E.png', // Placeholder with color scheme
+    avatarUrl: 'https://picsum.photos/seed/user4/100/100', 
     currentAuraId: 'chill',
     status: 'Feeling Chill 😎',
   },
