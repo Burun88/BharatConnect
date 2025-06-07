@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'; // Imported ScrollBar
 import { Skeleton } from '@/components/ui/skeleton';
 import BottomNavigationBar from '@/components/bottom-navigation-bar';
 import AuraItem from '@/components/aura-item';
@@ -77,7 +77,7 @@ export default function HomePage() {
       <main className="flex-grow overflow-hidden flex flex-col">
         {/* Aura Bar */}
         <div className="px-2 py-3 border-b border-border bg-card">
-          <ScrollArea className="w-full whitespace-nowrap">
+          <ScrollArea className="w-full whitespace-nowrap" type="auto"> {/* Added type="auto" */}
             <div className="flex space-x-3 pb-2">
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, index) => (
@@ -97,6 +97,7 @@ export default function HomePage() {
                 ))
               )}
             </div>
+            <ScrollBar orientation="horizontal" /> {/* Added horizontal scrollbar */}
           </ScrollArea>
         </div>
         
