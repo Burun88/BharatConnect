@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'; // Imported ScrollBar
+import { ScrollArea } from '@/components/ui/scroll-area'; // Updated import
 import { Skeleton } from '@/components/ui/skeleton';
 import BottomNavigationBar from '@/components/bottom-navigation-bar';
 import AuraItem from '@/components/aura-item';
@@ -43,10 +43,12 @@ export default function HomePage() {
 
         const currentUserDisplayData = allUsersFromMock.find(u => u.id === updatedCurrentUser.id) || updatedCurrentUser;
         
+        // Filter other users: only include those with a currentAuraId
         const otherUsersWithAura = allUsersFromMock.filter(
             u => u.id !== updatedCurrentUser.id && u.currentAuraId
         );
 
+        // Current user always comes first, then other users with auras
         const finalAuraItems = [currentUserDisplayData, ...otherUsersWithAura];
         
         setAuraBarItems(finalAuraItems);
@@ -77,7 +79,7 @@ export default function HomePage() {
       <main className="flex-grow overflow-hidden flex flex-col">
         {/* Aura Bar */}
         <div className="px-2 py-3 border-b border-border bg-card">
-          <ScrollArea className="w-full whitespace-nowrap" type="auto"> {/* Added type="auto" */}
+          <ScrollArea className="w-full whitespace-nowrap" type="auto">
             <div className="flex space-x-3 pb-2">
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, index) => (
@@ -97,7 +99,7 @@ export default function HomePage() {
                 ))
               )}
             </div>
-            <ScrollBar orientation="horizontal" /> {/* Added horizontal scrollbar */}
+            {/* <ScrollBar orientation="horizontal" /> Removed this line */}
           </ScrollArea>
         </div>
         
