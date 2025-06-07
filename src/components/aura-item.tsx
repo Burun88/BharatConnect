@@ -22,27 +22,25 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const IMAGE_SIZE_CLASS = "w-[72px] h-[72px]"; // 72px
-  const mainElementSize = "w-20 h-20"; // 80px. Ring padding 4px on each side. Overall size = 72px + 4px*2 = 80px.
+  const IMAGE_SIZE_CLASS = "w-[88px] h-[88px]"; // Increased from 72px
+  const mainElementSize = "w-24 h-24"; // Increased from w-20 h-20 (80px to 96px). Ring padding p-1 (4px on each side). Overall size = 88px + 4px*2 = 96px.
 
-  const smallCircleSize = "w-7 h-7"; // 28px
+  const smallCircleSize = "w-7 h-7"; // 28px (remains same)
   const smallCircleIconSize = "w-4 h-4";
   const smallCircleEmojiFontSize = "text-sm";
 
-  // Position the top of the 28px emoji circle such that its center aligns with the bottom edge of the 80px main element.
-  // Main element (80px high).
-  // Bottom of main element = 80px from top of mainElement.
-  // Top of emoji circle = 80px (main_element_bottom) - 14px (half_emoji_height) = 66px.
-  // However, visually it looked better when the emoji slightly more "under" the main circle.
-  // Current mainElement is h-20 (80px). emoji circle is h-7 (28px).
-  // To center emoji's center on the main avatar's bottom edge: top = 80px - (28px/2) = 66px.
-  // top-[62px] means the emoji top starts 62px down from the 80px container's top. Emoji bottom is 62+28=90px. Extends 10px.
-  const emojiOverlapTopClass = "top-[62px]";
+  // Adjusted for new mainElementSize
+  // Old mainElementSize h-20 (80px), emojiOverlapTopClass top-[62px].
+  // New mainElementSize h-24 (96px). Diff = 16px.
+  // Top of emoji circle = 96px (main_element_bottom) - 14px (half_emoji_height) = 82px.
+  // Let's use top-[78px] (similar relative overlap as before)
+  // 96 (new height) - 78 (new top) = 18px from bottom of main circle to top of emoji.
+  const emojiOverlapTopClass = "top-[78px]";
 
 
   const ItemContainer: React.FC<{ children: React.ReactNode; 'aria-label': string }> = ({ children, ...props }) => (
     <div
-      className="flex flex-col items-center space-y-3 text-center p-1 shrink-0 cursor-pointer" // Changed space-y-1 to space-y-3
+      className="flex flex-col items-center space-y-3 text-center p-1 shrink-0 cursor-pointer"
       onClick={onClick}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -64,7 +62,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
         {isRing && ringGradient && (
           <div
             className={cn(
-              "absolute inset-0 rounded-full animate-spin-slow",
+              "absolute inset-0 rounded-full animate-spin-slow", // Added animate-spin-slow
               ringGradient
             )}
           />
@@ -72,7 +70,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
         <div className={cn(
           "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden",
           IMAGE_SIZE_CLASS,
-          isRing && "bg-background p-1" // p-1 creates 4px ring thickness (p-1 = 4px padding)
+          isRing && "bg-background p-1"
         )}>
           {React.cloneElement(avatarContent as React.ReactElement, {
             className: cn((avatarContent as React.ReactElement).props.className, "w-full h-full"),
@@ -96,7 +94,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
 
 
   const nameText = (
-    <span className={cn("text-xs text-foreground truncate text-center", `w-20`)}> {/* Removed mt-0.5 */}
+    <span className={cn("text-xs text-foreground truncate text-center", `w-24`)}> {/* Increased width from w-20 */}
       {isCurrentUser ? (aura ? "Your Aura" : "Your Story") : user.name}
     </span>
   );
