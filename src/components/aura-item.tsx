@@ -3,7 +3,6 @@
 
 import type { User } from '@/types';
 import { AURA_OPTIONS } from '@/types';
-// Removed unused Image import
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Plus } from 'lucide-react';
@@ -19,18 +18,19 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
 
   const getInitials = (name: string) => {
     if (!name) return '??';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
-  }
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
 
-  const avatarSizeClasses = "w-16 h-16";
-  const smallCircleClasses = "w-7 h-7 rounded-full flex items-center justify-center border-2 border-background";
-  const emojiInCircleClasses = "text-sm"; 
-  const nameTextClasses = "text-xs text-foreground truncate w-16"; // w-16 to match avatar width
+  // Main avatar/ring is w-16 h-16 (64px)
+  // Emoji/Plus circle is w-7 h-7 (28px)
+  const mainElementSize = "w-16 h-16";
+  const smallCircleSize = "w-7 h-7";
+  const smallCircleIconSize = "w-4 h-4"; // For Plus icon
+  const smallCircleEmojiFontSize = "text-sm"; // For emoji character
 
-  // Wrapper for common layout and click handling
   const ItemContainer: React.FC<{ children: React.ReactNode; 'aria-label': string }> = ({ children, ...props }) => (
     <div
-      className="flex flex-col items-center space-y-1.5 text-center p-1 w-[76px] shrink-0 cursor-pointer" // w-[76px] accommodates w-16 avatar + p-1 on ring + p-1 on container
+      className="flex flex-col items-center space-y-1 text-center p-1 shrink-0 cursor-pointer" // Added p-1 for spacing around, space-y-1 for spacing between avatar&text
       onClick={onClick}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -41,73 +41,119 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
     </div>
   );
 
+  // Common structure for the main avatar/ring and the overlapping circle
+  const AvatarWithOverlap: React.FC<{
+    avatarContent: React.ReactNode;
+    overlapContent?: React.ReactNode;
+    isRing?: boolean;
+    ringGradient?: string;
+  }> = ({ avatarContent, overlapContent, isRing, ringGradient }) => (
+    <div className={cn("relative", mainElementSize)}>
+      <div
+        className={cn(
+          "rounded-full flex items-center justify-center",
+          mainElementSize,
+          isRing ? "p-1 animate-spin-slow" : "",
+          isRing && ringGradient ? ringGradient : ""
+        )}
+      >
+        {avatarContent}
+      </div>
+      {overlapContent && (
+        <div
+          className={cn(
+            "absolute left-1/2 -translate-x-1/2 rounded-full flex items-center justify-center border-2 border-background",
+            smallCircleSize,
+            // Position the top of the small circle 56px from the top of the 64px main element.
+            // This makes the top 8px of the 28px small circle overlap.
+             "top-[calc(theme(spacing.16)-theme(spacing.2))]" // top-14 equivalent (64px - 8px = 56px)
+          )}
+        >
+          {overlapContent}
+        </div>
+      )}
+    </div>
+  );
+
+  const nameText = (
+    <span className="text-xs text-foreground truncate w-16 text-center mt-0.5">
+      {isCurrentUser ? (aura ? "Your Aura" : "Your Story") : user.name}
+    </span>
+  );
+
   if (isCurrentUser && !aura) {
-    // "Your Story" UI: Avatar, then Plus in a circle, then "Your Story" text
+    // "Your Story" UI: Avatar, then Plus in an overlapping circle
     return (
       <ItemContainer aria-label="Set your story or aura">
-        <Avatar className={cn(avatarSizeClasses)}>
-          {user.avatarUrl ? (
-            <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
-          ) : (
-            <AvatarFallback className="bg-card text-card-foreground">
-              {getInitials(user.name)}
-            </AvatarFallback>
-          )}
-        </Avatar>
-        <div className={cn(smallCircleClasses, "bg-primary")}>
-          <Plus className="w-4 h-4 text-primary-foreground" />
-        </div>
-        <span className={nameTextClasses}>Your Story</span>
+        <AvatarWithOverlap
+          avatarContent={
+            <Avatar className={cn("w-full h-full", !isRing && "bg-card")}>
+              {user.avatarUrl ? (
+                <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
+              ) : (
+                <AvatarFallback className="bg-card text-card-foreground">
+                  {getInitials(user.name)}
+                </AvatarFallback>
+              )}
+            </Avatar>
+          }
+          overlapContent={
+            <div className={cn("w-full h-full rounded-full flex items-center justify-center bg-primary")}>
+              <Plus className={cn(smallCircleIconSize, "text-primary-foreground")} />
+            </div>
+          }
+        />
+        {nameText}
       </ItemContainer>
     );
   }
 
   if (aura) {
-    // Aura UI: Avatar in spinning gradient ring, then Emoji in a circle, then Name/Your Aura text
+    // Aura UI: Avatar in spinning gradient ring, then Emoji in an overlapping circle
     return (
       <ItemContainer aria-label={user.name}>
-        <div // Gradient ring container
-          className={cn(
-            "relative rounded-full flex items-center justify-center p-1 animate-spin-slow", 
-            avatarSizeClasses, // This div itself is w-16 h-16, p-1 is for ring thickness
-            aura.gradient 
-          )}
-        >
-          <Avatar className="w-full h-full"> {/* Avatar takes full space of the p-1 padded parent */}
-            {user.avatarUrl ? (
-              <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
-            ) : (
-              <AvatarFallback className="bg-background text-card-foreground"> {/* bg-background to cover gradient */}
-                {getInitials(user.name)}
-              </AvatarFallback>
-            )}
-          </Avatar>
-        </div>
-        <div className={cn(smallCircleClasses, "bg-card")}>
-            <span className={emojiInCircleClasses}>{aura.emoji}</span>
-        </div>
-        <span className={nameTextClasses}>
-          {isCurrentUser ? "Your Aura" : user.name}
-        </span>
+        <AvatarWithOverlap
+          isRing
+          ringGradient={aura.gradient}
+          avatarContent={
+            <Avatar className="w-full h-full bg-background"> {/* bg-background to cover gradient for image */}
+              {user.avatarUrl ? (
+                <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
+              ) : (
+                <AvatarFallback className="bg-background text-card-foreground"> {/* Also bg-background */}
+                  {getInitials(user.name)}
+                </AvatarFallback>
+              )}
+            </Avatar>
+          }
+          overlapContent={
+            <div className={cn("w-full h-full rounded-full flex items-center justify-center bg-card")}>
+              <span className={smallCircleEmojiFontSize}>{aura.emoji}</span>
+            </div>
+          }
+        />
+        {nameText}
       </ItemContainer>
     );
   }
 
-  // Default UI (other users, no aura): Avatar, empty space (for alignment), then Name text
+  // Default UI (other users, no aura): Avatar, no overlapping circle
   return (
     <ItemContainer aria-label={user.name}>
-      <Avatar className={cn(avatarSizeClasses)}>
-        {user.avatarUrl ? (
-          <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
-        ) : (
-          <AvatarFallback className="bg-card text-card-foreground">
-            {getInitials(user.name)}
-          </AvatarFallback>
-        )}
-      </Avatar>
-      {/* Placeholder div to maintain consistent spacing with items that have an emoji/plus circle */}
-      <div className={cn(smallCircleClasses, "invisible")} aria-hidden="true"></div>
-      <span className={nameTextClasses}>{user.name}</span>
+      <AvatarWithOverlap
+        avatarContent={
+          <Avatar className={cn(mainElementSize, "bg-card")}> {/* Ensure avatar takes full mainElementSize */}
+            {user.avatarUrl ? (
+              <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
+            ) : (
+              <AvatarFallback className="bg-card text-card-foreground">
+                {getInitials(user.name)}
+              </AvatarFallback>
+            )}
+          </Avatar>
+        }
+      />
+      {nameText}
     </ItemContainer>
   );
 }
