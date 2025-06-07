@@ -166,7 +166,7 @@ export default function ChatPage() {
 
       {/* Message Area */}
       <ScrollArea className="flex-grow" ref={scrollAreaRef}>
-        <div className="p-4 space-y-2 pb-6"> {/* Added pb-6 for spacing above input */}
+        <div className="flex flex-col p-4 space-y-2 pb-6"> {/* Added flex flex-col */}
           {messages.map(msg => (
             <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
           ))}
