@@ -72,7 +72,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
           <div // Inner content area (emoji)
             className="w-full h-full rounded-full bg-background flex items-center justify-center overflow-hidden"
           >
-            <span className="text-5xl inline-block animate-spin-slow-counter">{aura.emoji}</span>
+            <span className="text-4xl inline-block animate-spin-slow-counter">{aura.emoji}</span>
           </div>
         </div>
         <span className="text-xs text-foreground truncate w-20">
