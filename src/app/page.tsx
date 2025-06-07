@@ -82,7 +82,7 @@ export default function HomePage() {
         {/* Aura Bar */}
         <div className="px-2 py-3 border-b border-border bg-card aura-horizontal-scroll">
           <ScrollArea className="w-full">
-            <div className="flex space-x-2 pb-2 whitespace-nowrap"> {/* Changed space-x-3 to space-x-2 */}
+            <div className="flex space-x-1 pb-2 whitespace-nowrap"> {/* Changed space-x-2 to space-x-1 */}
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, index) => (
                   <div key={index} className="flex flex-col items-center space-y-1 p-1">
