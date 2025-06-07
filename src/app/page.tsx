@@ -35,7 +35,7 @@ export default function HomePage() {
         router.replace('/welcome');
     } else {
       setTimeout(() => {
-        const updatedCurrentUser = { ...mockCurrentUser, name: userProfile.name || mockCurrentUser.name, currentAuraId: currentUserAuraId };
+        const updatedCurrentUser = { ...mockCurrentUser, name: userProfile.name || mockCurrentUser.name, currentAuraId: currentUserAuraId, avatarUrl: mockCurrentUser.avatarUrl };
 
         let allUsersFromMock = mockAuraBarItemsData().map(u => 
             u.id === updatedCurrentUser.id ? updatedCurrentUser : u
@@ -45,7 +45,7 @@ export default function HomePage() {
         if (currentUserIndex > 0) {
           allUsersFromMock.splice(currentUserIndex, 1);
           allUsersFromMock.unshift(updatedCurrentUser);
-        } else if (currentUserIndex === -1 && updatedCurrentUser.name) { // Only add if name is present
+        } else if (currentUserIndex === -1 && updatedCurrentUser.name) { 
           allUsersFromMock.unshift(updatedCurrentUser);
         }
         
@@ -68,7 +68,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
-      <header className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-background z-10 h-16">
+      <header className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-card z-10 h-16">
         <h1 className="text-2xl font-bold font-headline text-gradient-bharatconnect">BharatConnect</h1>
         <div className="flex items-center space-x-2">
           <Button variant="ghost" size="icon" aria-label="Search">
@@ -80,9 +80,9 @@ export default function HomePage() {
       {/* Main Content Area */}
       <main className="flex-grow flex flex-col overflow-y-auto">
         {/* Aura Bar */}
-        <div className="px-2 py-3 border-b border-border bg-card aura-horizontal-scroll">
-          <ScrollArea className="w-full">
-            <div className="flex space-x-1 pb-2 whitespace-nowrap"> {/* Changed space-x-2 to space-x-1 */}
+        <div className="px-2 py-3 border-b border-border bg-card">
+          <ScrollArea className="w-full aura-horizontal-scroll">
+            <div className="flex space-x-1 pb-2 whitespace-nowrap">
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, index) => (
                   <div key={index} className="flex flex-col items-center space-y-1 p-1">
@@ -105,7 +105,7 @@ export default function HomePage() {
         </div>
         
         {/* Chat List */}
-        <ScrollArea className="flex-grow">
+        <ScrollArea className="flex-grow bg-card">
           <div className="divide-y divide-border">
             {isLoading ? (
               Array.from({ length: 10 }).map((_, index) => (
