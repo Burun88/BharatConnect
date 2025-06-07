@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { User, UserAura } from '@/types';
@@ -22,7 +23,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
   return (
     <div
       className={cn(
-        "flex flex-col items-center space-y-1 text-center cursor-pointer p-2 rounded-lg hover:bg-accent/50 transition-colors",
+        "flex flex-col items-center space-y-1 text-center cursor-pointer p-2 rounded-lg transition-colors", // Removed hover:bg-accent/50
         isCurrentUser && "border-2 border-primary rounded-lg"
       )}
       onClick={onClick}
@@ -49,7 +50,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
           )}
         </Avatar>
       </div>
-      <span className="text-xs text-foreground truncate w-16">
+      <span className="text-xs text-white truncate w-16"> {/* Changed text-foreground to text-white */}
         {isCurrentUser ? "Your Aura" : user.name}
       </span>
     </div>
