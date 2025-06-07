@@ -22,21 +22,19 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const IMAGE_SIZE_CLASS = "w-[81px] h-[81px]"; // 81px
-  // Ring padding 4px on each side, so 8px total.
-  // Overall size = 81px + 8px = 89px.
-  const mainElementSize = "w-[89px] h-[89px]";
+  const IMAGE_SIZE_CLASS = "w-[72px] h-[72px]"; // 72px
+  const mainElementSize = "w-20 h-20"; // 80px. Ring padding 4px on each side, so 8px total. Overall size = 72px + 8px = 80px.
 
   const smallCircleSize = "w-7 h-7"; // 28px
   const smallCircleIconSize = "w-4 h-4";
   const smallCircleEmojiFontSize = "text-sm";
 
-  // Position the top of the 28px emoji circle such that its center aligns with the bottom edge of the 81px avatar image.
-  // Avatar image (81px high) is centered in mainElementSize (89px high).
-  // Top of avatar image = (89-81)/2 = 4px from top of mainElement.
-  // Bottom of avatar image = 4px + 81px = 85px from top of mainElement.
-  // Top of emoji circle = 85px (avatar_image_bottom) - 14px (half_emoji_height) = 71px.
-  const emojiOverlapTopClass = "top-[71px]";
+  // Position the top of the 28px emoji circle such that its center aligns with the bottom edge of the 72px avatar image.
+  // Avatar image (72px high) is centered in mainElementSize (80px high).
+  // Top of avatar image = (80-72)/2 = 4px from top of mainElement.
+  // Bottom of avatar image = 4px + 72px = 76px from top of mainElement.
+  // Top of emoji circle = 76px (avatar_image_bottom) - 14px (half_emoji_height) = 62px.
+  const emojiOverlapTopClass = "top-[62px]";
 
 
   const ItemContainer: React.FC<{ children: React.ReactNode; 'aria-label': string }> = ({ children, ...props }) => (
@@ -71,7 +69,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
         <div className={cn(
           "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden",
           IMAGE_SIZE_CLASS, 
-          isRing && "bg-background" 
+          isRing && "bg-background p-0" // Ensure avatar content itself isn't padded by ring; bg-background for opacity
         )}>
           {React.cloneElement(avatarContent as React.ReactElement, {
             className: cn((avatarContent as React.ReactElement).props.className, "w-full h-full"),
@@ -95,7 +93,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
 
 
   const nameText = (
-    <span className={cn("text-xs text-foreground truncate text-center mt-0.5", `w-[89px]`)}>
+    <span className={cn("text-xs text-foreground truncate text-center mt-0.5", `w-20`)}>
       {isCurrentUser ? (aura ? "Your Aura" : "Your Story") : user.name}
     </span>
   );
