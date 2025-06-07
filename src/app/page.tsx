@@ -97,7 +97,7 @@ export default function HomePage() {
     }
     // Update lastScrollY, ensuring it's not negative (for bounce effects)
     setLastScrollY(currentScrollY <= 0 ? 0 : currentScrollY);
-  }, [lastScrollY, isHeaderVisible, setIsHeaderVisible, setLastScrollY]); // Dependencies for useCallback
+  }, [lastScrollY, isHeaderVisible]); // Removed setIsHeaderVisible, setLastScrollY as they are directly handled by useState
 
   useEffect(() => {
     const scrollableElement = scrollableContainerRef.current;
@@ -107,12 +107,16 @@ export default function HomePage() {
     return () => {
       scrollableElement.removeEventListener('scroll', handleScroll);
     };
-  }, [handleScroll]); // Dependency on the memoized handleScroll
+  }, [handleScroll]);
 
 
   const filteredChats = chats.filter(chat =>
     chat.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleCurrentUserAuraClick = useCallback(() => {
+    router.push('/aura-select');
+  }, [router]);
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -123,7 +127,7 @@ export default function HomePage() {
           {/* Header */}
           <header className={cn(
             "flex items-center justify-between p-4 bg-background z-10 h-16 sticky top-0",
-            "transition-transform duration-200 ease-in-out", // Changed duration-300 to duration-200
+            "transition-transform duration-200 ease-in-out", 
             isHeaderVisible ? "translate-y-0" : "-translate-y-full"
           )}>
             <Logo size="medium" />
@@ -151,7 +155,7 @@ export default function HomePage() {
                       key={user.id}
                       user={user}
                       isCurrentUser={user.id === mockCurrentUser.id}
-                      onClick={user.id === mockCurrentUser.id ? () => router.push('/aura-select') : undefined}
+                      onClick={user.id === mockCurrentUser.id ? handleCurrentUserAuraClick : undefined}
                     />
                   ))
                 )}

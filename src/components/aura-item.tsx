@@ -14,7 +14,7 @@ interface AuraItemProps {
   onClick?: () => void;
 }
 
-export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraItemProps) {
+const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemProps) => {
   const aura = AURA_OPTIONS.find(a => a.id === user.currentAuraId);
 
   const getInitials = (name: string) => {
@@ -202,3 +202,6 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
     </ItemContainer>
   );
 }
+
+const AuraItem = React.memo(AuraItemComponent);
+export default AuraItem;
