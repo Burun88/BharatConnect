@@ -5,7 +5,7 @@ import { AURA_OPTIONS } from '@/types';
 export const mockCurrentUser: User = {
   id: 'currentUser',
   name: 'You',
-  avatarUrl: 'https://picsum.photos/seed/currentUser/100/100', // Changed from placehold.co
+  avatarUrl: 'https://picsum.photos/seed/currentUser/100/100',
   currentAuraId: null,
   hasViewedStatus: true, 
 };
@@ -14,7 +14,7 @@ export const mockUsers: User[] = [
   {
     id: 'user1',
     name: 'Priya Sharma',
-    avatarUrl: 'https://picsum.photos/seed/user1/100/100', // Changed from placehold.co
+    avatarUrl: 'https://picsum.photos/seed/user1/100/100',
     currentAuraId: 'happy',
     status: 'Online',
     hasViewedStatus: false,
@@ -22,7 +22,7 @@ export const mockUsers: User[] = [
   {
     id: 'user2',
     name: 'Rahul Kumar',
-    avatarUrl: 'https://placehold.co/100x100.png?text=RK',
+    avatarUrl: 'https://picsum.photos/seed/user2/100/100', // Changed from placehold.co
     currentAuraId: 'focused',
     status: 'Last seen yesterday at 10:30 PM',
     hasViewedStatus: true,
@@ -30,7 +30,7 @@ export const mockUsers: User[] = [
   {
     id: 'user3',
     name: 'Anjali Singh',
-    avatarUrl: 'https://placehold.co/100x100.png?text=AS',
+    avatarUrl: 'https://picsum.photos/seed/user3/100/100', // Changed from placehold.co
     currentAuraId: null,
     status: 'Typing...',
     hasViewedStatus: false,
@@ -38,7 +38,7 @@ export const mockUsers: User[] = [
   {
     id: 'user4',
     name: 'Vikram Patel',
-    avatarUrl: 'https://placehold.co/100x100.png?text=VP',
+    avatarUrl: 'https://picsum.photos/seed/user4/100/100', // Changed from placehold.co
     currentAuraId: 'chill',
     status: 'Feeling Chill 😎',
     hasViewedStatus: true,
@@ -46,7 +46,7 @@ export const mockUsers: User[] = [
   {
     id: 'user5',
     name: 'Deepika Iyer',
-    avatarUrl: 'https://placehold.co/100x100.png?text=DI',
+    avatarUrl: 'https://picsum.photos/seed/user5/100/100', // Changed from placehold.co
     currentAuraId: 'energetic',
     status: 'Ready to go!',
     hasViewedStatus: false,
@@ -54,7 +54,7 @@ export const mockUsers: User[] = [
   {
     id: 'user6',
     name: 'Arjun Reddy',
-    avatarUrl: 'https://placehold.co/100x100.png?text=AR',
+    avatarUrl: 'https://picsum.photos/seed/user6/100/100', // Changed from placehold.co
     currentAuraId: null,
     status: 'Away',
     hasViewedStatus: false,
@@ -62,7 +62,7 @@ export const mockUsers: User[] = [
   {
     id: 'user7',
     name: 'Sneha Kapoor',
-    avatarUrl: 'https://placehold.co/100x100.png?text=SK',
+    avatarUrl: 'https://picsum.photos/seed/user7/100/100', // Changed from placehold.co
     currentAuraId: 'playful',
     status: 'Feeling playful! 🎉',
     hasViewedStatus: true,
@@ -199,9 +199,10 @@ export const mockAuraBarItemsData = (): User[] => {
 };
 
 export const mockStatusUpdates: StatusUpdate[] = [
-  { id: 'status1', userId: 'user1', timestamp: Date.now() - 1000 * 60 * 30, imageUrl: 'https://placehold.co/300x500.png?text=Priya%27s+Story', viewedByCurrentUser: false },
-  { id: 'status2', userId: 'user3', timestamp: Date.now() - 1000 * 60 * 60 * 2, imageUrl: 'https://placehold.co/300x500.png?text=Anjali%27s+Update', viewedByCurrentUser: false },
-  { id: 'status3', userId: 'user5', timestamp: Date.now() - 1000 * 60 * 60 * 5, imageUrl: 'https://placehold.co/300x500.png?text=Deepika%27s+Day', viewedByCurrentUser: false },
+  { id: 'status1', userId: 'user1', timestamp: Date.now() - 1000 * 60 * 30, imageUrl: 'https://picsum.photos/seed/statusUser1/300/500', viewedByCurrentUser: false },
+  { id: 'status2', userId: 'user3', timestamp: Date.now() - 1000 * 60 * 60 * 2, imageUrl: 'https://picsum.photos/seed/statusUser3/300/500', viewedByCurrentUser: false },
+  { id: 'status3', userId: 'user5', timestamp: Date.now() - 1000 * 60 * 60 * 5, imageUrl: 'https://picsum.photos/seed/statusUser5/300/500', viewedByCurrentUser: false },
   { id: 'status4', userId: 'user2', timestamp: Date.now() - 1000 * 60 * 60 * 24, text: 'Enjoying the long weekend! ☀️', viewedByCurrentUser: true }, 
-  { id: 'status5', userId: 'user4', timestamp: Date.now() - 1000 * 60 * 60 * 28, imageUrl: 'https://placehold.co/300x500.png?text=Vikram%27s+Vibes', viewedByCurrentUser: true },
+  { id: 'status5', userId: 'user4', timestamp: Date.now() - 1000 * 60 * 60 * 28, imageUrl: 'https://picsum.photos/seed/statusUser4/300/500', viewedByCurrentUser: true },
 ];
+
