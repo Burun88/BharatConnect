@@ -5,17 +5,16 @@ import { AURA_OPTIONS } from '@/types';
 export const mockCurrentUser: User = {
   id: 'currentUser',
   name: 'You',
-  avatarUrl: 'https://placehold.co/100x100.png?text=Me', // Placeholder for current user
+  avatarUrl: 'https://picsum.photos/seed/currentUser/100/100', // Changed from placehold.co
   currentAuraId: null,
-  hasViewedStatus: true, // Current user has always "viewed" their own status slot
+  hasViewedStatus: true, 
 };
 
 export const mockUsers: User[] = [
-  // mockCurrentUser is handled specially for status, add it to the list if needed for other features.
   {
     id: 'user1',
     name: 'Priya Sharma',
-    avatarUrl: 'https://placehold.co/100x100.png?text=PS',
+    avatarUrl: 'https://picsum.photos/seed/user1/100/100', // Changed from placehold.co
     currentAuraId: 'happy',
     status: 'Online',
     hasViewedStatus: false,
@@ -68,7 +67,6 @@ export const mockUsers: User[] = [
     status: 'Feeling playful! 🎉',
     hasViewedStatus: true,
   },
-  // Add more mock users if needed
 ];
 
 const getAuraById = (id: string | null | undefined): UserAura | undefined => AURA_OPTIONS.find(a => a.id === id);
@@ -180,21 +178,30 @@ export const mockChats: Chat[] = [
 
 export const mockAuraBarItemsData = (): User[] => {
   const allMockUsers = [mockCurrentUser, ...mockUsers];
-  const usersWithAura = allMockUsers.map(user => {
-    const baseUser = allMockUsers.find(u => u.id === user.id) || user;
-    const aura = getAuraById(baseUser.currentAuraId);
+  // Ensure current user is at the beginning if their name is set (which it is by default)
+  let sortedUsers = allMockUsers;
+  const currentUserIndex = sortedUsers.findIndex(u => u.id === mockCurrentUser.id);
+
+  if (currentUserIndex > 0) { // If current user exists and is not first
+    const currentUser = sortedUsers.splice(currentUserIndex, 1)[0];
+    sortedUsers.unshift(currentUser);
+  } else if (currentUserIndex === -1 && mockCurrentUser.name) { // If current user is not in the list but has a name
+     sortedUsers.unshift(mockCurrentUser);
+  }
+  
+  return sortedUsers.map(user => {
+    const aura = getAuraById(user.currentAuraId);
     return {
-      ...baseUser,
-      status: aura ? `Feeling ${aura.name} ${aura.emoji}` : baseUser.status || 'Offline',
+      ...user,
+      status: aura ? `Feeling ${aura.name} ${aura.emoji}` : user.status || 'Offline',
     };
   });
-  return usersWithAura;
 };
 
 export const mockStatusUpdates: StatusUpdate[] = [
   { id: 'status1', userId: 'user1', timestamp: Date.now() - 1000 * 60 * 30, imageUrl: 'https://placehold.co/300x500.png?text=Priya%27s+Story', viewedByCurrentUser: false },
   { id: 'status2', userId: 'user3', timestamp: Date.now() - 1000 * 60 * 60 * 2, imageUrl: 'https://placehold.co/300x500.png?text=Anjali%27s+Update', viewedByCurrentUser: false },
   { id: 'status3', userId: 'user5', timestamp: Date.now() - 1000 * 60 * 60 * 5, imageUrl: 'https://placehold.co/300x500.png?text=Deepika%27s+Day', viewedByCurrentUser: false },
-  { id: 'status4', userId: 'user2', timestamp: Date.now() - 1000 * 60 * 60 * 24, text: 'Enjoying the long weekend! ☀️', viewedByCurrentUser: true }, // Example of viewed status
+  { id: 'status4', userId: 'user2', timestamp: Date.now() - 1000 * 60 * 60 * 24, text: 'Enjoying the long weekend! ☀️', viewedByCurrentUser: true }, 
   { id: 'status5', userId: 'user4', timestamp: Date.now() - 1000 * 60 * 60 * 28, imageUrl: 'https://placehold.co/300x500.png?text=Vikram%27s+Vibes', viewedByCurrentUser: true },
 ];
