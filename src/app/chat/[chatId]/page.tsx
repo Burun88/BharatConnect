@@ -14,7 +14,7 @@ import MessageBubble from '@/components/message-bubble';
 import type { Message, User, Chat } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 import { mockMessagesData, mockUsers, mockChats, mockCurrentUser } from '@/lib/mock-data';
-import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, PlusCircle } from 'lucide-react';
+import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera } from 'lucide-react'; // Added Camera
 import { cn } from '@/lib/utils';
 
 export default function ChatPage() {
@@ -153,11 +153,7 @@ export default function ChatPage() {
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <h2 className={cn(
-            "text-sm font-semibold" 
-            // Removed conditional text-gradient-primary-accent, it was:
-            // contactAura && "text-gradient-primary-accent"
-            )}>{contact.name}</h2>
+          <h2 className="text-sm font-semibold">{contact.name}</h2>
           <p className="text-xs text-muted-foreground truncate">{contactStatus || 'Offline'}</p>
         </div>
         <Button variant="ghost" size="icon" className="ml-auto">
@@ -199,7 +195,7 @@ export default function ChatPage() {
                 <Paperclip className="w-5 h-5 text-muted-foreground" />
               </Button>
               <Button variant="ghost" size="icon" type="button">
-                <PlusCircle className="w-5 h-5 text-muted-foreground" />
+                <Camera className="w-5 h-5 text-muted-foreground" />
               </Button>
             </>
           ) : (
