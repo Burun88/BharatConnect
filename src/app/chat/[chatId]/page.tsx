@@ -154,7 +154,7 @@ export default function ChatPage() {
         </Avatar>
         <div className="flex-1 min-w-0">
           <h2 className={cn(
-            "text-sm font-semibold truncate",
+            "text-sm font-semibold", // Removed truncate
             contactAura && "text-gradient-primary-accent"
             )}>{contact.name}</h2>
           <p className="text-xs text-muted-foreground truncate">{contactStatus || 'Offline'}</p>
