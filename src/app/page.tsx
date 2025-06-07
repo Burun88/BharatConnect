@@ -37,19 +37,24 @@ export default function HomePage() {
       setTimeout(() => {
         const updatedCurrentUser = { ...mockCurrentUser, name: userProfile.name || mockCurrentUser.name, currentAuraId: currentUserAuraId };
 
-        const allUsersFromMock = mockAuraBarItemsData().map(u => 
+        let allUsersFromMock = mockAuraBarItemsData().map(u => 
             u.id === updatedCurrentUser.id ? updatedCurrentUser : u
         );
 
-        const currentUserDisplayData = allUsersFromMock.find(u => u.id === updatedCurrentUser.id) || updatedCurrentUser;
+        // Ensure current user is always first if present, or add if not
+        const currentUserIndex = allUsersFromMock.findIndex(u => u.id === updatedCurrentUser.id);
+        if (currentUserIndex > 0) {
+          allUsersFromMock.splice(currentUserIndex, 1);
+          allUsersFromMock.unshift(updatedCurrentUser);
+        } else if (currentUserIndex === -1) {
+          allUsersFromMock.unshift(updatedCurrentUser);
+        }
         
-        const otherUsersWithAura = allUsersFromMock.filter(
-            u => u.id !== updatedCurrentUser.id && u.currentAuraId
+        const finalAuraItems = allUsersFromMock.filter(
+            u => u.id === updatedCurrentUser.id || u.currentAuraId
         );
-
-        const finalAuraItems = [currentUserDisplayData, ...otherUsersWithAura].filter(Boolean); // Filter out any undefined
         
-        setAuraBarItems(finalAuraItems as User[]); // Ensure it's User[]
+        setAuraBarItems(finalAuraItems as User[]);
         setChats(mockChats);
         setIsLoading(false);
       }, 1500);
@@ -100,22 +105,11 @@ export default function HomePage() {
           </ScrollArea>
         </div>
         
-        {/* Search Bar for Chats */}
-        <div className="p-4 border-b border-border sticky top-0 bg-background z-9">
-          <Input 
-            type="search" 
-            placeholder="Search chats..." 
-            className="w-full"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
         {/* Chat List */}
         <ScrollArea className="flex-grow">
           <div className="divide-y divide-border">
             {isLoading ? (
-              Array.from({ length: 10 }).map((_, index) => ( // Increased length for better scroll visibility
+              Array.from({ length: 10 }).map((_, index) => (
                 <div key={index} className="flex items-center p-3 bg-muted">
                   <Skeleton className="w-12 h-12 rounded-full mr-3" />
                   <div className="flex-1 space-y-2">
