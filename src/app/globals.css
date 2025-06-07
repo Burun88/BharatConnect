@@ -181,7 +181,7 @@ body::-webkit-scrollbar {
     /* removed rounded-xl from here to be specific per bubble type */
   }
   .message-bubble-outgoing {
-    @apply bg-gradient-bharatconnect-bubble text-primary-foreground ml-auto rounded-tl-xl rounded-tr-xl rounded-bl-xl rounded-br-xl; /* Gradient and rounded edges */
+    @apply bg-gradient-to-r from-primary to-accent text-primary-foreground ml-auto rounded-tl-xl rounded-tr-xl rounded-bl-xl rounded-br-xl; /* Gradient and rounded edges */
   }
   .message-bubble-incoming {
     @apply bg-[hsl(var(--incoming-message-bubble-dark))] text-foreground mr-auto rounded-xl; /* Explicitly rounded */
