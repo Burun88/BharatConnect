@@ -33,7 +33,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
         onKeyDown={(e) => e.key === 'Enter' && onClick?.()}
         aria-label="Set your story or aura"
       >
-        <div className="relative w-14 h-14">
+        <div className="relative w-16 h-16">
           <Avatar className="w-full h-full">
             {user.avatarUrl ? (
               <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
@@ -65,14 +65,14 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
       >
         <div // Gradient ring container
           className={cn(
-            "relative w-14 h-14 rounded-full flex items-center justify-center p-0.5", // p-0.5 for ring thickness
+            "relative w-16 h-16 rounded-full flex items-center justify-center p-0.5 animate-spin-slow", // p-0.5 for ring thickness
             aura.gradient // Apply gradient classes here
           )}
         >
           <div // Inner content area (emoji)
             className="w-full h-full rounded-full bg-background flex items-center justify-center overflow-hidden"
           >
-            <span className="text-3xl">{aura.emoji}</span>
+            <span className="text-4xl">{aura.emoji}</span>
           </div>
         </div>
         <span className="text-xs text-white truncate w-16">
@@ -92,7 +92,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
       onKeyDown={(e) => e.key === 'Enter' && onClick?.()}
       aria-label={user.name}
     >
-      <Avatar className="w-14 h-14">
+      <Avatar className="w-16 h-16">
         {user.avatarUrl ? (
           <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
         ) : (
