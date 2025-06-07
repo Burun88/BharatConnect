@@ -31,7 +31,7 @@ export default function ChatItem({ chat }: ChatItemProps) {
   return (
     <Link 
       href={`/chat/${chat.id}`} 
-      className="flex items-center p-3 hover:bg-accent/50 transition-colors rounded-lg bg-muted"
+      className="flex items-center p-3 transition-colors rounded-lg bg-muted"
     >
       <div className="relative mr-3">
         <Avatar className="w-12 h-12">
@@ -78,3 +78,4 @@ export default function ChatItem({ chat }: ChatItemProps) {
     </Link>
   );
 }
+
