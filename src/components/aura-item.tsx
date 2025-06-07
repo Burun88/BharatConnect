@@ -22,17 +22,21 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const IMAGE_SIZE_CLASS = "w-20 h-20"; // 80px
-  // Ring thickness is p-1.5 (6px on each side), so 12px total.
-  // Overall size = 80px + 12px = 92px.
-  const mainElementSize = "w-[92px] h-[92px]";
+  const IMAGE_SIZE_CLASS = "w-[81px] h-[81px]"; // 81px
+  // Ring padding is p-1.5 (6px on each side), so 12px total.
+  // Overall size = 81px + 12px = 93px.
+  const mainElementSize = "w-[93px] h-[93px]";
 
-  const smallCircleSize = "w-7 h-7";
+  const smallCircleSize = "w-7 h-7"; // 28px
   const smallCircleIconSize = "w-4 h-4";
   const smallCircleEmojiFontSize = "text-sm";
-  // For an h-[92px] main container, and h-7 (28px) emoji circle.
-  // To have ~8px of emoji below the main item, emoji starts at 92px - 8px = 84px.
-  const emojiOverlapTopClass = "top-[84px]";
+
+  // Position the top of the 28px emoji circle such that its center aligns with the bottom edge of the 81px avatar image.
+  // Avatar image (81px high) is centered in mainElementSize (93px high).
+  // Top of avatar image = (93-81)/2 = 6px from top of mainElement.
+  // Bottom of avatar image = 6px + 81px = 87px from top of mainElement.
+  // Top of emoji circle = 87px (avatar_image_bottom) - 14px (half_emoji_height) = 73px.
+  const emojiOverlapTopClass = "top-[73px]";
 
 
   const ItemContainer: React.FC<{ children: React.ReactNode; 'aria-label': string }> = ({ children, ...props }) => (
@@ -66,7 +70,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
         )}
         <div className={cn(
           "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden",
-          IMAGE_SIZE_CLASS, // This div is w-20 h-20
+          IMAGE_SIZE_CLASS, // This div is IMAGE_SIZE_CLASS
           isRing && "bg-background" // Covers the ring part it sits on
         )}>
           {React.cloneElement(avatarContent as React.ReactElement, {
@@ -91,7 +95,7 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
 
 
   const nameText = (
-    <span className={cn("text-xs text-foreground truncate text-center mt-0.5", "w-[92px]")}>
+    <span className={cn("text-xs text-foreground truncate text-center mt-0.5", `w-[${parseInt(mainElementSize.match(/(\d+)/)?.[0] || '93')}px]`)}>
       {isCurrentUser ? (aura ? "Your Aura" : "Your Story") : user.name}
     </span>
   );
@@ -166,10 +170,6 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
     );
   }
 
-  // Fallback for other users without an aura (no ring, no overlap emoji)
-  // To maintain layout consistency, we can include an empty AvatarWithOverlap structure
-  // or simplify if the layout doesn't strictly require the overlapContent space.
-  // For simplicity now, directly render the avatar and name.
   return (
     <ItemContainer aria-label={user.name}>
        <div className={cn("relative", mainElementSize)}>
