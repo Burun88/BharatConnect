@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessageCircle, CircleDot, Phone, User } from 'lucide-react'; // Changed Users to User, added User
+import { MessagesSquare, Zap, PhoneCall, UserCircle } from 'lucide-react'; // Updated imports
 import { cn } from '@/lib/utils';
 
 type NavItem = {
@@ -13,10 +13,10 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { href: '/', label: 'Chats', icon: MessageCircle },
-  { href: '/status', label: 'Status', icon: CircleDot },
-  { href: '/calls', label: 'Calls', icon: Phone },
-  { href: '/account', label: 'Account', icon: User }, // New item
+  { href: '/', label: 'Chats', icon: MessagesSquare }, // Updated icon
+  { href: '/status', label: 'Status', icon: Zap },         // Updated icon
+  { href: '/calls', label: 'Calls', icon: PhoneCall },     // Updated icon
+  { href: '/account', label: 'Account', icon: UserCircle }, // Updated icon
 ];
 
 export default function BottomNavigationBar() {
@@ -28,7 +28,7 @@ export default function BottomNavigationBar() {
         {navItems.map((item) => {
           const isActive = (pathname === '/' && item.href === '/') || 
                            (item.href !== '/' && pathname.startsWith(item.href)) ||
-                           (pathname === '/account' && item.href === '/account'); // Ensure /account tab is active on /account page
+                           (pathname === '/account' && item.href === '/account');
           return (
             <Link
               key={item.href}
