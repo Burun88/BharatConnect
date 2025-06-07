@@ -104,7 +104,7 @@ export default function HomePage() {
         </div>
         
         {/* Chat List */}
-        <ScrollArea className="flex-grow bg-background">
+        <ScrollArea className="flex-grow bg-background hide-vertical-scrollbar">
           <div className="">
             {isLoading ? (
               Array.from({ length: 10 }).map((_, index) => (
@@ -146,3 +146,4 @@ export default function HomePage() {
     </div>
   );
 }
+

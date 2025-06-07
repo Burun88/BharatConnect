@@ -165,6 +165,15 @@ body::-webkit-scrollbar {
   -ms-overflow-style: none; /* IE and Edge */
 }
 
+/* Utility to hide vertical scrollbar for Radix ScrollArea viewport */
+.hide-vertical-scrollbar > div[data-radix-scroll-area-viewport]::-webkit-scrollbar {
+  display: none;
+}
+.hide-vertical-scrollbar > div[data-radix-scroll-area-viewport] {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
 
 @layer utilities {
   .message-bubble {

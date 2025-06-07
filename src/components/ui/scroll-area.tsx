@@ -32,8 +32,7 @@ const ScrollBar = React.forwardRef<
     ref={ref}
     orientation={orientation}
     className={cn(
-      "hidden", // Add hidden class to make the scrollbar primitive not display
-      // The original classes are preserved below but 'hidden' takes precedence for display
+      // "hidden" class removed to allow CSS to control visibility and ensure functionality
       "flex touch-none select-none transition-colors",
       orientation === "vertical" &&
         "h-full w-2.5 border-l border-l-transparent p-[1px]",
@@ -49,3 +48,4 @@ const ScrollBar = React.forwardRef<
 ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName
 
 export { ScrollArea, ScrollBar }
+
