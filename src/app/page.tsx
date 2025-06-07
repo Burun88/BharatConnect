@@ -68,7 +68,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
-      <header className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-background z-10 h-16">
+      <header className="flex items-center justify-between p-4 sticky top-0 bg-background z-10 h-16">
         <h1 className="text-2xl font-bold font-headline text-gradient-bharatconnect">BharatConnect</h1>
         <div className="flex items-center space-x-2">
           <Button variant="ghost" size="icon" aria-label="Search">
@@ -80,7 +80,7 @@ export default function HomePage() {
       {/* Main Content Area */}
       <main className="flex-grow flex flex-col overflow-y-auto bg-background"> {/* Applied bg-background here */}
         {/* Aura Bar */}
-        <div className="px-2 py-3 border-b border-border bg-background aura-horizontal-scroll">
+        <div className="px-2 py-3 bg-background aura-horizontal-scroll">
           <ScrollArea className="w-full">
             <div className="flex space-x-1 pb-2 whitespace-nowrap">
               {isLoading ? (
