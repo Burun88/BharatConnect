@@ -47,9 +47,9 @@ export default function HomePage() {
             u => u.id !== updatedCurrentUser.id && u.currentAuraId
         );
 
-        const finalAuraItems = [currentUserDisplayData, ...otherUsersWithAura];
+        const finalAuraItems = [currentUserDisplayData, ...otherUsersWithAura].filter(Boolean); // Filter out any undefined
         
-        setAuraBarItems(finalAuraItems);
+        setAuraBarItems(finalAuraItems as User[]); // Ensure it's User[]
         setChats(mockChats);
         setIsLoading(false);
       }, 1500);
@@ -74,10 +74,10 @@ export default function HomePage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-grow overflow-hidden flex flex-col">
+      <main className="flex-grow flex flex-col overflow-y-auto">
         {/* Aura Bar */}
-        <div className="px-2 py-3 border-b border-border bg-card">
-          <ScrollArea className="w-full aura-horizontal-scroll">
+        <div className="px-2 py-3 border-b border-border bg-card aura-horizontal-scroll">
+          <ScrollArea className="w-full">
             <div className="flex space-x-3 pb-2 whitespace-nowrap">
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, index) => (
@@ -101,7 +101,7 @@ export default function HomePage() {
         </div>
         
         {/* Search Bar for Chats */}
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border sticky top-0 bg-background z-9">
           <Input 
             type="search" 
             placeholder="Search chats..." 
@@ -115,7 +115,7 @@ export default function HomePage() {
         <ScrollArea className="flex-grow">
           <div className="divide-y divide-border">
             {isLoading ? (
-              Array.from({ length: 7 }).map((_, index) => (
+              Array.from({ length: 10 }).map((_, index) => ( // Increased length for better scroll visibility
                 <div key={index} className="flex items-center p-3 bg-muted">
                   <Skeleton className="w-12 h-12 rounded-full mr-3" />
                   <div className="flex-1 space-y-2">
