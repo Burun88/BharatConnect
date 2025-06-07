@@ -56,7 +56,7 @@ export default function ChatItem({ chat }: ChatItemProps) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-center">
-          <h3 className="text-sm font-semibold text-primary truncate">
+          <h3 className="text-sm font-semibold text-foreground truncate">
             {chat.name}
           </h3>
           <span className="text-xs text-muted-foreground whitespace-nowrap">
