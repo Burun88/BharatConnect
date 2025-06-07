@@ -41,12 +41,11 @@ export default function HomePage() {
             u.id === updatedCurrentUser.id ? updatedCurrentUser : u
         );
 
-        // Ensure current user is always first if present, or add if not
         const currentUserIndex = allUsersFromMock.findIndex(u => u.id === updatedCurrentUser.id);
         if (currentUserIndex > 0) {
           allUsersFromMock.splice(currentUserIndex, 1);
           allUsersFromMock.unshift(updatedCurrentUser);
-        } else if (currentUserIndex === -1) {
+        } else if (currentUserIndex === -1 && updatedCurrentUser.name) { // Only add if name is present
           allUsersFromMock.unshift(updatedCurrentUser);
         }
         
@@ -83,7 +82,7 @@ export default function HomePage() {
         {/* Aura Bar */}
         <div className="px-2 py-3 border-b border-border bg-card aura-horizontal-scroll">
           <ScrollArea className="w-full">
-            <div className="flex space-x-3 pb-2 whitespace-nowrap">
+            <div className="flex space-x-2 pb-2 whitespace-nowrap"> {/* Changed space-x-3 to space-x-2 */}
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, index) => (
                   <div key={index} className="flex flex-col items-center space-y-1 p-1">
