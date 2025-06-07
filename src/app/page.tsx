@@ -31,23 +31,28 @@ export default function HomePage() {
 
 
   useEffect(() => {
-    if (!onboardingComplete && process.env.NODE_ENV === 'production') { // Allow access in dev for easier testing
+    if (!onboardingComplete && process.env.NODE_ENV === 'production') { 
         router.replace('/welcome');
     } else {
-      // Simulate data fetching
       setTimeout(() => {
         const updatedCurrentUser = { ...mockCurrentUser, name: userProfile.name || mockCurrentUser.name, currentAuraId: currentUserAuraId };
-        const allAuraUsers = mockAuraBarItemsData().map(u => u.id === updatedCurrentUser.id ? updatedCurrentUser : u);
-        
-        // Ensure current user is first if they have an aura or it's their slot
-        const currentUserInList = allAuraUsers.find(u => u.id === updatedCurrentUser.id);
-        let finalAuraItems = allAuraUsers.filter(u => u.id !== updatedCurrentUser.id);
-        if (currentUserInList) {
-            finalAuraItems.unshift(currentUserInList);
-        } else {
-            finalAuraItems.unshift(updatedCurrentUser);
-        }
 
+        // Get all users from mock data, ensuring current user's details are updated
+        const allUsersFromMock = mockAuraBarItemsData().map(u => 
+            u.id === updatedCurrentUser.id ? updatedCurrentUser : u
+        );
+
+        // Find the current user's data for display (could be the base mock or the updated one)
+        const currentUserDisplayData = allUsersFromMock.find(u => u.id === updatedCurrentUser.id) || updatedCurrentUser;
+        
+        // Filter other users: they must have a currentAuraId to be shown in the aura bar
+        const otherUsersWithAura = allUsersFromMock.filter(
+            u => u.id !== updatedCurrentUser.id && u.currentAuraId
+        );
+
+        // Construct the final list: current user first, then other users who have shared an aura
+        const finalAuraItems = [currentUserDisplayData, ...otherUsersWithAura];
+        
         setAuraBarItems(finalAuraItems);
         setChats(mockChats);
         setIsLoading(false);
