@@ -181,7 +181,7 @@ body::-webkit-scrollbar {
     /* removed rounded-xl from here to be specific per bubble type */
   }
   .message-bubble-outgoing {
-    @apply bg-gradient-to-r from-primary to-accent text-primary-foreground ml-auto rounded-none; /* Gradient and sharp edges */
+    @apply bg-gradient-bharatconnect-bubble text-primary-foreground ml-auto rounded-xl; /* Gradient and rounded edges */
   }
   .message-bubble-incoming {
     @apply bg-[hsl(var(--incoming-message-bubble-dark))] text-foreground mr-auto rounded-xl; /* Explicitly rounded */
@@ -231,4 +231,9 @@ body::-webkit-scrollbar {
     border-color: hsl(var(--primary));
     box-shadow: 0 0 0 2px hsl(var(--primary) / 0.5);
   }
+
+  .bg-gradient-bharatconnect-bubble {
+    @apply bg-gradient-to-r from-[var(--gradient-title-bharatconnect-from)] via-[var(--instabharat-logo-via)] to-[var(--gradient-title-bharatconnect-to)];
+  }
 }
+
