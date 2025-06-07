@@ -26,11 +26,11 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
     // "Your Story" UI for the current user without an aura
     return (
       <div
-        className="flex flex-col items-center space-y-1 text-center cursor-pointer p-1"
+        className="flex flex-col items-center space-y-1 text-center p-1"
         onClick={onClick}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => e.key === 'Enter' && onClick?.()}
+        role={onClick ? "button" : undefined}
+        tabIndex={onClick ? 0 : undefined}
+        onKeyDown={(e) => onClick && e.key === 'Enter' && onClick?.()}
         aria-label="Set your story or aura"
       >
         <div className="relative w-16 h-16">
@@ -56,23 +56,23 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
   if (aura) {
     return (
       <div
-        className="flex flex-col items-center space-y-1 text-center cursor-pointer p-1"
+        className="flex flex-col items-center space-y-1 text-center p-1"
         onClick={onClick}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => e.key === 'Enter' && onClick?.()}
+        role={onClick ? "button" : undefined}
+        tabIndex={onClick ? 0 : undefined}
+        onKeyDown={(e) => onClick && e.key === 'Enter' && onClick?.()}
         aria-label={user.name}
       >
         <div // Gradient ring container
           className={cn(
-            "relative w-16 h-16 rounded-full flex items-center justify-center p-0.5 animate-spin-slow", // p-0.5 for ring thickness
+            "relative w-16 h-16 rounded-full flex items-center justify-center p-1 animate-spin-slow", // p-1 for thicker ring
             aura.gradient // Apply gradient classes here
           )}
         >
           <div // Inner content area (emoji)
             className="w-full h-full rounded-full bg-background flex items-center justify-center overflow-hidden"
           >
-            <span className="text-4xl">{aura.emoji}</span>
+            <span className="text-4xl inline-block animate-spin-slow-counter">{aura.emoji}</span>
           </div>
         </div>
         <span className="text-xs text-white truncate w-16">
@@ -83,13 +83,15 @@ export default function AuraItem({ user, isCurrentUser = false, onClick }: AuraI
   }
 
   // Default UI for other users without an aura (plain avatar)
+  // This case should ideally not be hit if filtering on homepage is correct,
+  // but kept as a fallback.
   return (
     <div
-      className="flex flex-col items-center space-y-1 text-center cursor-pointer p-1"
+      className="flex flex-col items-center space-y-1 text-center p-1"
       onClick={onClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && onClick?.()}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={(e) => onClick && e.key === 'Enter' && onClick?.()}
       aria-label={user.name}
     >
       <Avatar className="w-16 h-16">

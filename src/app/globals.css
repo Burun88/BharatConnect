@@ -117,6 +117,17 @@
   animation: spin-slow 2s linear infinite;
 }
 
+/* Counter-rotation animation for emoji */
+@keyframes spin-slow-counter {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-360deg); }
+}
+
+.animate-spin-slow-counter {
+  animation: spin-slow-counter 2s linear infinite;
+}
+
+
 /* Scrollbar hiding utilities */
 .hide-scrollbar {
   scrollbar-width: none; /* Firefox */
