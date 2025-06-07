@@ -150,19 +150,19 @@ body::-webkit-scrollbar {
   background: hsl(var(--foreground) / 0.8);
 }
 
+/* Updated aura-horizontal-scroll selectors */
 .aura-horizontal-scroll div[data-radix-scroll-area-viewport] {
   overflow-x: auto !important;
   overflow-y: hidden !important;
-  padding-bottom: 8px; /* Add some padding if scrollbar takes space, though it's hidden */
+  padding-bottom: 8px;
 }
 
-/* Hide scrollbar for the specific aura horizontal scroll area */
 .aura-horizontal-scroll div[data-radix-scroll-area-viewport]::-webkit-scrollbar {
   display: none;
 }
 .aura-horizontal-scroll div[data-radix-scroll-area-viewport] {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 /* Utility to hide vertical scrollbar for Radix ScrollArea viewport */
@@ -177,13 +177,14 @@ body::-webkit-scrollbar {
 
 @layer utilities {
   .message-bubble {
-    @apply p-2.5 rounded-xl max-w-[70%] sm:max-w-[60%] md:max-w-[50%] mb-1 shadow-sm break-words;
+    @apply p-2.5 max-w-[70%] sm:max-w-[60%] md:max-w-[50%] mb-1 shadow-sm break-words;
+    /* removed rounded-xl from here to be specific per bubble type */
   }
   .message-bubble-outgoing {
-    @apply bg-primary text-primary-foreground ml-auto;
+    @apply bg-gradient-to-r from-primary to-accent text-primary-foreground ml-auto rounded-none; /* Gradient and sharp edges */
   }
   .message-bubble-incoming {
-    @apply bg-[hsl(var(--incoming-message-bubble-dark))] text-foreground mr-auto;
+    @apply bg-[hsl(var(--incoming-message-bubble-dark))] text-foreground mr-auto rounded-xl; /* Explicitly rounded */
   }
   .message-bubble-system {
     @apply bg-[hsl(var(--system-message-bubble-dark))] text-muted-foreground mx-auto text-center text-xs p-1.5 rounded-md;
@@ -231,4 +232,3 @@ body::-webkit-scrollbar {
     box-shadow: 0 0 0 2px hsl(var(--primary) / 0.5);
   }
 }
-
