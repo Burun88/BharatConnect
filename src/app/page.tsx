@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -17,6 +17,7 @@ import Logo from '@/components/shared/Logo';
 import { cn } from '@/lib/utils';
 
 const HEADER_HEIGHT_PX = 64; // Approx h-16 in pixels (16 * 4)
+const SCROLL_THRESHOLD = 10; // Min pixels to scroll before toggling header visibility
 
 export default function HomePage() {
   const router = useRouter();
@@ -31,9 +32,9 @@ export default function HomePage() {
   const [onboardingComplete] = useLocalStorage('onboardingComplete', false);
   const [currentUserAuraId] = useLocalStorage<string | null>('currentUserAuraId', null);
 
+  const scrollableContainerRef = useRef<HTMLDivElement>(null);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
-  const scrollableContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!onboardingComplete && process.env.NODE_ENV === 'production') { 
@@ -65,30 +66,48 @@ export default function HomePage() {
     }
   }, [router, onboardingComplete, userProfile.name, currentUserAuraId]);
 
-  useEffect(() => {
+  const handleScroll = useCallback(() => {
     const scrollableElement = scrollableContainerRef.current;
     if (!scrollableElement) return;
 
-    const handleScroll = () => {
-      const currentScrollY = scrollableElement.scrollTop;
-      
-      if (currentScrollY > HEADER_HEIGHT_PX) {
-        if (currentScrollY > lastScrollY) { // Scrolling down
-          setIsHeaderVisible(false);
-        } else { // Scrolling up
-          setIsHeaderVisible(true);
+    const currentScrollY = scrollableElement.scrollTop;
+
+    // Scenario 1: Scrolled to the top or very near it (e.g., within half header height)
+    if (currentScrollY < HEADER_HEIGHT_PX / 2) {
+      setIsHeaderVisible(true);
+    } 
+    // Scenario 2: User is scrolling further down
+    else {
+      // Check if scroll is significant enough to warrant a change
+      if (Math.abs(currentScrollY - lastScrollY) > SCROLL_THRESHOLD) {
+        if (currentScrollY > lastScrollY) {
+          // Scrolling Down
+          // Hide header only if it's currently visible and scrolled past its full height
+          if (isHeaderVisible && currentScrollY > HEADER_HEIGHT_PX) {
+             setIsHeaderVisible(false);
+          }
+        } else {
+          // Scrolling Up
+          // Show header only if it's currently hidden
+          if (!isHeaderVisible) {
+            setIsHeaderVisible(true);
+          }
         }
-      } else { // Near the top
-        setIsHeaderVisible(true);
       }
-      setLastScrollY(currentScrollY);
-    };
+    }
+    // Update lastScrollY, ensuring it's not negative (for bounce effects)
+    setLastScrollY(currentScrollY <= 0 ? 0 : currentScrollY);
+  }, [lastScrollY, isHeaderVisible, setIsHeaderVisible, setLastScrollY]); // Dependencies for useCallback
+
+  useEffect(() => {
+    const scrollableElement = scrollableContainerRef.current;
+    if (!scrollableElement) return;
 
     scrollableElement.addEventListener('scroll', handleScroll);
     return () => {
       scrollableElement.removeEventListener('scroll', handleScroll);
     };
-  }, [lastScrollY]);
+  }, [handleScroll]); // Dependency on the memoized handleScroll
 
 
   const filteredChats = chats.filter(chat =>
