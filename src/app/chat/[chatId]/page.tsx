@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, type FormEvent } from 'react';
@@ -11,7 +12,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import MessageBubble from '@/components/message-bubble';
 import type { Message, User, Chat } from '@/types';
-import { AURA_OPTIONS, mockMessagesData, mockUsers, mockChats, mockCurrentUser } from '@/lib/mock-data';
+import { AURA_OPTIONS } from '@/types';
+import { mockMessagesData, mockUsers, mockChats, mockCurrentUser } from '@/lib/mock-data';
 import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, PlusCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
