@@ -80,8 +80,8 @@ export default function HomePage() {
       {/* Main Content Area */}
       <main className="flex-grow flex flex-col overflow-y-auto bg-background"> {/* Applied bg-background here */}
         {/* Aura Bar */}
-        <div className="px-2 py-3 border-b border-border bg-background">
-          <ScrollArea className="w-full aura-horizontal-scroll">
+        <div className="px-2 py-3 border-b border-border bg-background aura-horizontal-scroll">
+          <ScrollArea className="w-full">
             <div className="flex space-x-1 pb-2 whitespace-nowrap">
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, index) => (
@@ -106,10 +106,10 @@ export default function HomePage() {
         
         {/* Chat List */}
         <ScrollArea className="flex-grow"> {/* This will inherit bg-background from main */}
-          <div className="divide-y divide-border">
+          <div className=""> {/* Removed divide-y divide-border */}
             {isLoading ? (
               Array.from({ length: 10 }).map((_, index) => (
-                <div key={index} className="flex items-center p-3 bg-muted">
+                <div key={index} className="flex items-center p-3"> {/* Removed bg-muted from skeleton container */}
                   <Skeleton className="w-12 h-12 rounded-full mr-3" />
                   <div className="flex-1 space-y-2">
                     <Skeleton className="w-3/4 h-4 rounded" />
@@ -147,4 +147,3 @@ export default function HomePage() {
     </div>
   );
 }
-
