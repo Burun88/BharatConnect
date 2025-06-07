@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -13,7 +13,10 @@ import type { User, Chat } from '@/types';
 import { mockCurrentUser, mockAuraBarItemsData, mockChats } from '@/lib/mock-data';
 import { Search, Plus } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import Logo from '@/components/shared/Logo'; // Import the new Logo component
+import Logo from '@/components/shared/Logo';
+import { cn } from '@/lib/utils';
+
+const HEADER_HEIGHT_PX = 64; // Approx h-16 in pixels (16 * 4)
 
 export default function HomePage() {
   const router = useRouter();
@@ -28,6 +31,9 @@ export default function HomePage() {
   const [onboardingComplete] = useLocalStorage('onboardingComplete', false);
   const [currentUserAuraId] = useLocalStorage<string | null>('currentUserAuraId', null);
 
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+  const scrollableContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!onboardingComplete && process.env.NODE_ENV === 'production') { 
@@ -59,6 +65,31 @@ export default function HomePage() {
     }
   }, [router, onboardingComplete, userProfile.name, currentUserAuraId]);
 
+  useEffect(() => {
+    const scrollableElement = scrollableContainerRef.current;
+    if (!scrollableElement) return;
+
+    const handleScroll = () => {
+      const currentScrollY = scrollableElement.scrollTop;
+      
+      if (currentScrollY > HEADER_HEIGHT_PX) {
+        if (currentScrollY > lastScrollY) { // Scrolling down
+          setIsHeaderVisible(false);
+        } else { // Scrolling up
+          setIsHeaderVisible(true);
+        }
+      } else { // Near the top
+        setIsHeaderVisible(true);
+      }
+      setLastScrollY(currentScrollY);
+    };
+
+    scrollableElement.addEventListener('scroll', handleScroll);
+    return () => {
+      scrollableElement.removeEventListener('scroll', handleScroll);
+    };
+  }, [lastScrollY]);
+
 
   const filteredChats = chats.filter(chat =>
     chat.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -66,22 +97,26 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      {/* Header */}
-      <header className="flex items-center justify-between p-4 sticky top-0 bg-background z-10 h-16">
-        <Logo size="medium" /> {/* Changed size to medium for text-3xl */}
-        <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="icon" aria-label="Search">
-            <Search className="w-5 h-5" />
-          </Button>
-        </div>
-      </header>
-
       {/* Main Content Area - Now a flex container, scrolling handled by child */}
-      <main className="flex-grow flex flex-col bg-background">
-        {/* This div is now the main scrollable area for Aura Bar + Chat List */}
-        <div className="flex-grow overflow-y-auto hide-scrollbar">
+      <main className="flex-grow flex flex-col bg-background overflow-hidden"> {/* Added overflow-hidden here */}
+        {/* This div is now the main scrollable area for Header + Aura Bar + Chat List */}
+        <div ref={scrollableContainerRef} className="flex-grow overflow-y-auto hide-scrollbar">
+          {/* Header */}
+          <header className={cn(
+            "flex items-center justify-between p-4 bg-background z-10 h-16 sticky top-0",
+            "transition-transform duration-300 ease-in-out",
+            isHeaderVisible ? "translate-y-0" : "-translate-y-full"
+          )}>
+            <Logo size="medium" />
+            <div className="flex items-center space-x-2">
+              <Button variant="ghost" size="icon" aria-label="Search">
+                <Search className="w-5 h-5" />
+              </Button>
+            </div>
+          </header>
+
           {/* Aura Bar */}
-          <div className="px-2 py-3 bg-background aura-horizontal-scroll">
+          <div className="px-2 py-3 bg-background aura-horizontal-scroll"> {/* Removed sticky and z-index */}
             <ScrollArea className="w-full"> {/* Horizontal scroll for auras */}
               <div className="flex space-x-1 pb-2 whitespace-nowrap">
                 {isLoading ? (
