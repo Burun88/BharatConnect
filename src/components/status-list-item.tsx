@@ -44,10 +44,10 @@ export default function StatusListItem({ statusUpdate, user, onClick }: StatusLi
       <div className="relative mr-4">
         <div
           className={cn(
-            "p-1 rounded-full",
+            "rounded-full", // p-0.5 applied conditionally below
             statusUpdate.viewedByCurrentUser
-              ? "bg-transparent border-2 border-[hsl(var(--status-ring-viewed-border))]"
-              : "bg-gradient-instabharat-ring"
+              ? "p-0 border-2 border-[hsl(var(--status-ring-viewed-border))]" // p-0 to ensure border-2 is the outer edge
+              : "p-0.5 bg-gradient-instabharat-ring" // Changed p-1 to p-0.5
           )}
         >
           <Avatar className="w-12 h-12 border-2 border-background">
@@ -69,3 +69,4 @@ export default function StatusListItem({ statusUpdate, user, onClick }: StatusLi
     </div>
   );
 }
+
