@@ -71,8 +71,8 @@
     --system-message-bubble-dark: 200 50% 15%; /* Darker shade of system blue, adjusted for new dark theme */
 
     /* Home Page Specific Gradients (if still applicable or need remapping) */
-    --gradient-title-bharatconnect-from: #D81B60; 
-    --gradient-title-bharatconnect-to: #FFB300;   
+    --gradient-title-bharatconnect-from: var(--instabharat-logo-from);
+    --gradient-title-bharatconnect-to: var(--instabharat-logo-to);   
     --gradient-fab-home-from: var(--instabharat-logo-from); 
     --gradient-fab-home-to: var(--instabharat-logo-to);   
     --tab-active-underline-color: var(--instabharat-logo-from); 
@@ -107,14 +107,14 @@
   }
 }
 
-/* New slow spinning animation for story rings */
+/* New slow spinning animation for story rings - Updated speed */
 @keyframes spin-slow {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
 .animate-spin-slow {
-  animation: spin-slow 10s linear infinite;
+  animation: spin-slow 2s linear infinite;
 }
 
 /* Scrollbar hiding utilities */
@@ -190,7 +190,7 @@ body::-webkit-scrollbar {
   }
 
   .text-gradient-bharatconnect {
-    @apply bg-gradient-to-r from-[var(--instabharat-logo-from)] via-[var(--instabharat-logo-via)] to-[var(--instabharat-logo-to)];
+    @apply bg-gradient-to-r from-[var(--gradient-title-bharatconnect-from)] via-[var(--instabharat-logo-via)] to-[var(--gradient-title-bharatconnect-to)];
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
