@@ -65,6 +65,8 @@
     --gradient-fab-home-from: var(--instabharat-logo-from);
     --gradient-fab-home-to: var(--instabharat-logo-to);
     --tab-active-underline-color: var(--instabharat-logo-from);
+
+    --status-ring-viewed-border: 0 0% 30%; /* Color for viewed status rings */
   }
 }
 
@@ -196,6 +198,10 @@ body::-webkit-scrollbar {
   
   .text-gradient-instabharat-logo {
     @apply bg-gradient-to-r from-[var(--instabharat-logo-from)] via-[var(--instabharat-logo-via)] to-[var(--instabharat-logo-to)] text-transparent bg-clip-text;
+  }
+
+  .bg-gradient-instabharat-ring {
+    @apply bg-gradient-to-r from-[var(--instabharat-logo-from)] via-[var(--instabharat-logo-via)] to-[var(--instabharat-logo-to)];
   }
 
   .text-gradient-bharatconnect {

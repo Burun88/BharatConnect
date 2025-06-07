@@ -1,3 +1,4 @@
+
 export type UserAura = {
   id: string;
   name: string;
@@ -12,6 +13,7 @@ export type User = {
   avatarUrl?: string; // Placeholder or initials if not available
   currentAuraId?: string | null;
   status?: string; // e.g., "Online", "Last seen...", "Feeling Happy"
+  hasViewedStatus?: boolean; // Indicates if the current user has viewed this user's status
 };
 
 export type Message = {
@@ -47,3 +49,12 @@ export const AURA_OPTIONS: UserAura[] = [
   { id: 'playful', name: 'Playful', emoji: '🎉', gradient: 'bg-gradient-to-r from-purple-400 via-pink-500 to-red-500' },
   { id: 'energetic', name: 'Energetic', emoji: '⚡', gradient: 'bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-600' },
 ];
+
+export type StatusUpdate = {
+  id: string;
+  userId: string;
+  timestamp: number;
+  imageUrl?: string; // For image statuses
+  text?: string; // For text statuses
+  viewedByCurrentUser: boolean; // Has the current logged-in user seen this status?
+};

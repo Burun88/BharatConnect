@@ -1,65 +1,74 @@
 
-import type { User, Chat, Message, UserAura } from '@/types';
+import type { User, Chat, Message, UserAura, StatusUpdate } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 
 export const mockCurrentUser: User = {
   id: 'currentUser',
   name: 'You',
-  avatarUrl: 'https://picsum.photos/seed/currentUser/100/100', 
+  avatarUrl: 'https://placehold.co/100x100.png?text=Me', // Placeholder for current user
   currentAuraId: null,
+  hasViewedStatus: true, // Current user has always "viewed" their own status slot
 };
 
 export const mockUsers: User[] = [
-  mockCurrentUser,
+  // mockCurrentUser is handled specially for status, add it to the list if needed for other features.
   {
     id: 'user1',
     name: 'Priya Sharma',
-    avatarUrl: 'https://picsum.photos/seed/user1/100/100', 
+    avatarUrl: 'https://placehold.co/100x100.png?text=PS',
     currentAuraId: 'happy',
     status: 'Online',
+    hasViewedStatus: false,
   },
   {
     id: 'user2',
     name: 'Rahul Kumar',
-    avatarUrl: 'https://picsum.photos/seed/user2/100/100', 
+    avatarUrl: 'https://placehold.co/100x100.png?text=RK',
     currentAuraId: 'focused',
     status: 'Last seen yesterday at 10:30 PM',
+    hasViewedStatus: true,
   },
   {
     id: 'user3',
     name: 'Anjali Singh',
-    avatarUrl: 'https://picsum.photos/seed/user3/100/100', 
+    avatarUrl: 'https://placehold.co/100x100.png?text=AS',
     currentAuraId: null,
     status: 'Typing...',
+    hasViewedStatus: false,
   },
   {
     id: 'user4',
     name: 'Vikram Patel',
-    avatarUrl: 'https://picsum.photos/seed/user4/100/100', 
+    avatarUrl: 'https://placehold.co/100x100.png?text=VP',
     currentAuraId: 'chill',
     status: 'Feeling Chill 😎',
+    hasViewedStatus: true,
   },
   {
     id: 'user5',
     name: 'Deepika Iyer',
-    avatarUrl: 'https://picsum.photos/seed/user5/100/100',
+    avatarUrl: 'https://placehold.co/100x100.png?text=DI',
     currentAuraId: 'energetic',
     status: 'Ready to go!',
+    hasViewedStatus: false,
   },
   {
     id: 'user6',
     name: 'Arjun Reddy',
-    avatarUrl: 'https://picsum.photos/seed/user6/100/100',
-    currentAuraId: null, 
+    avatarUrl: 'https://placehold.co/100x100.png?text=AR',
+    currentAuraId: null,
     status: 'Away',
+    hasViewedStatus: false,
   },
   {
     id: 'user7',
     name: 'Sneha Kapoor',
-    avatarUrl: 'https://picsum.photos/seed/user7/100/100',
+    avatarUrl: 'https://placehold.co/100x100.png?text=SK',
     currentAuraId: 'playful',
     status: 'Feeling playful! 🎉',
+    hasViewedStatus: true,
   },
+  // Add more mock users if needed
 ];
 
 const getAuraById = (id: string | null | undefined): UserAura | undefined => AURA_OPTIONS.find(a => a.id === id);
@@ -141,7 +150,7 @@ export const mockChats: Chat[] = [
     type: 'individual',
     name: 'Deepika Iyer',
     contactUserId: 'user5',
-    participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user5')!], // Ensure user5 exists in mockUsers
+    participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user5')!],
     lastMessage: mockMessagesData.chat5[mockMessagesData.chat5.length -1],
     unreadCount: 0,
     avatarUrl: mockUsers.find(u => u.id === 'user5')?.avatarUrl,
@@ -151,7 +160,7 @@ export const mockChats: Chat[] = [
     type: 'individual',
     name: 'Arjun Reddy',
     contactUserId: 'user6',
-    participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user6')!], // Ensure user6 exists
+    participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user6')!],
     lastMessage: mockMessagesData.chat6[mockMessagesData.chat6.length - 1],
     unreadCount: 1,
     avatarUrl: mockUsers.find(u => u.id === 'user6')?.avatarUrl,
@@ -161,7 +170,7 @@ export const mockChats: Chat[] = [
     type: 'individual',
     name: 'Sneha Kapoor',
     contactUserId: 'user7',
-    participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user7')!], // Ensure user7 exists
+    participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user7')!],
     lastMessage: mockMessagesData.chat7[mockMessagesData.chat7.length - 1],
     unreadCount: 3,
     avatarUrl: mockUsers.find(u => u.id === 'user7')?.avatarUrl,
@@ -170,9 +179,9 @@ export const mockChats: Chat[] = [
 
 
 export const mockAuraBarItemsData = (): User[] => {
-  // Ensure consistent avatarUrl from mockUsers
-  const usersWithAura = mockUsers.map(user => {
-    const baseUser = mockUsers.find(u => u.id === user.id) || user; // Get the user with potentially updated avatar
+  const allMockUsers = [mockCurrentUser, ...mockUsers];
+  const usersWithAura = allMockUsers.map(user => {
+    const baseUser = allMockUsers.find(u => u.id === user.id) || user;
     const aura = getAuraById(baseUser.currentAuraId);
     return {
       ...baseUser,
@@ -181,3 +190,11 @@ export const mockAuraBarItemsData = (): User[] => {
   });
   return usersWithAura;
 };
+
+export const mockStatusUpdates: StatusUpdate[] = [
+  { id: 'status1', userId: 'user1', timestamp: Date.now() - 1000 * 60 * 30, imageUrl: 'https://placehold.co/300x500.png?text=Priya%27s+Story', viewedByCurrentUser: false },
+  { id: 'status2', userId: 'user3', timestamp: Date.now() - 1000 * 60 * 60 * 2, imageUrl: 'https://placehold.co/300x500.png?text=Anjali%27s+Update', viewedByCurrentUser: false },
+  { id: 'status3', userId: 'user5', timestamp: Date.now() - 1000 * 60 * 60 * 5, imageUrl: 'https://placehold.co/300x500.png?text=Deepika%27s+Day', viewedByCurrentUser: false },
+  { id: 'status4', userId: 'user2', timestamp: Date.now() - 1000 * 60 * 60 * 24, text: 'Enjoying the long weekend! ☀️', viewedByCurrentUser: true }, // Example of viewed status
+  { id: 'status5', userId: 'user4', timestamp: Date.now() - 1000 * 60 * 60 * 28, imageUrl: 'https://placehold.co/300x500.png?text=Vikram%27s+Vibes', viewedByCurrentUser: true },
+];
