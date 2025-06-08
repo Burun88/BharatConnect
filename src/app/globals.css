@@ -242,12 +242,59 @@
   .placeholder-true-black-muted::placeholder {
     color: hsl(var(--muted-foreground));
   }
-  .focus-ring-purple:focus {
-    outline: 2px solid transparent;
-    outline-offset: 2px;
-    border-color: hsl(var(--primary));
-    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.5);
+  /* .focus-visible-gradient-border-apply {
+    border: 2px solid transparent; 
+    background-image: linear-gradient(hsl(var(--background)), hsl(var(--background))), 
+                      linear-gradient(to right, hsl(var(--accent)), hsl(var(--primary))); 
+    background-origin: border-box; 
+    background-clip: padding-box, border-box; 
+  } */
+
+  .chat-input-sweep-border-wrapper {
+    position: relative;
+    display: flex; /* Changed from inline-flex to flex for block behavior if needed */
+    border-radius: 9999px; /* Fully rounded */
+    padding: 2px; /* This creates the border thickness */
+    background-color: hsl(var(--border)); /* Default border color (unfocused state) */
+    overflow: hidden; /* Important for pseudo-element clipping */
+    transition: background-color 300ms ease-out; /* For unfocus, if ::before fades out */
   }
+
+  .chat-input-sweep-border-wrapper::before {
+    content: "";
+    position: absolute;
+    inset: 0; /* Cover the entire wrapper area */
+    border-radius: inherit; /* Match wrapper's rounding */
+    background: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--primary))); /* Violet to Blue gradient */
+    z-index: 0; /* Sits behind the textarea's own background */
+    /* Start collapsed at bottom-left corner */
+    clip-path: polygon(0% 100%, 0% 100%, 0% 100%, 0% 100%, 0% 100%, 0% 100%); 
+    transition: clip-path 400ms ease-in-out;
+  }
+
+  .chat-input-sweep-border-wrapper:focus-within {
+    background-color: transparent; /* Hide wrapper bg to let ::before show */
+  }
+
+  .chat-input-sweep-border-wrapper:focus-within::before {
+    /* Expand to fill - diagonal sweep from bottom-left to cover all */
+    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 100%, 0% 0%);
+  }
+
+  .chat-input-sweep-border-textarea {
+    position: relative; /* To sit on top of the ::before */
+    z-index: 1;
+    /* width: 100%; Let flex handle width */
+    background-color: hsl(var(--input)); /* Dark background for the text area itself */
+    color: hsl(var(--foreground));
+    border: none !important; /* Remove default textarea border */
+    outline: none !important; /* Remove default focus outline */
+    /* Textarea's own border-radius will be applied by its Tailwind classes (e.g., rounded-full) */
+    /* Padding, min-height, max-height, etc., will come from Tailwind classes on the Textarea component */
+  }
+  .chat-input-sweep-border-textarea::-webkit-scrollbar { display: none; }
+  .chat-input-sweep-border-textarea { -ms-overflow-style: none;  scrollbar-width: none; }
+
 
   .bg-gradient-bharatconnect-bubble {
     @apply bg-gradient-to-r from-primary to-accent; 
@@ -273,7 +320,7 @@
 
   .focus-visible-gradient-border-apply {
     border: 2px solid transparent; /* Important: border must be transparent */
-    background-image: linear-gradient(hsl(var(--background)), hsl(var(--background))), /* Inner background color */
+    background-image: linear-gradient(hsl(var(--input)), hsl(var(--input))), /* Inner background color, changed from --background */
                       linear-gradient(to right, hsl(var(--accent)), hsl(var(--primary))); /* Gradient for border */
     background-origin: border-box; /* Gradient starts from border edge */
     background-clip: padding-box, border-box; /* Inner bg clips to padding, gradient clips to border */

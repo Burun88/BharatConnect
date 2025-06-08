@@ -299,9 +299,8 @@ export default function ChatPage() {
         className={cn(
             "fixed left-0 right-0 z-10 bg-background border-t",
             "pb-[env(safe-area-inset-bottom)]"
-            // Removed "transition-transform duration-200 ease-out"
         )}
-        style={{ bottom: '0px', transform: 'translateZ(0px)' }} // Initial bottom, added translateZ
+        style={{ bottom: '0px', transform: 'translateZ(0px)' }} 
       >
         <footer className="flex items-end space-x-2 p-2.5 flex-shrink-0">
            <Button
@@ -315,33 +314,35 @@ export default function ChatPage() {
           >
             <SmilePlus className={cn("w-5 h-5 text-muted-foreground", isEmojiPickerOpen && "text-primary")} />
           </Button>
-          <Textarea
-            ref={textareaRef}
-            placeholder="Type a message..."
-            value={newMessage}
-            onChange={(e) => {
-              setNewMessage(e.target.value);
-              e.target.style.height = 'auto';
-              e.target.style.height = `${e.target.scrollHeight}px`;
-            }}
-            onFocus={() => {
-              if(isEmojiPickerOpen) setIsEmojiPickerOpen(false);
-            }}
-            rows={1}
-            className={cn(
-                "flex-1 resize-none min-h-[40px] max-h-[100px] rounded-full px-4 py-2.5 leading-tight self-center",
-                "hide-scrollbar" 
-            )}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage(e as any);
-                if (textareaRef.current) {
-                    textareaRef.current.style.height = 'auto'; 
+          <div className="chat-input-sweep-border-wrapper flex-1">
+            <Textarea
+              ref={textareaRef}
+              placeholder="Type a message..."
+              value={newMessage}
+              onChange={(e) => {
+                setNewMessage(e.target.value);
+                e.target.style.height = 'auto';
+                e.target.style.height = `${e.target.scrollHeight}px`;
+              }}
+              onFocus={() => {
+                if(isEmojiPickerOpen) setIsEmojiPickerOpen(false);
+              }}
+              rows={1}
+              className={cn(
+                  "chat-input-sweep-border-textarea", // New class for core styles
+                  "resize-none min-h-[40px] max-h-[100px] rounded-full px-4 py-2.5 leading-tight hide-scrollbar" // Existing utility classes for sizing/padding
+              )}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage(e as any);
+                  if (textareaRef.current) {
+                      textareaRef.current.style.height = 'auto'; 
+                  }
                 }
-              }
-            }}
-          />
+              }}
+            />
+          </div>
           <input
             type="file"
             ref={fileInputRef}
