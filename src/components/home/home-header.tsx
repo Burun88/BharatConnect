@@ -8,7 +8,7 @@ import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface HomeHeaderProps {
-  isHeaderContentLoaded: boolean;
+  isHeaderContentLoaded: boolean; // This prop will now control the visibility of the entire header
 }
 
 const HomeHeader: FC<HomeHeaderProps> = ({ isHeaderContentLoaded }) => {
@@ -16,26 +16,21 @@ const HomeHeader: FC<HomeHeaderProps> = ({ isHeaderContentLoaded }) => {
     <header
       className={cn(
         "flex items-center justify-between p-4 bg-background z-20 h-16",
-        "fixed top-0 left-0 right-0"
-        // The header bar itself is always visible and fixed.
-        // Animations apply to its children.
+        "fixed top-0 left-0 right-0",
+        "transition-transform duration-300 ease-in-out", // Applied to the header itself
+        isHeaderContentLoaded ? "translate-y-0" : "-translate-y-full" // Animate entire header
       )}
     >
+      {/* Logo - no longer needs individual animation classes */}
       <Logo
         size="medium"
-        className={cn(
-          "transition-all duration-300 ease-in-out",
-          isHeaderContentLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-3 pointer-events-none"
-        )}
+        className="transition-none" // Remove any individual transition if present
       />
+      {/* Search Button container - no longer needs individual animation classes */}
       <div
-        className={cn(
-          "flex items-center space-x-2",
-          "transition-all duration-300 ease-in-out",
-          isHeaderContentLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-3 pointer-events-none"
-        )}
+        className="flex items-center space-x-2 transition-none" // Remove any individual transition if present
       >
-        <Button variant="ghost" size="icon" aria-label="Search" disabled={!isHeaderContentLoaded}>
+        <Button variant="ghost" size="icon" aria-label="Search" tabIndex={isHeaderContentLoaded ? 0 : -1}>
           <Search className="w-5 h-5" />
         </Button>
       </div>

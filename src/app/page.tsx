@@ -30,7 +30,8 @@ export default function HomePage() {
   const [currentUserAuraId] = useLocalStorage<string | null>('currentUserAuraId', null);
 
   const scrollableContainerRef = useRef<HTMLDivElement>(null);
-  const [isHeaderContentLoaded, setIsHeaderContentLoaded] = useState(true);
+  // isHeaderContentLoaded will now control the visibility of the ENTIRE HomeHeader
+  const [isHeaderContentLoaded, setIsHeaderContentLoaded] = useState(true); 
   const lastScrollYRef = useRef(0);
 
   useEffect(() => {
@@ -68,23 +69,24 @@ export default function HomePage() {
     const currentScrollY = scrollableElement.scrollTop;
 
     // Always show content if at the very top or very near it
-    if (currentScrollY <= HEADER_HEIGHT_PX / 4) { // Reduced threshold for "at the top"
+    // HEADER_HEIGHT_PX / 4 is a small threshold to ensure it's visible when near the top.
+    if (currentScrollY <= HEADER_HEIGHT_PX / 4) { 
       setIsHeaderContentLoaded(true);
     } else {
       // Check scroll direction only if moved more than DELTA
       if (Math.abs(currentScrollY - lastScrollYRef.current) > SCROLL_DELTA) {
         if (currentScrollY > lastScrollYRef.current) {
-          // Scrolling Down: Hide content
+          // Scrolling Down: Hide header content
           setIsHeaderContentLoaded(false);
         } else {
-          // Scrolling Up: Show content
+          // Scrolling Up: Show header content
           setIsHeaderContentLoaded(true);
         }
       }
     }
     // Update last scroll position, ensuring it's not negative
     lastScrollYRef.current = currentScrollY <= 0 ? 0 : currentScrollY;
-  }, []); // Empty dependency array, relies on refs and state setters
+  }, []); // Dependencies: Add any state variables read inside, but refs and constants are fine.
 
   useEffect(() => {
     const scrollableElement = scrollableContainerRef.current;
@@ -107,13 +109,16 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
+      {/* HomeHeader visibility is controlled by isHeaderContentLoaded */}
       <HomeHeader isHeaderContentLoaded={isHeaderContentLoaded} />
       
       <main 
         ref={scrollableContainerRef} 
         className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar"
+        // PaddingTop ensures content starts below the fixed header's space
         style={{ paddingTop: `${HEADER_HEIGHT_PX}px` }} 
       > 
+        {/* AuraBar is now part of the scrollable content */}
         <AuraBar 
           isLoading={isLoading} 
           auraBarItems={auraBarItems} 
