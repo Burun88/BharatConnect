@@ -64,40 +64,38 @@ export default function ChatPage() {
     }
   }, [isEmojiPickerOpen]);
 
-  // Effect to handle keyboard visibility and adjust padding
   useEffect(() => {
     const visualViewport = window.visualViewport;
     const mainContentEl = mainContentRef.current;
 
     if (!visualViewport || !mainContentEl) {
-      // console.log('VisualViewport API not supported or mainContentEl not found.');
       return;
     }
 
     const handleResize = () => {
       let bottomPadding = 0;
-      if (!isEmojiPickerOpen) { // Only apply keyboard padding if emoji picker is closed
-        // Calculate the height of the area obscured by the keyboard at the bottom
+      if (!isEmojiPickerOpen) { 
         const keyboardHeight = window.innerHeight - (visualViewport.height + visualViewport.offsetTop);
         bottomPadding = Math.max(0, keyboardHeight);
-        // console.log(`Keyboard height: ${keyboardHeight}, Padding set to: ${bottomPadding}`);
-      } else {
-        // console.log('Emoji picker is open, keyboard padding set to 0.');
       }
       mainContentEl.style.paddingBottom = `${bottomPadding}px`;
+      // Scroll to bottom only if keyboard is not the reason for resize, or input is focused.
+      // This helps keep the input in view when keyboard opens.
+      if (document.activeElement === textareaRef.current || bottomPadding > 0) {
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      }
     };
 
     visualViewport.addEventListener('resize', handleResize);
-    handleResize(); // Call once to set initial padding
+    handleResize(); 
 
     return () => {
       visualViewport.removeEventListener('resize', handleResize);
       if (mainContentEl) {
-        mainContentEl.style.paddingBottom = '0px'; // Reset on unmount
-        // console.log('ChatPage unmounted, paddingBottom reset.');
+        mainContentEl.style.paddingBottom = '0px'; 
       }
     };
-  }, [isEmojiPickerOpen]); // Re-run if emoji picker state changes
+  }, [isEmojiPickerOpen]); 
 
 
   const showComingSoonToastOptions = () => {
@@ -109,9 +107,6 @@ export default function ChatPage() {
 
   const toggleEmojiPicker = () => {
     setIsEmojiPickerOpen(prev => !prev);
-    if (!isEmojiPickerOpen && textareaRef.current) {
-        // If opening picker, ensure textarea doesn't have focus to prevent keyboard
-    }
   };
 
   const handleSendMessage = (e: FormEvent) => {
@@ -129,7 +124,7 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
-    setIsEmojiPickerOpen(false);
+    setIsEmojiPickerOpen(false); 
     textareaRef.current?.focus();
 
     if (contact) {
@@ -228,8 +223,8 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-dvh bg-background"> {/* Use h-dvh for dynamic viewport height */}
-      <header className="fixed top-0 left-0 right-0 flex items-center p-2.5 border-b bg-background h-16 z-20"> {/* Fixed header */}
+    <div className="flex flex-col h-dvh bg-background"> 
+      <header className="fixed top-0 left-0 right-0 flex items-center p-2.5 border-b bg-background h-16 z-20"> 
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -250,11 +245,8 @@ export default function ChatPage() {
         </Button>
       </header>
 
-      {/* Main Content Area: Messages, Input, Emoji Picker */}
-      {/* This container will have its padding-bottom adjusted by JS */}
-      <div ref={mainContentRef} className="flex flex-col flex-1 pt-16"> {/* pt-16 for fixed header height, flex-1 to take remaining space */}
-        {/* Message Area */}
-        <div className="flex-grow overflow-y-auto"> {/* flex-grow to take space, overflow for scrolling */}
+      <div ref={mainContentRef} className="flex flex-col flex-1 pt-16 overflow-hidden">      
+        <div className="flex-grow overflow-y-auto"> 
           <div className="flex flex-col p-4 space-y-2 pb-2">
             {messages.map(msg => (
               <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
@@ -263,7 +255,6 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Input Footer - should not shrink */}
         <footer className="border-t bg-background z-10 flex-shrink-0">
           <form onSubmit={handleSendMessage} className="flex items-end space-x-2 p-2">
             <Button
@@ -320,11 +311,10 @@ export default function ChatPage() {
             )}
           </form>
         </footer>
-
-        {/* Emoji Picker Container - should not shrink */}
+        
         <div
           className={cn(
-            "transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0",
+            "transition-all duration-300 ease-in-out flex-shrink-0", // Removed overflow-hidden here, handled by parent or emoji picker itself
             isEmojiPickerOpen
               ? "h-[300px] opacity-100 visible pointer-events-auto" 
               : "h-0 opacity-0 invisible pointer-events-none",
