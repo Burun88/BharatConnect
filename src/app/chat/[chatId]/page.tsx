@@ -172,7 +172,7 @@ export default function ChatPage() {
       {/* Message Input Footer - Remains sticky */}
       <footer className="p-2 border-t bg-background sticky bottom-0 z-10">
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
-          <Button variant="ghost" size="icon" type="button">
+          <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent">
             <SmilePlus className="w-5 h-5 text-muted-foreground" />
           </Button>
           <Textarea
@@ -190,10 +190,10 @@ export default function ChatPage() {
           />
           {newMessage.trim() === '' ? (
             <>
-             <Button variant="ghost" size="icon" type="button">
+             <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent">
                 <Paperclip className="w-5 h-5 text-muted-foreground" />
               </Button>
-              <Button variant="ghost" size="icon" type="button">
+              <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent">
                 <Camera className="w-5 h-5 text-muted-foreground" />
               </Button>
             </>
