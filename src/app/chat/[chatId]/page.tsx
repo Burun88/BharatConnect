@@ -68,16 +68,10 @@ export default function ChatPage() {
 
   const toggleEmojiPicker = () => {
     setIsEmojiPickerOpen(prev => !prev);
-     if (!isEmojiPickerOpen && textareaRef.current) {
-      // If opening, ensure textarea doesn't immediately refocus and close it.
-      // This might not be needed if onFocus handles it well.
-    }
   };
 
   const handleEmojiSelect = (emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
-    // Keep emoji picker open for multiple selections
-    // setIsEmojiPickerOpen(false); 
     textareaRef.current?.focus();
   };
 
@@ -96,7 +90,7 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
-    setIsEmojiPickerOpen(false); // Close emoji picker after sending
+    // setIsEmojiPickerOpen(false); // Keep picker open or close based on preference, for now, let's keep it open if user wants to add more.
 
     if (contact) {
         setTimeout(() => {
@@ -121,7 +115,7 @@ export default function ChatPage() {
         description: `You selected: ${file.name}. Sending files coming soon!`,
       });
       if (event.target) {
-        event.target.value = ''; // Reset file input
+        event.target.value = ''; 
       }
     }
   };
@@ -285,8 +279,10 @@ export default function ChatPage() {
       
       <div
         className={cn(
-          "transition-all duration-300 ease-in-out bg-background", // Removed overflow-hidden
-          isEmojiPickerOpen ? "max-h-[350px] opacity-100" : "max-h-0 opacity-0"
+          "h-[350px] bg-background transition-all duration-300 ease-in-out",
+          isEmojiPickerOpen 
+            ? "opacity-100 visible translate-y-0" 
+            : "opacity-0 invisible translate-y-full pointer-events-none"
         )}
         aria-hidden={!isEmojiPickerOpen}
       >
@@ -295,3 +291,4 @@ export default function ChatPage() {
     </div>
   );
 }
+
