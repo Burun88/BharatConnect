@@ -15,8 +15,8 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   // @ts-ignore
-  virtualKeyboard: 'overlays-content', // As per plan
-  interactiveWidget: 'resizes-content', // As per plan
+  virtualKeyboard: 'overlays-content', 
+  interactiveWidget: 'resizes-visual', // Changed from resizes-content
 };
 
 export default function RootLayout({

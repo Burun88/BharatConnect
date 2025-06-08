@@ -106,12 +106,12 @@ export default function HomePage() {
   }, [router]);
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background">
       <HomeHeader isHeaderContentLoaded={isHeaderContentLoaded} />
       
       <main 
         ref={scrollableContainerRef} 
-        className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar min-h-0" // Added min-h-0
+        className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar min-h-0"
         style={{ 
           paddingTop: `${HEADER_HEIGHT_PX}px`,
           paddingBottom: `${BOTTOM_NAV_HEIGHT_PX}px` 
