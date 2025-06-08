@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessagesSquare, Zap, PhoneCall, UserCircle } from 'lucide-react'; // Updated imports
+import { MessagesSquare, Activity, PhoneCall, UserCircle } from 'lucide-react'; // Updated Zap to Activity
 import { cn } from '@/lib/utils';
 
 type NavItem = {
@@ -13,10 +13,10 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { href: '/', label: 'Chats', icon: MessagesSquare }, // Updated icon
-  { href: '/status', label: 'Status', icon: Zap },         // Updated icon
-  { href: '/calls', label: 'Calls', icon: PhoneCall },     // Updated icon
-  { href: '/account', label: 'Account', icon: UserCircle }, // Updated icon
+  { href: '/', label: 'Chats', icon: MessagesSquare },
+  { href: '/status', label: 'Status', icon: Activity }, // Changed icon here
+  { href: '/calls', label: 'Calls', icon: PhoneCall },
+  { href: '/account', label: 'Account', icon: UserCircle },
 ];
 
 export default function BottomNavigationBar() {
@@ -34,13 +34,25 @@ export default function BottomNavigationBar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center justify-center w-full h-full text-muted-foreground hover:text-primary transition-colors",
-                isActive && "text-transparent bg-clip-text bg-gradient-to-r from-accent to-primary"
+                "flex flex-col items-center justify-center w-full h-full transition-colors",
+                isActive ? "" : "text-muted-foreground hover:text-primary" // Apply default text color only when not active
               )}
               aria-current={isActive ? "page" : undefined}
             >
-              <item.icon className={cn("w-6 h-6 mb-0.5", isActive ? "" : "")} /> {/* Removed fill for active, gradient text handles icon color */}
-              <span className={cn(isActive ? "text-transparent bg-clip-text bg-gradient-to-r from-accent to-primary" : "text-xs")}>{item.label}</span>
+              <item.icon 
+                className={cn(
+                  "w-6 h-6 mb-0.5", 
+                  isActive && "text-transparent bg-clip-text bg-gradient-to-r from-accent to-primary"
+                )} 
+              />
+              <span 
+                className={cn(
+                  "text-xs", 
+                  isActive ? "text-transparent bg-clip-text bg-gradient-to-r from-accent to-primary" : ""
+                )}
+              >
+                {item.label}
+              </span>
             </Link>
           );
         })}
