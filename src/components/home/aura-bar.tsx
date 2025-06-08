@@ -22,8 +22,8 @@ const AuraBar: FC<AuraBarProps> = ({ isLoading, auraBarItems, currentUserId, onC
           {isLoading ? (
             Array.from({ length: 5 }).map((_, index) => (
               <div key={index} className="flex flex-col items-center space-y-1 p-1">
-                <Skeleton className="w-24 h-24 rounded-full" /> 
-                <Skeleton className="w-20 h-4 rounded" />
+                <Skeleton className="w-20 h-20 rounded-full" /> 
+                <Skeleton className="w-16 h-3 rounded" />
               </div>
             ))
           ) : (
