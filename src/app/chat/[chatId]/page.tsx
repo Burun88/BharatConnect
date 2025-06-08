@@ -34,7 +34,7 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
-  const messageListContainerRef = useRef<HTMLDivElement>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null); // Was messageListContainerRef
   const bottomBarRef = useRef<HTMLDivElement>(null);
 
 
@@ -52,84 +52,80 @@ export default function ChatPage() {
     }, 1000);
   }, [chatId]);
 
-  // Scroll to bottom when new messages arrive or emoji picker opens/closes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
-  // Scroll to bottom when emoji picker toggles, specifically handling its animation
   useEffect(() => {
     if (isEmojiPickerOpen) {
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-      }, 300); // Match emoji picker animation duration
+      }, 300); 
     } else {
-      messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+       // Auto scroll when emoji picker closes if textarea is not focused (keyboard not expected)
+      if (document.activeElement !== textareaRef.current) {
+        messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+      }
     }
   }, [isEmojiPickerOpen]);
 
-
-  // visualViewport effect for keyboard and bottom bar handling
   useEffect(() => {
     const visualViewport = window.visualViewport;
-    const mcEl = messageListContainerRef.current; // Message container
-    const bbEl = bottomBarRef.current; // Bottom bar (input + emoji)
+    const scrollableMessagesEl = mainContentRef.current; 
+    const bottomBarEl = bottomBarRef.current;
 
-    if (!visualViewport || !mcEl || !bbEl) {
+    if (!visualViewport || !scrollableMessagesEl || !bottomBarEl) {
       return;
     }
 
-    const handleResize = () => {
-      const keyboardOffset = Math.max(0, window.innerHeight - (visualViewport.height + visualViewport.offsetTop) );
+    const updateLayout = () => {
+      const keyboardHeight = Math.max(0, window.innerHeight - (visualViewport.height + visualViewport.offsetTop));
       
-      bbEl.style.transform = `translateY(-${keyboardOffset}px)`;
-      
-      // Force reflow to try and get the most up-to-date offsetHeight
-      void bbEl.offsetWidth; 
+      if (isEmojiPickerOpen) {
+        // Emoji picker is open, it dictates the layout. Keyboard assumed closed or irrelevant.
+        bottomBarEl.style.transform = 'translateY(0px)'; 
+        scrollableMessagesEl.style.paddingBottom = `${bottomBarEl.offsetHeight}px`;
+      } else {
+        // Keyboard is the driver for layout changes.
+        bottomBarEl.style.transform = `translateY(-${keyboardHeight}px)`;
+        scrollableMessagesEl.style.paddingBottom = `${bottomBarEl.offsetHeight + keyboardHeight}px`;
+      }
 
-      // mcEl.style.paddingBottom will be handled by the ResizeObserver for bbEl's height changes
-      // However, we still need to trigger a scroll to the end if keyboard causes layout shift
-      if (keyboardOffset > 0 && document.activeElement === textareaRef.current) {
-         messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+      // Scroll messages to bottom if keyboard is what's making space (and not emoji picker)
+      // and textarea is focused.
+      if (!isEmojiPickerOpen && keyboardHeight > 0 && document.activeElement === textareaRef.current) {
+        requestAnimationFrame(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+        });
       }
     };
 
-    visualViewport.addEventListener('resize', handleResize);
-    handleResize(); // Initial call
-
-    return () => {
-      visualViewport.removeEventListener('resize', handleResize);
-      if (bbEl) bbEl.style.transform = 'translateY(0px)';
-    };
-  }, []); // Removed isEmojiPickerOpen as ResizeObserver handles bbEl height changes
-
-  // ResizeObserver for bottomBarRef height changes (textarea growth, emoji picker)
-  useEffect(() => {
-    const mcEl = messageListContainerRef.current;
-    const bbEl = bottomBarRef.current;
-
-    if (!mcEl || !bbEl) return;
-
-    const observer = new ResizeObserver(() => {
-        mcEl.style.paddingBottom = `${bbEl.offsetHeight}px`;
-        // Don't scroll here aggressively, let other effects handle scrolling
-        // or only scroll if near bottom
+    visualViewport.addEventListener('resize', updateLayout);
+    
+    const bottomBarObserver = new ResizeObserver(() => {
+      updateLayout(); // Re-evaluate layout when bottom bar height changes (textarea, emoji picker toggle)
     });
+    bottomBarObserver.observe(bottomBarEl);
 
-    observer.observe(bbEl);
-    // Initial set
-    mcEl.style.paddingBottom = `${bbEl.offsetHeight}px`;
+    updateLayout(); // Initial layout calculation
 
     return () => {
-        if (bbEl) observer.unobserve(bbEl);
-        if (mcEl) mcEl.style.paddingBottom = '0px'; // Reset on cleanup
+      visualViewport.removeEventListener('resize', updateLayout);
+      if (bottomBarEl) {
+        bottomBarEl.style.transform = 'translateY(0px)'; // Reset transform
+        bottomBarObserver.unobserve(bottomBarEl);
+      }
+      if (scrollableMessagesEl) {
+        scrollableMessagesEl.style.paddingBottom = '0px'; // Reset padding
+      }
     };
-  }, []); // Runs once
+  }, [isEmojiPickerOpen]); // Rerun this effect if isEmojiPickerOpen changes
 
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
-    textareaRef.current?.focus(); // Keep focus or re-focus on textarea
+    // Don't immediately focus textarea, user might want to pick more emojis.
+    // Focus will happen when they tap the textarea or send.
   }, []);
 
   const showComingSoonToastOptions = () => {
@@ -143,9 +139,9 @@ export default function ChatPage() {
     const openingEmojiPicker = !isEmojiPickerOpen;
     setIsEmojiPickerOpen(openingEmojiPicker);
     if (openingEmojiPicker) { 
-        textareaRef.current?.blur(); 
+        textareaRef.current?.blur(); // Close keyboard if open
     } else {
-        textareaRef.current?.focus();
+        textareaRef.current?.focus(); // Focus input when closing emoji picker
     }
   };
 
@@ -166,9 +162,9 @@ export default function ChatPage() {
     setNewMessage('');
     
     if (isEmojiPickerOpen) {
-        setIsEmojiPickerOpen(false);
+        setIsEmojiPickerOpen(false); // Close emoji picker after sending
     }
-    textareaRef.current?.focus();
+    textareaRef.current?.focus(); // Keep focus on textarea
 
     if (contact) {
         setTimeout(() => {
@@ -226,7 +222,7 @@ export default function ChatPage() {
 
   if (isLoading) {
     return (
-      <div className="relative flex flex-col h-dvh bg-background overflow-hidden">
+      <div className="relative flex flex-col h-dvh bg-background"> {/* Removed overflow-hidden */}
         <header className="fixed top-0 left-0 right-0 flex items-center p-3 border-b bg-background h-16 z-20">
           <Skeleton className="w-8 h-8 rounded-full mr-2" />
           <Skeleton className="w-10 h-10 rounded-full mr-3" />
@@ -236,7 +232,7 @@ export default function ChatPage() {
           </div>
           <Skeleton className="w-8 h-8 rounded-full ml-auto" />
         </header>
-        <div className="flex flex-col flex-1 pt-16 overflow-hidden"> {/* Padding for fixed header */}
+        <div className="flex flex-col flex-1 pt-16 overflow-hidden"> 
             <div className="flex-grow overflow-y-auto p-4 space-y-4 min-h-0">
             {[...Array(5)].map((_, i) => (
                 <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
@@ -244,7 +240,6 @@ export default function ChatPage() {
                 </div>
             ))}
             </div>
-            {/* Placeholder for bottom bar skeleton if needed */}
         </div>
       </div>
     );
@@ -260,8 +255,8 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="relative flex flex-col h-dvh bg-background overflow-hidden"> {/* Outermost */}
-      <header className="fixed top-0 left-0 right-0 flex items-center p-2.5 border-b bg-background h-16 z-20"> {/* Header: fixed */}
+    <div className="relative flex flex-col h-dvh bg-background"> {/* Outermost - Removed overflow-hidden */}
+      <header className="fixed top-0 left-0 right-0 flex items-center p-2.5 border-b bg-background h-16 z-20"> 
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -284,7 +279,7 @@ export default function ChatPage() {
 
       {/* Message List Area: Fills space between header and bottom bar, scrolls internally */}
       <div
-        ref={messageListContainerRef}
+        ref={mainContentRef} // Renamed from messageListContainerRef
         className="flex-1 overflow-y-auto hide-scrollbar" 
         style={{ paddingTop: '4rem' }} // Header height (h-16 = 4rem). Dynamic paddingBottom set by JS.
       >
@@ -296,11 +291,11 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Bottom Bar: Fixed to bottom, contains Input and Emoji Picker. Moves with keyboard. */}
+      {/* Bottom Bar: Fixed to bottom, contains Input and Emoji Picker. Moves with keyboard/emoji. */}
       <div
         ref={bottomBarRef}
-        className="fixed bottom-0 left-0 right-0 bg-background border-t z-10"
-        style={{ paddingBottom: `env(safe-area-inset-bottom)` }} // For iOS home indicator
+        className="fixed bottom-0 left-0 right-0 bg-background border-t z-10" // z-10 to be above messages, below header
+        style={{ paddingBottom: `env(safe-area-inset-bottom)` }} 
       >
         <footer className="flex items-end space-x-2 p-2 flex-shrink-0">
           <Button
@@ -376,3 +371,4 @@ export default function ChatPage() {
     
 
     
+
