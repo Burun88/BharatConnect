@@ -33,12 +33,11 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
-  const mainContentRef = useRef<HTMLDivElement>(null); 
+  const messageListContainerRef = useRef<HTMLDivElement>(null); 
   const bottomBarRef = useRef<HTMLDivElement>(null); 
-  const messageListContainerRef = useRef<HTMLDivElement>(null);
-
 
   useEffect(() => {
+    // Simulate fetching chat details
     setTimeout(() => {
       const currentChat = mockChats.find(c => c.id === chatId);
       if (currentChat) {
@@ -52,28 +51,30 @@ export default function ChatPage() {
     }, 1000);
   }, [chatId]);
 
+  // Scroll to bottom when new messages are added
   useEffect(() => {
     if (messageListContainerRef.current) {
         messageListContainerRef.current.scrollTop = messageListContainerRef.current.scrollHeight;
     }
   }, [messages]);
   
+  // Effect for keyboard and bottom bar layout adjustments
   useEffect(() => {
-    const mcEl = mainContentRef.current; // Main content area (scrollable messages)
-    const bbEl = bottomBarRef.current;    // Fixed bottom bar (input + emoji picker)
+    const mlcEl = messageListContainerRef.current; // Message List Container
+    const bbEl = bottomBarRef.current;          // Fixed bottom bar (input + emoji picker)
     const visualViewport = window.visualViewport;
 
-    if (!mcEl || !bbEl || !visualViewport) return;
+    if (!mlcEl || !bbEl || !visualViewport) return;
 
+    let lastKeyboardHeight = 0;
     let lastBottomBarOffsetHeight = bbEl.offsetHeight;
 
     const updateLayout = () => {
       const currentBottomBarOffsetHeight = bbEl.offsetHeight;
       let keyboardHeight = 0;
       
-      // Check if keyboard is effectively open by comparing window height to visualViewport height
-      // visualViewport.height is the visible area, window.innerHeight is the layout viewport
-      const isKeyboardEffectivelyOpen = window.innerHeight > visualViewport.height + 50; // 50px threshold for keyboard
+      // isKeyboardEffectivelyOpen: checks if keyboard is likely open by comparing window height to visualViewport height
+      const isKeyboardEffectivelyOpen = window.innerHeight > visualViewport.height + 50; 
 
       if (isKeyboardEffectivelyOpen && !isEmojiPickerOpen) {
         keyboardHeight = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
@@ -83,22 +84,19 @@ export default function ChatPage() {
       bbEl.style.bottom = `${keyboardHeight}px`;
       
       // Set padding on the message container so content doesn't hide behind bottom bar
-      mcEl.style.paddingBottom = `${currentBottomBarOffsetHeight}px`;
+      mlcEl.style.paddingBottom = `${currentBottomBarOffsetHeight}px`;
       
       // Scroll to bottom if keyboard opened for typing (and not due to emoji picker interaction)
-      if (isKeyboardEffectivelyOpen && !isEmojiPickerOpen && document.activeElement === textareaRef.current) {
-         // Ensure this only scrolls the message list, not the whole page
-        if (messageListContainerRef.current) {
-            messageListContainerRef.current.scrollTop = messageListContainerRef.current.scrollHeight;
-        }
+      if (keyboardHeight > 0 && keyboardHeight !== lastKeyboardHeight && document.activeElement === textareaRef.current) {
+        mlcEl.scrollTop = mlcEl.scrollHeight;
       }
+      
+      lastKeyboardHeight = keyboardHeight;
       lastBottomBarOffsetHeight = currentBottomBarOffsetHeight;
     };
     
     visualViewport.addEventListener('resize', updateLayout);
-    visualViewport.addEventListener('scroll', updateLayout); // Also listen to scroll for some edge cases
-
-    // Observe changes in bottom bar height (e.g., textarea resize, emoji picker toggle)
+    // Observer for bottom bar height changes (textarea resize, emoji picker toggle)
     const resizeObserver = new ResizeObserver(() => {
         if(bbEl.offsetHeight !== lastBottomBarOffsetHeight) {
             updateLayout();
@@ -110,13 +108,13 @@ export default function ChatPage() {
 
     return () => {
       visualViewport.removeEventListener('resize', updateLayout);
-      visualViewport.removeEventListener('scroll', updateLayout);
       resizeObserver.disconnect();
       // Reset styles
       bbEl.style.bottom = '0px';
-      mcEl.style.paddingBottom = `${lastBottomBarOffsetHeight}px`;
+      mlcEl.style.paddingBottom = `${lastBottomBarOffsetHeight}px`;
     };
-  }, [isEmojiPickerOpen, textareaRef]); // Rerun if emoji picker state or textarea ref changes
+  }, [isEmojiPickerOpen, textareaRef]); 
+
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
@@ -136,7 +134,8 @@ export default function ChatPage() {
     if (openingEmojiPicker) { 
       textareaRef.current?.blur(); 
     } else {
-      textareaRef.current?.focus();
+      // Delay focus slightly to ensure keyboard doesn't immediately re-open if it was just closed
+      setTimeout(() => textareaRef.current?.focus(), 0);
     }
   };
 
@@ -159,7 +158,12 @@ export default function ChatPage() {
     if (isEmojiPickerOpen) {
       setIsEmojiPickerOpen(false);
     }
-    textareaRef.current?.focus(); 
+    // Ensure textarea is focused after sending, allowing user to type again
+    // Also reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'; 
+      textareaRef.current.focus();
+    }
 
     if (contact) {
       setTimeout(() => {
@@ -226,7 +230,7 @@ export default function ChatPage() {
           </div>
           <Skeleton className="w-8 h-8 rounded-full ml-auto" />
         </header>
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 pt-16"> {/* pt-16 for fixed header */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 pt-16"> 
             {[...Array(5)].map((_, i) => (
                 <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
                 <Skeleton className={`w-3/5 h-12 rounded-lg ${i % 2 === 0 ? 'bg-secondary' : 'bg-primary/80'}`} />
@@ -250,7 +254,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-dvh bg-background relative"> {/* Outermost container, removed overflow-hidden */}
+    <div className="flex flex-col h-dvh bg-background"> {/* Outermost container, removed overflow-hidden */}
       <header className="fixed top-0 left-0 right-0 z-20 flex items-center p-2.5 border-b bg-background h-16">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
           <ArrowLeft className="w-5 h-5" />
@@ -272,20 +276,15 @@ export default function ChatPage() {
         </Button>
       </header>
 
-      {/* Main Content Area: Messages */}
+      {/* Main Content Area: Messages List. This takes up space between header and bottom bar */}
       <div 
-        ref={mainContentRef} 
-        className="flex flex-col flex-1 pt-16 overflow-hidden" // This container has top padding for header and dynamically adjusted bottom padding
+        ref={messageListContainerRef}
+        className="flex-grow overflow-y-auto hide-scrollbar pt-16 pb-4 px-2 space-y-2 min-h-0" 
       >
-        <div 
-            ref={messageListContainerRef}
-            className="flex-grow overflow-y-auto hide-scrollbar pt-2 pb-4 px-2 space-y-2 min-h-0" // Scrollable message list
-        >
-            {messages.map(msg => (
-                <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
-            ))}
-            <div ref={messagesEndRef} />
-        </div>
+        {messages.map(msg => (
+            <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
+        ))}
+        <div ref={messagesEndRef} />
       </div>
       
       {/* Bottom Bar: Input Footer + Emoji Picker - Fixed position, adjusted by JS */}
@@ -293,10 +292,10 @@ export default function ChatPage() {
         ref={bottomBarRef}
         className={cn(
             "fixed left-0 right-0 z-10 bg-background border-t",
-            "pb-[env(safe-area-inset-bottom)]", // For iOS safe area
-            "transition-transform duration-200 ease-out" // Smooth transition for position change
+            "pb-[env(safe-area-inset-bottom)]", 
+            "transition-transform duration-200 ease-out"
         )}
-        style={{ bottom: '0px' }} // Initial position, JS will adjust
+        style={{ bottom: '0px' }} 
       >
         <footer className="flex items-end space-x-2 p-2.5 flex-shrink-0">
            <Button
@@ -316,6 +315,7 @@ export default function ChatPage() {
             value={newMessage}
             onChange={(e) => {
               setNewMessage(e.target.value);
+              // Auto-resize textarea height
               e.target.style.height = 'auto';
               e.target.style.height = `${e.target.scrollHeight}px`;
             }}
@@ -323,7 +323,10 @@ export default function ChatPage() {
               if(isEmojiPickerOpen) setIsEmojiPickerOpen(false);
             }}
             rows={1}
-            className="flex-1 resize-none min-h-[40px] max-h-[100px] rounded-full px-4 py-2.5 leading-tight self-center"
+            className={cn(
+                "flex-1 resize-none min-h-[40px] max-h-[100px] rounded-full px-4 py-2.5 leading-tight self-center",
+                "hide-scrollbar" 
+            )}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -374,5 +377,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
-    
