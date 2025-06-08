@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessagesSquare, Image, PhoneCall, UserCircle } from 'lucide-react'; // Changed Newspaper to Image
+import { MessagesSquare, Clapperboard, PhoneCall, UserCircle } from 'lucide-react'; // Changed Image to Clapperboard
 import { cn } from '@/lib/utils';
 
 type NavItem = {
@@ -14,7 +14,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: '/', label: 'Chats', icon: MessagesSquare },
-  { href: '/status', label: 'Status', icon: Image }, // Changed icon here
+  { href: '/status', label: 'Status', icon: Clapperboard }, // Changed icon here
   { href: '/calls', label: 'Calls', icon: PhoneCall },
   { href: '/account', label: 'Account', icon: UserCircle },
 ];
@@ -28,15 +28,13 @@ export default function BottomNavigationBar() {
         {navItems.map((item) => {
           const isActive = (pathname === '/' && item.href === '/') || 
                            (item.href !== '/' && pathname.startsWith(item.href)) ||
-                           (pathname === '/account' && item.href === '/account'); // Ensures /account is active only for /account
+                           (pathname === '/account' && item.href === '/account'); 
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
                 "flex flex-col items-center justify-center w-full h-full transition-colors"
-                // General styling for non-active items (icon and text will be muted)
-                // Active state styling is handled by specific classes on icon and label below
               )}
               aria-current={isActive ? "page" : undefined}
             >
