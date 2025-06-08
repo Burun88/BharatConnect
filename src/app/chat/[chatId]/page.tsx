@@ -16,7 +16,6 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import EmojiPicker from '@/components/emoji-picker';
 
-
 export default function ChatPage() {
   const router = useRouter();
   const params = useParams();
@@ -33,12 +32,11 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
-  const mainContentRef = useRef<HTMLDivElement>(null); // Was messageListContainerRef
-  const bottomBarRef = useRef<HTMLDivElement>(null);
-
+  const messagesContainerRef = useRef<HTMLDivElement>(null); // For the scrollable messages area
+  // chatInputFooterRef will be implicitly the div with id="chat-input-footer"
 
   useEffect(() => {
+    // Simulate data fetching
     setTimeout(() => {
       const currentChat = mockChats.find(c => c.id === chatId);
       if (currentChat) {
@@ -56,76 +54,97 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
+  // Step 4: Use Virtual Keyboard Overlay API (Chrome)
   useEffect(() => {
-    if (isEmojiPickerOpen) {
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-      }, 300); 
-    } else {
-       // Auto scroll when emoji picker closes if textarea is not focused (keyboard not expected)
-      if (document.activeElement !== textareaRef.current) {
-        messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+    if ('virtualKeyboard' in navigator) {
+      try {
+        (navigator as any).virtualKeyboard.overlaysContent = true;
+      } catch (e) {
+        console.warn("Failed to set virtualKeyboard.overlaysContent", e);
       }
     }
-  }, [isEmojiPickerOpen]);
+  }, []);
 
+  // Step 3 & Combined Resize Logic: Apply Visual Viewport Resize Listener + ResizeObserver for input bar
   useEffect(() => {
-    const visualViewport = window.visualViewport;
-    const scrollableMessagesEl = mainContentRef.current; 
-    const bottomBarEl = bottomBarRef.current;
+    const chatInputFooterEl = document.getElementById('chat-input-footer');
+    const messagesContainerEl = messagesContainerRef.current;
 
-    if (!visualViewport || !scrollableMessagesEl || !bottomBarEl) {
+    if (!chatInputFooterEl || !messagesContainerEl || !window.visualViewport) {
       return;
     }
 
-    const updateLayout = () => {
-      const keyboardHeight = Math.max(0, window.innerHeight - (visualViewport.height + visualViewport.offsetTop));
+    const initialInputFooterHeight = chatInputFooterEl.offsetHeight;
+
+    const handleVisualViewportResize = () => {
+      if (!window.visualViewport) return;
+      // Calculate the height of the keyboard/obscured area
+      const keyboardHeight = window.innerHeight - window.visualViewport.height;
+      const actualKeyboardOffset = Math.max(0, keyboardHeight);
+
+      // Apply paddingBottom to the chat input footer itself, as per user plan
+      // This makes the footer taller, pushing its content (textarea) up
+      chatInputFooterEl.style.paddingBottom = `${actualKeyboardOffset}px`;
       
-      if (isEmojiPickerOpen) {
-        // Emoji picker is open, it dictates the layout. Keyboard assumed closed or irrelevant.
-        bottomBarEl.style.transform = 'translateY(0px)'; 
-        scrollableMessagesEl.style.paddingBottom = `${bottomBarEl.offsetHeight}px`;
-      } else {
-        // Keyboard is the driver for layout changes.
-        bottomBarEl.style.transform = `translateY(-${keyboardHeight}px)`;
-        scrollableMessagesEl.style.paddingBottom = `${bottomBarEl.offsetHeight + keyboardHeight}px`;
-      }
-
-      // Scroll messages to bottom if keyboard is what's making space (and not emoji picker)
-      // and textarea is focused.
-      if (!isEmojiPickerOpen && keyboardHeight > 0 && document.activeElement === textareaRef.current) {
-        requestAnimationFrame(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
-        });
-      }
+      // The message container's padding bottom should clear the new effective height of the input footer
+      // Since input footer height changes due to its own padding, ResizeObserver handles this part.
     };
-
-    visualViewport.addEventListener('resize', updateLayout);
     
-    const bottomBarObserver = new ResizeObserver(() => {
-      updateLayout(); // Re-evaluate layout when bottom bar height changes (textarea, emoji picker toggle)
-    });
-    bottomBarObserver.observe(bottomBarEl);
+    const updateMessagesContainerPadding = () => {
+        messagesContainerEl.style.paddingBottom = `${chatInputFooterEl.offsetHeight}px`;
+        // Scroll messages to bottom only if textarea is focused and keyboard is likely up
+        // (actualKeyboardOffset being > 0 from visualViewport is a better check, but that's in a different scope)
+        // A simpler heuristic: if textarea has focus, scroll.
+        if (document.activeElement === textareaRef.current) {
+           messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+        }
+    };
+    
+    window.visualViewport.addEventListener('resize', handleVisualViewportResize);
+    handleVisualViewportResize(); // Initial call to set padding
 
-    updateLayout(); // Initial layout calculation
+    const resizeObserver = new ResizeObserver(() => {
+        updateMessagesContainerPadding();
+    });
+    resizeObserver.observe(chatInputFooterEl);
+    
+    updateMessagesContainerPadding(); // Initial call for message container padding
 
     return () => {
-      visualViewport.removeEventListener('resize', updateLayout);
-      if (bottomBarEl) {
-        bottomBarEl.style.transform = 'translateY(0px)'; // Reset transform
-        bottomBarObserver.unobserve(bottomBarEl);
-      }
-      if (scrollableMessagesEl) {
-        scrollableMessagesEl.style.paddingBottom = '0px'; // Reset padding
+      window.visualViewport?.removeEventListener('resize', handleVisualViewportResize);
+      resizeObserver.disconnect();
+      // Reset styles on cleanup
+      chatInputFooterEl.style.paddingBottom = '0px';
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.style.paddingBottom = `${initialInputFooterHeight}px`; 
       }
     };
-  }, [isEmojiPickerOpen]); // Rerun this effect if isEmojiPickerOpen changes
+  }, [messagesContainerRef, textareaRef]); // Rerun if refs change (should not happen often)
+
+  // iOS Safari Fallback
+  useEffect(() => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const virtualKeyboardProbablyNotActive = !(('virtualKeyboard' in navigator) && (navigator as any).virtualKeyboard?.overlaysContent);
+
+    if (isIOS && virtualKeyboardProbablyNotActive) {
+      const textareaElement = textareaRef.current;
+      const focusHandler = () => document.body.classList.add('keyboard-open');
+      const blurHandler = () => document.body.classList.remove('keyboard-open');
+
+      textareaElement?.addEventListener('focus', focusHandler);
+      textareaElement?.addEventListener('blur', blurHandler);
+
+      return () => {
+        textareaElement?.removeEventListener('focus', focusHandler);
+        textareaElement?.removeEventListener('blur', blurHandler);
+        document.body.classList.remove('keyboard-open'); // Cleanup class
+      };
+    }
+  }, [textareaRef]);
 
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
-    // Don't immediately focus textarea, user might want to pick more emojis.
-    // Focus will happen when they tap the textarea or send.
   }, []);
 
   const showComingSoonToastOptions = () => {
@@ -139,9 +158,9 @@ export default function ChatPage() {
     const openingEmojiPicker = !isEmojiPickerOpen;
     setIsEmojiPickerOpen(openingEmojiPicker);
     if (openingEmojiPicker) { 
-        textareaRef.current?.blur(); // Close keyboard if open
+        textareaRef.current?.blur(); 
     } else {
-        textareaRef.current?.focus(); // Focus input when closing emoji picker
+        textareaRef.current?.focus(); 
     }
   };
 
@@ -162,9 +181,9 @@ export default function ChatPage() {
     setNewMessage('');
     
     if (isEmojiPickerOpen) {
-        setIsEmojiPickerOpen(false); // Close emoji picker after sending
+        setIsEmojiPickerOpen(false);
     }
-    textareaRef.current?.focus(); // Keep focus on textarea
+    textareaRef.current?.focus(); 
 
     if (contact) {
         setTimeout(() => {
@@ -221,9 +240,10 @@ export default function ChatPage() {
 
 
   if (isLoading) {
+    // Skeleton remains similar, no major changes needed here for the plan
     return (
-      <div className="relative flex flex-col h-dvh bg-background"> {/* Removed overflow-hidden */}
-        <header className="fixed top-0 left-0 right-0 flex items-center p-3 border-b bg-background h-16 z-20">
+      <div className="flex flex-col h-[calc(var(--vh,1vh)*100)] bg-background">
+        <header className="sticky top-0 z-30 flex items-center p-3 border-b bg-background h-16">
           <Skeleton className="w-8 h-8 rounded-full mr-2" />
           <Skeleton className="w-10 h-10 rounded-full mr-3" />
           <div className="flex-1 space-y-1.5">
@@ -232,14 +252,15 @@ export default function ChatPage() {
           </div>
           <Skeleton className="w-8 h-8 rounded-full ml-auto" />
         </header>
-        <div className="flex flex-col flex-1 pt-16 overflow-hidden"> 
-            <div className="flex-grow overflow-y-auto p-4 space-y-4 min-h-0">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {[...Array(5)].map((_, i) => (
                 <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
                 <Skeleton className={`w-3/5 h-12 rounded-lg ${i % 2 === 0 ? 'bg-secondary' : 'bg-primary/80'}`} />
                 </div>
             ))}
-            </div>
+        </div>
+         <div className="sticky bottom-0 z-20 bg-background p-2.5 border-t">
+            <Skeleton className="w-full h-10 rounded-full" />
         </div>
       </div>
     );
@@ -255,8 +276,9 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="relative flex flex-col h-dvh bg-background"> {/* Outermost - Removed overflow-hidden */}
-      <header className="fixed top-0 left-0 right-0 flex items-center p-2.5 border-b bg-background h-16 z-20"> 
+    // Step 5 & 6: Layout Structure and Styling (using Tailwind)
+    <div className="flex flex-col h-[calc(var(--vh,1vh)*100)] bg-background"> {/* main-container */}
+      <header className="sticky top-0 z-30 flex items-center p-2.5 border-b bg-background h-16"> {/* header */}
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -277,28 +299,20 @@ export default function ChatPage() {
         </Button>
       </header>
 
-      {/* Message List Area: Fills space between header and bottom bar, scrolls internally */}
-      <div
-        ref={mainContentRef} // Renamed from messageListContainerRef
-        className="flex-1 overflow-y-auto hide-scrollbar" 
-        style={{ paddingTop: '4rem' }} // Header height (h-16 = 4rem). Dynamic paddingBottom set by JS.
-      >
-        <div className="flex flex-col p-4 space-y-2 pb-2"> {/* Inner padding for messages */}
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto hide-scrollbar p-4 space-y-2"> {/* messages */}
           {messages.map(msg => (
             <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
           ))}
           <div ref={messagesEndRef} />
-        </div>
       </div>
-
-      {/* Bottom Bar: Fixed to bottom, contains Input and Emoji Picker. Moves with keyboard/emoji. */}
-      <div
-        ref={bottomBarRef}
-        className="fixed bottom-0 left-0 right-0 bg-background border-t z-10" // z-10 to be above messages, below header
-        style={{ paddingBottom: `env(safe-area-inset-bottom)` }} 
-      >
-        <footer className="flex items-end space-x-2 p-2 flex-shrink-0">
-          <Button
+      
+      {/* This div is the 'chat-input' from the plan, also handling emoji picker */}
+      <div id="chat-input-footer" className={cn(
+        "sticky bottom-0 z-20 bg-background border-t chat-input-ios-fallback",
+        "pb-[env(safe-area-inset-bottom)]" // Add safe area padding for iOS notch devices
+        )}>
+        <footer className="flex items-end space-x-2 p-2.5 flex-shrink-0">
+           <Button
             variant="ghost"
             size="icon"
             type="button"
@@ -357,7 +371,7 @@ export default function ChatPage() {
             isEmojiPickerOpen
               ? "h-[300px] opacity-100 visible pointer-events-auto"
               : "h-0 opacity-0 invisible pointer-events-none",
-            isEmojiPickerOpen && "bg-background"
+            isEmojiPickerOpen && "bg-background" // Ensure emoji picker has its own background
           )}
         >
           {isEmojiPickerOpen && (
@@ -368,7 +382,3 @@ export default function ChatPage() {
     </div>
   );
 }
-    
-
-    
-
