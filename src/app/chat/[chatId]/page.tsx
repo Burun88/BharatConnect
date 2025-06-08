@@ -29,8 +29,8 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
-  
-  const messagesEndRef = useRef<HTMLDivElement>(null); 
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -54,7 +54,8 @@ export default function ChatPage() {
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
-  }, []); 
+    textareaRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     if (isEmojiPickerOpen) {
@@ -72,6 +73,9 @@ export default function ChatPage() {
 
   const toggleEmojiPicker = () => {
     setIsEmojiPickerOpen(prev => !prev);
+    if (!isEmojiPickerOpen) { // If opening picker
+        textareaRef.current?.blur(); // Blur textarea to hide keyboard
+    }
   };
 
   const handleSendMessage = (e: FormEvent) => {
@@ -114,7 +118,7 @@ export default function ChatPage() {
         description: `You selected: ${file.name}. Sending files coming soon!`,
       });
       if (event.target) {
-        event.target.value = ''; 
+        event.target.value = '';
       }
     }
   };
@@ -136,7 +140,7 @@ export default function ChatPage() {
       });
     }
   };
-  
+
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
   }
@@ -189,7 +193,7 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <header className="flex items-center p-2.5 border-b bg-background h-16 sticky top-0 z-20">
+      <header className="flex items-center p-2.5 border-b bg-background h-16 sticky top-0 z-20 flex-shrink-0">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -219,14 +223,14 @@ export default function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
       </div>
-      
+
       {/* Input Footer */}
-      <footer className="border-t bg-background z-10 flex-shrink-0"> 
+      <footer className="border-t bg-background z-10 flex-shrink-0">
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2 p-2">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            type="button" 
+          <Button
+            variant="ghost"
+            size="icon"
+            type="button"
             className={cn("hover:bg-transparent", isEmojiPickerOpen && "bg-accent/20 text-primary")}
             onClick={toggleEmojiPicker}
             aria-pressed={isEmojiPickerOpen}
@@ -240,7 +244,7 @@ export default function ChatPage() {
             value={newMessage}
             onChange={(e) => {
               setNewMessage(e.target.value);
-              if (e.target.value && isEmojiPickerOpen) setIsEmojiPickerOpen(false); 
+              if (e.target.value && isEmojiPickerOpen) setIsEmojiPickerOpen(false);
             }}
             rows={1}
             className="flex-1 resize-none min-h-[40px] max-h-[100px] rounded-full px-4 py-2.5 leading-tight self-center"
@@ -254,11 +258,11 @@ export default function ChatPage() {
               }
             }}
           />
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileSelect} 
-            style={{ display: 'none' }} 
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            style={{ display: 'none' }}
             accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,text/plain,audio/*"
           />
           {newMessage.trim() === '' ? (
@@ -277,17 +281,17 @@ export default function ChatPage() {
           )}
         </form>
       </footer>
-      
+
       {/* Emoji Picker Container */}
       <div
         className={cn(
-          "bg-background transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0",
+          "transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0",
           isEmojiPickerOpen
-            ? "h-[350px] opacity-100"
-            : "h-0 opacity-0"
+            ? "h-[300px] opacity-100 bg-background"
+            : "h-0 opacity-0 invisible pointer-events-none"
         )}
       >
-        {isEmojiPickerOpen && ( 
+        {isEmojiPickerOpen && (
           <EmojiPicker onEmojiSelect={handleEmojiSelect} />
         )}
       </div>
