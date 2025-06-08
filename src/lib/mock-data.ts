@@ -5,7 +5,7 @@ import { AURA_OPTIONS } from '@/types';
 export const mockCurrentUser: User = {
   id: 'currentUser',
   name: 'You',
-  avatarUrl: 'https://picsum.photos/seed/currentUser/100/100',
+  avatarUrl: 'https://placehold.co/100x100.png', // Changed from picsum.photos
   currentAuraId: null,
   hasViewedStatus: true, 
 };
