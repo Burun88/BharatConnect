@@ -222,7 +222,7 @@ export default function ChatPage() {
       </div>
       
       {/* Input Footer */}
-      <footer className="border-t bg-background z-10"> {/* z-index might not be strictly needed here anymore */}
+      <footer className="border-t bg-background z-10"> 
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2 p-2">
           <Button 
             variant="ghost" 
@@ -279,16 +279,15 @@ export default function ChatPage() {
         </form>
       </footer>
       
-      {/* Emoji Picker Container - Animates height and opacity as a flow element */}
+      {/* Emoji Picker Container - Fixed height, animates opacity/visibility */}
       <div
         className={cn(
-          "bg-background transition-all duration-300 ease-in-out overflow-hidden", // overflow-hidden is key for max-height animation
+          "bg-background h-[350px]", // Fixed height, matches EmojiPicker's internal height
           isEmojiPickerOpen
-            ? "max-h-[350px] opacity-100"
-            : "max-h-0 opacity-0 pointer-events-none"
+            ? "opacity-100 visible transition-opacity duration-300 ease-in-out"
+            : "opacity-0 invisible pointer-events-none" 
         )}
       >
-        {/* Render EmojiPicker only when it's supposed to be visible and its container is ready */}
         {isEmojiPickerOpen && ( 
           <EmojiPicker onEmojiSelect={handleEmojiSelect} />
         )}
