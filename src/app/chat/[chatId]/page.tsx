@@ -329,8 +329,8 @@ export default function ChatPage() {
               }}
               rows={1}
               className={cn(
-                  "chat-input-sweep-border-textarea", // New class for core styles
-                  "resize-none min-h-[40px] max-h-[100px] rounded-full px-6 py-2.5 leading-tight hide-scrollbar" // Existing utility classes for sizing/padding, px-4 changed to px-6
+                  "chat-input-sweep-border-textarea", 
+                  "resize-none min-h-[40px] max-h-[100px] rounded-full px-6 py-2.5 leading-tight hide-scrollbar"
               )}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -360,7 +360,7 @@ export default function ChatPage() {
               </Button>
             </>
           ) : (
-            <Button type="submit" size="icon" onClick={handleSendMessage} className="rounded-full bg-primary text-primary-foreground w-10 h-10 flex-shrink-0">
+            <Button type="submit" size="icon" onClick={handleSendMessage} className="rounded-full bg-gradient-to-r from-primary to-accent text-primary-foreground w-10 h-10 flex-shrink-0">
               <Send className="w-5 h-5" />
             </Button>
           )}
