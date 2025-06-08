@@ -32,6 +32,7 @@ export default function ChatPage() {
   
   const messagesEndRef = useRef<HTMLDivElement>(null); 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     setTimeout(() => {
@@ -67,10 +68,17 @@ export default function ChatPage() {
 
   const toggleEmojiPicker = () => {
     setIsEmojiPickerOpen(prev => !prev);
+     if (!isEmojiPickerOpen && textareaRef.current) {
+      // If opening, ensure textarea doesn't immediately refocus and close it.
+      // This might not be needed if onFocus handles it well.
+    }
   };
 
   const handleEmojiSelect = (emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
+    // Keep emoji picker open for multiple selections
+    // setIsEmojiPickerOpen(false); 
+    textareaRef.current?.focus();
   };
 
   const handleSendMessage = (e: FormEvent) => {
@@ -88,7 +96,7 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
-    // setIsEmojiPickerOpen(false); // Keep emoji picker open after sending for now
+    setIsEmojiPickerOpen(false); // Close emoji picker after sending
 
     if (contact) {
         setTimeout(() => {
@@ -224,7 +232,7 @@ export default function ChatPage() {
             variant="ghost" 
             size="icon" 
             type="button" 
-            className={cn("hover:bg-transparent", isEmojiPickerOpen && "bg-accent/20")}
+            className={cn("hover:bg-transparent", isEmojiPickerOpen && "bg-accent/20 text-primary")}
             onClick={toggleEmojiPicker}
             aria-pressed={isEmojiPickerOpen}
             aria-label="Toggle emoji picker"
@@ -232,6 +240,7 @@ export default function ChatPage() {
             <SmilePlus className={cn("w-5 h-5 text-muted-foreground", isEmojiPickerOpen && "text-primary")} />
           </Button>
           <Textarea
+            ref={textareaRef}
             placeholder="Type a message..."
             value={newMessage}
             onChange={(e) => {
@@ -276,15 +285,13 @@ export default function ChatPage() {
       
       <div
         className={cn(
-          "transition-all duration-300 ease-in-out overflow-hidden bg-background",
+          "transition-all duration-300 ease-in-out bg-background", // Removed overflow-hidden
           isEmojiPickerOpen ? "max-h-[350px] opacity-100" : "max-h-0 opacity-0"
         )}
         aria-hidden={!isEmojiPickerOpen}
       >
-        {/* Conditionally render EmojiPicker to prevent issues with ScrollArea during animation */}
         {isEmojiPickerOpen && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
       </div>
     </div>
   );
 }
-
