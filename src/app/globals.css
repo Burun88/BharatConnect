@@ -272,11 +272,12 @@
   }
 
   .focus-visible-gradient-border-apply {
-    border-width: 2px;
-    border-style: solid;
-    border-image-slice: 1;
-    border-image-source: linear-gradient(to right, hsl(var(--accent)), hsl(var(--primary)));
-    /* outline: none; */ /* Keeping Tailwind's focus-visible:outline-none for accessibility if border-image fails */
+    border: 2px solid transparent; /* Important: border must be transparent */
+    background-image: linear-gradient(hsl(var(--background)), hsl(var(--background))), /* Inner background color */
+                      linear-gradient(to right, hsl(var(--accent)), hsl(var(--primary))); /* Gradient for border */
+    background-origin: border-box; /* Gradient starts from border edge */
+    background-clip: padding-box, border-box; /* Inner bg clips to padding, gradient clips to border */
+    /* border-radius is inherited from the component's `rounded-md` class */
   }
 }
 
