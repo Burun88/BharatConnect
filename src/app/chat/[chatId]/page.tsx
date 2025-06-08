@@ -55,7 +55,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (isEmojiPickerOpen) {
       // Timeout to allow layout to adjust before scrolling, and after animation
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 350); // Increased delay
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 350); // Matched animation duration
     }
   }, [isEmojiPickerOpen]);
 
@@ -211,6 +211,7 @@ export default function ChatPage() {
         </Button>
       </header>
 
+      {/* Message Area */}
       <div className="flex-grow overflow-y-auto">
         <div className="flex flex-col p-4 space-y-2 pb-2">
           {messages.map(msg => (
@@ -220,7 +221,8 @@ export default function ChatPage() {
         </div>
       </div>
       
-      <footer className="border-t bg-background z-10"> {/* z-10 to be above emoji picker in flow, but below for absolute */}
+      {/* Input Footer */}
+      <footer className="border-t bg-background z-10"> {/* z-index might not be strictly needed here anymore */}
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2 p-2">
           <Button 
             variant="ghost" 
@@ -242,7 +244,7 @@ export default function ChatPage() {
               if (e.target.value && isEmojiPickerOpen) setIsEmojiPickerOpen(false); 
             }}
             onFocus={() => {
-              // if (isEmojiPickerOpen) setIsEmojiPickerOpen(false); // Don't close on focus, allow picker usage
+              // if (isEmojiPickerOpen) setIsEmojiPickerOpen(false); // Current behavior: picker stays open on focus
             }}
             rows={1}
             className="flex-1 resize-none min-h-[40px] max-h-[100px] rounded-full px-4 py-2.5 leading-tight self-center"
@@ -277,17 +279,17 @@ export default function ChatPage() {
         </form>
       </footer>
       
-      {/* Emoji Picker Container - Animates visibility and position */}
+      {/* Emoji Picker Container - Animates height and opacity as a flow element */}
       <div
         className={cn(
-          "absolute bottom-0 left-0 right-0 z-10 bg-background transition-all duration-300 ease-in-out",
-          "h-[350px]", // Fixed height for the container
+          "bg-background transition-all duration-300 ease-in-out overflow-hidden", // overflow-hidden is key for max-height animation
           isEmojiPickerOpen
-            ? "opacity-100 visible translate-y-0"
-            : "opacity-0 invisible translate-y-full pointer-events-none"
+            ? "max-h-[350px] opacity-100"
+            : "max-h-0 opacity-0 pointer-events-none"
         )}
       >
-        {isEmojiPickerOpen && ( // Conditionally render EmojiPicker for clean mount/unmount
+        {/* Render EmojiPicker only when it's supposed to be visible and its container is ready */}
+        {isEmojiPickerOpen && ( 
           <EmojiPicker onEmojiSelect={handleEmojiSelect} />
         )}
       </div>
