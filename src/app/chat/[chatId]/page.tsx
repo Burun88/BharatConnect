@@ -16,7 +16,6 @@ import { mockMessagesData, mockUsers, mockChats, mockCurrentUser } from '@/lib/m
 import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import EmojiPicker from '@/components/emoji-picker';
 
 
@@ -54,11 +53,22 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
 
+  useEffect(() => {
+    if (isEmojiPickerOpen) {
+      // Timeout to allow layout to adjust before scrolling
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }
+  }, [isEmojiPickerOpen]);
+
   const showComingSoonToastOptions = () => {
     toast({
       title: "Hold Tight, Connecting Soon! 🚀",
-      description: "More chat options are coming soon! Stay tuned with BharatConnect! 🇮🇳✨",
+      description: "Our team is busy crafting this awesome feature for you. It'll be ready before your next chai break! Stay tuned with BharatConnect! 🇮🇳✨",
     });
+  };
+
+  const toggleEmojiPicker = () => {
+    setIsEmojiPickerOpen(prev => !prev);
   };
 
   const handleEmojiSelect = (emoji: string) => {
@@ -80,6 +90,7 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
+    setIsEmojiPickerOpen(false); // Close emoji picker on send
 
     if (contact) {
         setTimeout(() => {
@@ -138,25 +149,26 @@ export default function ChatPage() {
   if (isLoading) {
     return (
       <div className="flex flex-col h-screen">
-        <div className="flex-grow overflow-y-auto">
-          <header className="flex items-center p-3 border-b bg-background h-16">
-            <Skeleton className="w-8 h-8 rounded-full mr-2" />
-            <Skeleton className="w-10 h-10 rounded-full mr-3" />
-            <div className="flex-1 space-y-1.5">
-              <Skeleton className="w-2/4 h-4" />
-              <Skeleton className="w-1/3 h-3" />
-            </div>
-            <Skeleton className="w-8 h-8 rounded-full ml-auto" />
-          </header>
-          <div className="p-4 space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
-                <Skeleton className={`w-3/5 h-12 rounded-lg ${i % 2 === 0 ? 'bg-secondary' : 'bg-primary/80'}`} />
-              </div>
-            ))}
+        {/* Header Skeleton */}
+        <header className="flex items-center p-3 border-b bg-background h-16">
+          <Skeleton className="w-8 h-8 rounded-full mr-2" />
+          <Skeleton className="w-10 h-10 rounded-full mr-3" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="w-2/4 h-4" />
+            <Skeleton className="w-1/3 h-3" />
           </div>
+          <Skeleton className="w-8 h-8 rounded-full ml-auto" />
+        </header>
+        {/* Messages Skeleton */}
+        <div className="flex-grow overflow-y-auto p-4 space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+              <Skeleton className={`w-3/5 h-12 rounded-lg ${i % 2 === 0 ? 'bg-secondary' : 'bg-primary/80'}`} />
+            </div>
+          ))}
         </div>
-        <footer className="p-3 border-t bg-background sticky bottom-0 z-10">
+        {/* Footer Skeleton */}
+        <footer className="p-3 border-t bg-background">
           <div className="flex items-center space-x-2">
             <Skeleton className="w-8 h-10 rounded-md" />
             <Skeleton className="flex-1 h-10 rounded-md" />
@@ -177,30 +189,30 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen">
-      <div className="flex-grow overflow-y-auto">
-        <header className="flex items-center p-2.5 border-b bg-background h-16">
-          <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <Avatar className="w-10 h-10 mr-3">
-            {contact.avatarUrl && (
-              <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar" />
-            )}
-            <AvatarFallback className={cn(contactAura?.gradient)}>
-              {contactAura ? contactAura.emoji : getInitials(contact.name)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-semibold">{contact.name}</h2>
-            <p className="text-xs text-muted-foreground truncate">{contactStatus || 'Offline'}</p>
-          </div>
-          <Button variant="ghost" size="icon" className="ml-auto" onClick={showComingSoonToastOptions}>
-            <MoreVertical className="w-5 h-5" />
-          </Button>
-        </header>
+    <div className="flex flex-col h-screen bg-background">
+      <header className="flex items-center p-2.5 border-b bg-background h-16 sticky top-0 z-20">
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <Avatar className="w-10 h-10 mr-3">
+          {contact.avatarUrl && (
+            <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar" />
+          )}
+          <AvatarFallback className={cn(contactAura?.gradient)}>
+            {contactAura ? contactAura.emoji : getInitials(contact.name)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-sm font-semibold">{contact.name}</h2>
+          <p className="text-xs text-muted-foreground truncate">{contactStatus || 'Offline'}</p>
+        </div>
+        <Button variant="ghost" size="icon" className="ml-auto" onClick={showComingSoonToastOptions}>
+          <MoreVertical className="w-5 h-5" />
+        </Button>
+      </header>
 
-        <div className="flex flex-col p-4 space-y-2 pb-4">
+      <div className="flex-grow overflow-y-auto">
+        <div className="flex flex-col p-4 space-y-2 pb-2"> {/* Added pb-2 for spacing from input */}
           {messages.map(msg => (
             <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
           ))}
@@ -208,22 +220,21 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <footer className="p-2 border-t bg-background sticky bottom-0 z-10">
+      <footer className="p-2 border-t bg-background z-10">
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
-          <Popover open={isEmojiPickerOpen} onOpenChange={setIsEmojiPickerOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent">
-                <SmilePlus className="w-5 h-5 text-muted-foreground" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 border-0 mb-2 shadow-none" side="top" align="start">
-              <EmojiPicker onEmojiSelect={handleEmojiSelect} onClose={() => setIsEmojiPickerOpen(false)} />
-            </PopoverContent>
-          </Popover>
+          <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={toggleEmojiPicker}>
+            <SmilePlus className={cn("w-5 h-5 text-muted-foreground", isEmojiPickerOpen && "text-primary")} />
+          </Button>
           <Textarea
             placeholder="Type a message..."
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={(e) => {
+              setNewMessage(e.target.value);
+              if (isEmojiPickerOpen) setIsEmojiPickerOpen(false); // Close picker if user starts typing
+            }}
+            onFocus={() => {
+              if (isEmojiPickerOpen) setIsEmojiPickerOpen(false); // Close picker on focus
+            }}
             rows={1}
             className="flex-1 resize-none min-h-[40px] max-h-[100px] rounded-full px-4 py-2.5 leading-tight self-center"
             onKeyDown={(e) => {
@@ -256,6 +267,10 @@ export default function ChatPage() {
           )}
         </form>
       </footer>
+      
+      {isEmojiPickerOpen && (
+        <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+      )}
     </div>
   );
 }
