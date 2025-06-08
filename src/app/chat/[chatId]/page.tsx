@@ -330,7 +330,7 @@ export default function ChatPage() {
               rows={1}
               className={cn(
                   "chat-input-sweep-border-textarea", // New class for core styles
-                  "resize-none min-h-[40px] max-h-[100px] rounded-full px-4 py-2.5 leading-tight hide-scrollbar" // Existing utility classes for sizing/padding
+                  "resize-none min-h-[40px] max-h-[100px] rounded-full px-6 py-2.5 leading-tight hide-scrollbar" // Existing utility classes for sizing/padding, px-4 changed to px-6
               )}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
