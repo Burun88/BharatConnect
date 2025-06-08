@@ -33,7 +33,7 @@
 
     --border: 0 0% 20%;
     --input: 0 0% 12%;
-    --ring: 207 90% 48%; /* Slightly darker blue for focus rings */
+    --ring: 291 64% 58%; /* Changed from 207 90% 48% to match accent color */
 
     --radius: 0.5rem;
 
@@ -271,3 +271,5 @@
     background-color: hsl(var(--background)); /* Ensure it has a background */
   }
 }
+
+    
