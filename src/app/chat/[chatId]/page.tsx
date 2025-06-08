@@ -54,59 +54,82 @@ export default function ChatPage() {
 
   // Scroll to bottom when new messages arrive or emoji picker opens/closes
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isEmojiPickerOpen]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages]);
+
+  // Scroll to bottom when emoji picker toggles, specifically handling its animation
+  useEffect(() => {
+    if (isEmojiPickerOpen) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      }, 300); // Match emoji picker animation duration
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+    }
+  }, [isEmojiPickerOpen]);
 
 
   // visualViewport effect for keyboard and bottom bar handling
   useEffect(() => {
     const visualViewport = window.visualViewport;
-    const mcEl = messageListContainerRef.current;
-    const bbEl = bottomBarRef.current;
+    const mcEl = messageListContainerRef.current; // Message container
+    const bbEl = bottomBarRef.current; // Bottom bar (input + emoji)
 
     if (!visualViewport || !mcEl || !bbEl) {
       return;
     }
 
     const handleResize = () => {
-      // Calculate the keyboard's height or any other UI elements taking space from the bottom
       const keyboardOffset = Math.max(0, window.innerHeight - (visualViewport.height + visualViewport.offsetTop) );
       
-      // Translate the bottom bar (input + emoji picker) up by the keyboard's height
       bbEl.style.transform = `translateY(-${keyboardOffset}px)`;
       
-      // The message list container needs padding at its bottom
-      // to clear the visible portion of the bottom bar.
-      let currentBottomBarVisibleHeight = 0;
-      const inputFooterEl = bbEl.querySelector('footer');
-      if (inputFooterEl) {
-        currentBottomBarVisibleHeight += inputFooterEl.offsetHeight;
+      // Force reflow to try and get the most up-to-date offsetHeight
+      void bbEl.offsetWidth; 
+
+      // mcEl.style.paddingBottom will be handled by the ResizeObserver for bbEl's height changes
+      // However, we still need to trigger a scroll to the end if keyboard causes layout shift
+      if (keyboardOffset > 0 && document.activeElement === textareaRef.current) {
+         messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
       }
-      const emojiPickerContentEl = bbEl.children[1] as HTMLElement;
-      if (isEmojiPickerOpen && emojiPickerContentEl) {
-        currentBottomBarVisibleHeight += emojiPickerContentEl.offsetHeight; // e.g. 300px
-      }
-      
-      mcEl.style.paddingBottom = `${currentBottomBarVisibleHeight}px`;
-      // Ensure the last message is visible after layout adjustment
-      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
     };
 
     visualViewport.addEventListener('resize', handleResize);
-    handleResize(); // Initial call to set layout
+    handleResize(); // Initial call
 
     return () => {
       visualViewport.removeEventListener('resize', handleResize);
-      // Reset styles on cleanup
-      if (mcEl) mcEl.style.paddingBottom = '0px';
       if (bbEl) bbEl.style.transform = 'translateY(0px)';
     };
-  }, [isEmojiPickerOpen]); // Rerun when emoji picker state changes
+  }, []); // Removed isEmojiPickerOpen as ResizeObserver handles bbEl height changes
+
+  // ResizeObserver for bottomBarRef height changes (textarea growth, emoji picker)
+  useEffect(() => {
+    const mcEl = messageListContainerRef.current;
+    const bbEl = bottomBarRef.current;
+
+    if (!mcEl || !bbEl) return;
+
+    const observer = new ResizeObserver(() => {
+        mcEl.style.paddingBottom = `${bbEl.offsetHeight}px`;
+        // Don't scroll here aggressively, let other effects handle scrolling
+        // or only scroll if near bottom
+    });
+
+    observer.observe(bbEl);
+    // Initial set
+    mcEl.style.paddingBottom = `${bbEl.offsetHeight}px`;
+
+    return () => {
+        if (bbEl) observer.unobserve(bbEl);
+        if (mcEl) mcEl.style.paddingBottom = '0px'; // Reset on cleanup
+    };
+  }, []); // Runs once
 
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
-    textareaRef.current?.focus();
+    textareaRef.current?.focus(); // Keep focus or re-focus on textarea
   }, []);
 
   const showComingSoonToastOptions = () => {
@@ -117,9 +140,12 @@ export default function ChatPage() {
   };
 
   const toggleEmojiPicker = () => {
-    setIsEmojiPickerOpen(prev => !prev);
-    if (!isEmojiPickerOpen) { // if opening
-        textareaRef.current?.blur(); // Remove focus from textarea to prevent keyboard
+    const openingEmojiPicker = !isEmojiPickerOpen;
+    setIsEmojiPickerOpen(openingEmojiPicker);
+    if (openingEmojiPicker) { 
+        textareaRef.current?.blur(); 
+    } else {
+        textareaRef.current?.focus();
     }
   };
 
@@ -138,7 +164,10 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
-    setIsEmojiPickerOpen(false); 
+    
+    if (isEmojiPickerOpen) {
+        setIsEmojiPickerOpen(false);
+    }
     textareaRef.current?.focus();
 
     if (contact) {
@@ -207,7 +236,7 @@ export default function ChatPage() {
           </div>
           <Skeleton className="w-8 h-8 rounded-full ml-auto" />
         </header>
-        <div className="flex flex-col flex-1 pt-16 overflow-hidden">
+        <div className="flex flex-col flex-1 pt-16 overflow-hidden"> {/* Padding for fixed header */}
             <div className="flex-grow overflow-y-auto p-4 space-y-4 min-h-0">
             {[...Array(5)].map((_, i) => (
                 <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
@@ -215,13 +244,7 @@ export default function ChatPage() {
                 </div>
             ))}
             </div>
-            <div className="p-3 border-t bg-background flex-shrink-0 fixed bottom-0 left-0 right-0">
-              <div className="flex items-center space-x-2">
-                  <Skeleton className="w-8 h-10 rounded-md" />
-                  <Skeleton className="flex-1 h-10 rounded-md" />
-                  <Skeleton className="w-10 h-10 rounded-full" />
-              </div>
-            </div>
+            {/* Placeholder for bottom bar skeleton if needed */}
         </div>
       </div>
     );
@@ -262,8 +285,8 @@ export default function ChatPage() {
       {/* Message List Area: Fills space between header and bottom bar, scrolls internally */}
       <div
         ref={messageListContainerRef}
-        className="flex-1 overflow-y-auto hide-scrollbar" // hide-scrollbar for custom scrollbar behavior
-        style={{ paddingTop: '4rem' }} // Header height (h-16 = 4rem)
+        className="flex-1 overflow-y-auto hide-scrollbar" 
+        style={{ paddingTop: '4rem' }} // Header height (h-16 = 4rem). Dynamic paddingBottom set by JS.
       >
         <div className="flex flex-col p-4 space-y-2 pb-2"> {/* Inner padding for messages */}
           {messages.map(msg => (
@@ -277,9 +300,9 @@ export default function ChatPage() {
       <div
         ref={bottomBarRef}
         className="fixed bottom-0 left-0 right-0 bg-background border-t z-10"
-        // `env(safe-area-inset-bottom)` can be added to padding/margin here if needed for iOS home indicator
+        style={{ paddingBottom: `env(safe-area-inset-bottom)` }} // For iOS home indicator
       >
-        <footer className="flex items-end space-x-2 p-2">
+        <footer className="flex items-end space-x-2 p-2 flex-shrink-0">
           <Button
             variant="ghost"
             size="icon"
@@ -335,7 +358,7 @@ export default function ChatPage() {
         
         <div
           className={cn(
-            "transition-all duration-300 ease-in-out overflow-hidden", // Added overflow-hidden
+            "transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0", 
             isEmojiPickerOpen
               ? "h-[300px] opacity-100 visible pointer-events-auto"
               : "h-0 opacity-0 invisible pointer-events-none",
