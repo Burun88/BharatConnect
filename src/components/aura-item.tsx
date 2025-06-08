@@ -72,7 +72,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
         {isRing && ringGradient && (
           <div
             className={cn(
-              "absolute inset-0 rounded-full animate-spin-slow opacity-75",
+              "absolute inset-0 rounded-full animate-spin-slow",
               ringGradient
             )}
           />
@@ -81,9 +81,8 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
           className={cn(
             "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden",
             IMAGE_SIZE_CLASS,
-            isRing && "bg-background"
+            isRing && "bg-background p-0.5" // Apply 2px padding for ring thickness
           )}
-          style={isRing ? { padding: '0.7px' } : undefined}
         >
           {React.cloneElement(avatarContent as React.ReactElement, {
             className: cn((avatarContent as React.ReactElement).props.className, "w-full h-full"),
