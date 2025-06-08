@@ -229,7 +229,7 @@ export default function ChatPage() {
             <div className="flex-grow overflow-y-auto p-4 space-y-4">
                 {[...Array(5)].map((_, i) => (
                     <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
-                    <Skeleton className={`w-3/5 h-12 rounded-lg ${i % 2 === 0 ? 'bg-secondary' : 'bg-primary/80'}`} />
+                    <Skeleton className={`w-3/5 h-12 rounded-lg bg-muted`} />
                     </div>
                 ))}
             </div>
