@@ -3,9 +3,7 @@
 
 import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input'; 
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -90,7 +88,7 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
-    setIsEmojiPickerOpen(false); // Close emoji picker on send
+    // setIsEmojiPickerOpen(false); // Keep emoji picker open after sending for now
 
     if (contact) {
         setTimeout(() => {
@@ -115,7 +113,7 @@ export default function ChatPage() {
         description: `You selected: ${file.name}. Sending files coming soon!`,
       });
       if (event.target) {
-        event.target.value = '';
+        event.target.value = ''; // Reset file input
       }
     }
   };
@@ -196,7 +194,7 @@ export default function ChatPage() {
         </Button>
         <Avatar className="w-10 h-10 mr-3">
           {contact.avatarUrl && (
-            <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar" />
+            <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar"/>
           )}
           <AvatarFallback className={cn(contactAura?.gradient)}>
             {contactAura ? contactAura.emoji : getInitials(contact.name)}
@@ -212,7 +210,7 @@ export default function ChatPage() {
       </header>
 
       <div className="flex-grow overflow-y-auto">
-        <div className="flex flex-col p-4 space-y-2 pb-2"> {/* Added pb-2 for spacing from input */}
+        <div className="flex flex-col p-4 space-y-2 pb-2">
           {messages.map(msg => (
             <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
           ))}
@@ -220,9 +218,17 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <footer className="p-2 border-t bg-background z-10">
-        <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
-          <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={toggleEmojiPicker}>
+      <footer className="border-t bg-background z-10">
+        <form onSubmit={handleSendMessage} className="flex items-end space-x-2 p-2">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            type="button" 
+            className={cn("hover:bg-transparent", isEmojiPickerOpen && "bg-accent/20")}
+            onClick={toggleEmojiPicker}
+            aria-pressed={isEmojiPickerOpen}
+            aria-label="Toggle emoji picker"
+          >
             <SmilePlus className={cn("w-5 h-5 text-muted-foreground", isEmojiPickerOpen && "text-primary")} />
           </Button>
           <Textarea
@@ -230,10 +236,10 @@ export default function ChatPage() {
             value={newMessage}
             onChange={(e) => {
               setNewMessage(e.target.value);
-              if (isEmojiPickerOpen) setIsEmojiPickerOpen(false); // Close picker if user starts typing
+              if (e.target.value && isEmojiPickerOpen) setIsEmojiPickerOpen(false); 
             }}
             onFocus={() => {
-              if (isEmojiPickerOpen) setIsEmojiPickerOpen(false); // Close picker on focus
+              if (isEmojiPickerOpen) setIsEmojiPickerOpen(false);
             }}
             rows={1}
             className="flex-1 resize-none min-h-[40px] max-h-[100px] rounded-full px-4 py-2.5 leading-tight self-center"
@@ -268,9 +274,17 @@ export default function ChatPage() {
         </form>
       </footer>
       
-      {isEmojiPickerOpen && (
+      <div
+        className={cn(
+          "transition-all duration-300 ease-in-out overflow-hidden bg-background",
+          isEmojiPickerOpen ? "max-h-[350px] opacity-100" : "max-h-0 opacity-0"
+        )}
+        aria-hidden={!isEmojiPickerOpen}
+      >
+        {/* Render EmojiPicker always for smoother animation, visibility controlled by parent div height/opacity */}
         <EmojiPicker onEmojiSelect={handleEmojiSelect} />
-      )}
+      </div>
     </div>
   );
 }
+
