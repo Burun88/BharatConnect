@@ -153,7 +153,7 @@ export default function ChatPage() {
     return (
       <div className="flex flex-col h-screen">
         {/* Header Skeleton */}
-        <header className="flex items-center p-3 border-b bg-background h-16">
+        <header className="fixed top-0 left-0 right-0 flex items-center p-3 border-b bg-background h-16 z-20">
           <Skeleton className="w-8 h-8 rounded-full mr-2" />
           <Skeleton className="w-10 h-10 rounded-full mr-3" />
           <div className="flex-1 space-y-1.5">
@@ -162,22 +162,24 @@ export default function ChatPage() {
           </div>
           <Skeleton className="w-8 h-8 rounded-full ml-auto" />
         </header>
-        {/* Messages Skeleton */}
-        <div className="flex-grow overflow-y-auto p-4 space-y-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
-              <Skeleton className={`w-3/5 h-12 rounded-lg ${i % 2 === 0 ? 'bg-secondary' : 'bg-primary/80'}`} />
+        <div className="flex flex-col flex-1 pt-16 overflow-hidden">
+            {/* Messages Skeleton */}
+            <div className="flex-grow overflow-y-auto p-4 space-y-4">
+            {[...Array(5)].map((_, i) => (
+                <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+                <Skeleton className={`w-3/5 h-12 rounded-lg ${i % 2 === 0 ? 'bg-secondary' : 'bg-primary/80'}`} />
+                </div>
+            ))}
             </div>
-          ))}
+            {/* Footer Skeleton */}
+            <footer className="p-3 border-t bg-background flex-shrink-0">
+            <div className="flex items-center space-x-2">
+                <Skeleton className="w-8 h-10 rounded-md" />
+                <Skeleton className="flex-1 h-10 rounded-md" />
+                <Skeleton className="w-10 h-10 rounded-full" />
+            </div>
+            </footer>
         </div>
-        {/* Footer Skeleton */}
-        <footer className="p-3 border-t bg-background">
-          <div className="flex items-center space-x-2">
-            <Skeleton className="w-8 h-10 rounded-md" />
-            <Skeleton className="flex-1 h-10 rounded-md" />
-            <Skeleton className="w-10 h-10 rounded-full" />
-          </div>
-        </footer>
       </div>
     );
   }
@@ -193,7 +195,7 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <header className="flex items-center p-2.5 border-b bg-background h-16 sticky top-0 z-20 flex-shrink-0">
+      <header className="fixed top-0 left-0 right-0 flex items-center p-2.5 border-b bg-background h-16 z-20">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -214,86 +216,89 @@ export default function ChatPage() {
         </Button>
       </header>
 
-      {/* Message Area */}
-      <div className="flex-grow overflow-y-auto">
-        <div className="flex flex-col p-4 space-y-2 pb-2">
-          {messages.map(msg => (
-            <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
-          ))}
-          <div ref={messagesEndRef} />
+      {/* Content below fixed header */}
+      <div className="flex flex-col flex-1 pt-16 overflow-hidden">
+        {/* Message Area */}
+        <div className="flex-grow overflow-y-auto">
+          <div className="flex flex-col p-4 space-y-2 pb-2">
+            {messages.map(msg => (
+              <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
         </div>
-      </div>
 
-      {/* Input Footer */}
-      <footer className="border-t bg-background z-10 flex-shrink-0">
-        <form onSubmit={handleSendMessage} className="flex items-end space-x-2 p-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            type="button"
-            className={cn("hover:bg-transparent", isEmojiPickerOpen && "bg-accent/20 text-primary")}
-            onClick={toggleEmojiPicker}
-            aria-pressed={isEmojiPickerOpen}
-            aria-label="Toggle emoji picker"
-          >
-            <SmilePlus className={cn("w-5 h-5 text-muted-foreground", isEmojiPickerOpen && "text-primary")} />
-          </Button>
-          <Textarea
-            ref={textareaRef}
-            placeholder="Type a message..."
-            value={newMessage}
-            onChange={(e) => {
-              setNewMessage(e.target.value);
-              if (e.target.value && isEmojiPickerOpen) setIsEmojiPickerOpen(false);
-            }}
-            rows={1}
-            className="flex-1 resize-none min-h-[40px] max-h-[100px] rounded-full px-4 py-2.5 leading-tight self-center"
-            onFocus={() => {
-              if(isEmojiPickerOpen) setIsEmojiPickerOpen(false);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage(e as any);
-              }
-            }}
-          />
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            style={{ display: 'none' }}
-            accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,text/plain,audio/*"
-          />
-          {newMessage.trim() === '' ? (
-            <>
-             <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={() => fileInputRef.current?.click()}>
-                <Paperclip className="w-5 h-5 text-muted-foreground" />
-              </Button>
-              <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={handleCameraClick}>
-                <Camera className="w-5 h-5 text-muted-foreground" />
-              </Button>
-            </>
-          ) : (
-            <Button type="submit" size="icon" className="rounded-full bg-primary text-primary-foreground w-10 h-10 flex-shrink-0">
-              <Send className="w-5 h-5" />
+        {/* Input Footer */}
+        <footer className="border-t bg-background z-10 flex-shrink-0">
+          <form onSubmit={handleSendMessage} className="flex items-end space-x-2 p-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              type="button"
+              className={cn("hover:bg-transparent", isEmojiPickerOpen && "bg-accent/20 text-primary")}
+              onClick={toggleEmojiPicker}
+              aria-pressed={isEmojiPickerOpen}
+              aria-label="Toggle emoji picker"
+            >
+              <SmilePlus className={cn("w-5 h-5 text-muted-foreground", isEmojiPickerOpen && "text-primary")} />
             </Button>
-          )}
-        </form>
-      </footer>
+            <Textarea
+              ref={textareaRef}
+              placeholder="Type a message..."
+              value={newMessage}
+              onChange={(e) => {
+                setNewMessage(e.target.value);
+                if (e.target.value && isEmojiPickerOpen) setIsEmojiPickerOpen(false);
+              }}
+              onFocus={() => {
+                if(isEmojiPickerOpen) setIsEmojiPickerOpen(false);
+              }}
+              rows={1}
+              className="flex-1 resize-none min-h-[40px] max-h-[100px] rounded-full px-4 py-2.5 leading-tight self-center"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage(e as any);
+                }
+              }}
+            />
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              style={{ display: 'none' }}
+              accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,text/plain,audio/*"
+            />
+            {newMessage.trim() === '' ? (
+              <>
+               <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={() => fileInputRef.current?.click()}>
+                  <Paperclip className="w-5 h-5 text-muted-foreground" />
+                </Button>
+                <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={handleCameraClick}>
+                  <Camera className="w-5 h-5 text-muted-foreground" />
+                </Button>
+              </>
+            ) : (
+              <Button type="submit" size="icon" className="rounded-full bg-primary text-primary-foreground w-10 h-10 flex-shrink-0">
+                <Send className="w-5 h-5" />
+              </Button>
+            )}
+          </form>
+        </footer>
 
-      {/* Emoji Picker Container */}
-      <div
-        className={cn(
-          "transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0",
-          isEmojiPickerOpen
-            ? "h-[300px] opacity-100 bg-background"
-            : "h-0 opacity-0 invisible pointer-events-none"
-        )}
-      >
-        {isEmojiPickerOpen && (
-          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
-        )}
+        {/* Emoji Picker Container */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out flex-shrink-0 overflow-hidden",
+            isEmojiPickerOpen
+              ? "h-[300px] opacity-100 visible pointer-events-auto bg-background"
+              : "h-0 opacity-0 invisible pointer-events-none"
+          )}
+        >
+          {isEmojiPickerOpen && (
+            <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+          )}
+        </div>
       </div>
     </div>
   );
