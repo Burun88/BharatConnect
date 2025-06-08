@@ -49,6 +49,7 @@ export default function ChatPage() {
     }, 1000);
   }, [chatId]);
 
+  // Scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
@@ -58,12 +59,14 @@ export default function ChatPage() {
     textareaRef.current?.focus();
   }, []);
 
+  // Scroll when emoji picker opens/closes
   useEffect(() => {
     if (isEmojiPickerOpen) {
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 350);
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100); // Adjusted timeout
     }
   }, [isEmojiPickerOpen]);
 
+  // visualViewport effect for keyboard handling
   useEffect(() => {
     const visualViewport = window.visualViewport;
     const mainContentEl = mainContentRef.current;
@@ -73,29 +76,26 @@ export default function ChatPage() {
     }
 
     const handleResize = () => {
-      let bottomPadding = 0;
-      if (!isEmojiPickerOpen) { 
+      let keyboardRelatedBottomPadding = 0;
+      // Only apply keyboard-related padding if emoji picker is NOT open
+      if (!isEmojiPickerOpen) {
         const keyboardHeight = window.innerHeight - (visualViewport.height + visualViewport.offsetTop);
-        bottomPadding = Math.max(0, keyboardHeight);
+        keyboardRelatedBottomPadding = Math.max(0, keyboardHeight);
       }
-      mainContentEl.style.paddingBottom = `${bottomPadding}px`;
-      // Scroll to bottom only if keyboard is not the reason for resize, or input is focused.
-      // This helps keep the input in view when keyboard opens.
-      if (document.activeElement === textareaRef.current || bottomPadding > 0) {
-        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-      }
+      mainContentEl.style.paddingBottom = `${keyboardRelatedBottomPadding}px`;
     };
 
     visualViewport.addEventListener('resize', handleResize);
-    handleResize(); 
+    // Initial call to set padding if keyboard is already open or layout is otherwise constrained
+    handleResize();
 
     return () => {
       visualViewport.removeEventListener('resize', handleResize);
       if (mainContentEl) {
-        mainContentEl.style.paddingBottom = '0px'; 
+        mainContentEl.style.paddingBottom = '0px'; // Reset padding on unmount
       }
     };
-  }, [isEmojiPickerOpen]); 
+  }, [isEmojiPickerOpen]);
 
 
   const showComingSoonToastOptions = () => {
@@ -124,7 +124,7 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
-    setIsEmojiPickerOpen(false); 
+    setIsEmojiPickerOpen(false);
     textareaRef.current?.focus();
 
     if (contact) {
@@ -223,8 +223,8 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-dvh bg-background"> 
-      <header className="fixed top-0 left-0 right-0 flex items-center p-2.5 border-b bg-background h-16 z-20"> 
+    <div className="flex flex-col h-dvh bg-background">
+      <header className="fixed top-0 left-0 right-0 flex items-center p-2.5 border-b bg-background h-16 z-20">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -245,8 +245,8 @@ export default function ChatPage() {
         </Button>
       </header>
 
-      <div ref={mainContentRef} className="flex flex-col flex-1 pt-16 overflow-hidden">      
-        <div className="flex-grow overflow-y-auto"> 
+      <div ref={mainContentRef} className="flex flex-col flex-1 pt-16 overflow-hidden">
+        <div className="flex-grow overflow-y-auto">
           <div className="flex flex-col p-4 space-y-2 pb-2">
             {messages.map(msg => (
               <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
@@ -311,17 +311,16 @@ export default function ChatPage() {
             )}
           </form>
         </footer>
-        
+
         <div
           className={cn(
-            "transition-all duration-300 ease-in-out flex-shrink-0", // Removed overflow-hidden here, handled by parent or emoji picker itself
+            "transition-all duration-300 ease-in-out flex-shrink-0",
             isEmojiPickerOpen
-              ? "h-[300px] opacity-100 visible pointer-events-auto" 
-              : "h-0 opacity-0 invisible pointer-events-none",
-            isEmojiPickerOpen && "bg-background"
+              ? "h-[300px] opacity-100 visible pointer-events-auto bg-background"
+              : "h-0 opacity-0 invisible pointer-events-none"
           )}
         >
-          {isEmojiPickerOpen && ( 
+          {isEmojiPickerOpen && (
             <EmojiPicker onEmojiSelect={handleEmojiSelect} />
           )}
         </div>
@@ -329,4 +328,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
