@@ -181,7 +181,7 @@ export default function StatusPage() {
         <Button 
           variant="default" 
           size="icon" 
-          className="rounded-full w-14 h-14 shadow-xl bg-primary hover:bg-primary/90"
+          className="rounded-full w-14 h-14 shadow-xl bg-gradient-to-br from-[hsl(var(--accent))] to-[hsl(var(--primary))] text-primary-foreground hover:opacity-90 transition-opacity"
           aria-label="New camera status"
           onClick={showComingSoonToast}
         >
