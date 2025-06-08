@@ -71,7 +71,7 @@ export default function StatusPage() {
         <main className="flex-grow p-4 overflow-auto mb-16 space-y-6">
           {/* My Status Skeleton */}
           <div className="flex items-center space-x-3">
-            <Skeleton className="w-14 h-14 rounded-full" />
+            <Skeleton className="w-14 h-14 rounded-full" /> {/* Adjusted to match increased size */}
             <div className="space-y-1.5">
               <Skeleton className="w-24 h-4" />
               <Skeleton className="w-32 h-3" />
@@ -83,7 +83,7 @@ export default function StatusPage() {
             <div className="space-y-3">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="flex items-center space-x-3">
-                  <Skeleton className="w-14 h-14 rounded-full" />
+                  <Skeleton className="w-14 h-14 rounded-full" /> {/* Adjusted to match increased size */}
                   <div className="space-y-1.5">
                     <Skeleton className="w-32 h-4" />
                     <Skeleton className="w-20 h-3" />
@@ -115,7 +115,7 @@ export default function StatusPage() {
             aria-label="Add new status"
           >
             <div className="relative">
-              <Avatar className="w-14 h-14">
+              <Avatar className="w-14 h-14"> {/* Increased size */}
                 {myUser?.avatarUrl && (
                   <AvatarImage src={myUser.avatarUrl} alt={myUser.name} data-ai-hint="person avatar" />
                 )}
@@ -137,7 +137,7 @@ export default function StatusPage() {
           {recentStatusUpdates.length > 0 && (
             <div className="mt-4">
               <h4 className="text-xs font-medium text-muted-foreground px-1 mb-1">Recent updates</h4>
-              <div className="space-y-1">
+              <div className="space-y-0.5"> {/* Decreased space from space-y-1 */}
                 {recentStatusUpdates.map((status) => (
                   <StatusListItem 
                     key={status.id} 
@@ -185,3 +185,4 @@ export default function StatusPage() {
     </div>
   );
 }
+

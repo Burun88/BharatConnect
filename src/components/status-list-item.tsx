@@ -41,7 +41,7 @@ export default function StatusListItem({ statusUpdate, user, onClick }: StatusLi
       aria-label={`View status from ${user.name}`}
     >
       {/* Container for avatar and ring, sized precisely */}
-      <div className="relative mr-4 w-[52px] h-[52px]">
+      <div className="relative mr-4 w-[60px] h-[60px]"> {/* Increased size from w-[52px] h-[52px] */}
         {/* Layer 1: Spinning Gradient (active) or Static Border (viewed) */}
         {!statusUpdate.viewedByCurrentUser ? (
           <div
@@ -56,7 +56,7 @@ export default function StatusListItem({ statusUpdate, user, onClick }: StatusLi
         {/* Layer 2: Cutout effect - this div has page background and is inset to form the ring */}
         <div className="absolute inset-[2px] rounded-full bg-background overflow-hidden">
           {/* Layer 3: Avatar - fills the cutout area, appears static */}
-          <Avatar className="w-full h-full"> {/* Avatar is 48px x 48px here */}
+          <Avatar className="w-full h-full"> {/* Avatar will fill the new 56x56 inner space */}
             {user.avatarUrl && (
               <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
             )}
@@ -77,3 +77,4 @@ export default function StatusListItem({ statusUpdate, user, onClick }: StatusLi
     </div>
   );
 }
+
