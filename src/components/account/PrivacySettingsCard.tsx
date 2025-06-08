@@ -10,8 +10,8 @@ import { Shield, Eye, Users, Globe } from 'lucide-react';
 type VisibilityOption = "Everyone" | "My Contacts" | "Nobody";
 
 export default function PrivacySettingsCard() {
-  const [lastSeen, setLastSeen] = useState<VisibilityOption>("Everyone");
-  const [profileVisibility, setProfileVisibility] = useState<VisibilityOption>("Everyone");
+  const [lastSeen, setLastSeen] = useState<VisibilityOption>("My Contacts");
+  const [profileVisibility, setProfileVisibility] = useState<VisibilityOption>("My Contacts");
 
   const visibilityOptions: VisibilityOption[] = ["Everyone", "My Contacts", "Nobody"];
 
@@ -19,7 +19,7 @@ export default function PrivacySettingsCard() {
     switch (option) {
       case "Everyone": return <Globe className="w-4 h-4 mr-2 text-muted-foreground" />;
       case "My Contacts": return <Users className="w-4 h-4 mr-2 text-muted-foreground" />;
-      case "Nobody": return <Eye className="w-4 h-4 mr-2 text-muted-foreground" />; // Or a more restrictive icon
+      case "Nobody": return <Eye className="w-4 h-4 mr-2 text-muted-foreground" />;
       default: return null;
     }
   };
@@ -58,16 +58,14 @@ export default function PrivacySettingsCard() {
           <Label htmlFor="profile-visibility">Profile Picture Visibility</Label>
           <Select value={profileVisibility} onValueChange={(value: VisibilityOption) => setProfileVisibility(value)}>
             <SelectTrigger id="profile-visibility" className="w-full bg-input">
-               <div className="flex items-center">
-                {getIconForOption(profileVisibility)}
-                <SelectValue placeholder="Select visibility" />
-              </div>
+               {/* Icon removed from here, SelectValue will now be the direct child */}
+               <SelectValue placeholder="Select visibility" />
             </SelectTrigger>
             <SelectContent>
               {visibilityOptions.map(option => (
                 <SelectItem key={option} value={option}>
                   <div className="flex items-center">
-                    {getIconForOption(option)}
+                    {getIconForOption(option)} {/* Icons still shown in the dropdown list itself */}
                     {option}
                   </div>
                 </SelectItem>
