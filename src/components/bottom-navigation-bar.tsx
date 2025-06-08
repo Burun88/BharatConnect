@@ -28,13 +28,14 @@ export default function BottomNavigationBar() {
         {navItems.map((item) => {
           const isActive = (pathname === '/' && item.href === '/') || 
                            (item.href !== '/' && pathname.startsWith(item.href)) ||
-                           (pathname === '/account' && item.href === '/account');
+                           (pathname === '/account' && item.href === '/account'); // Ensures /account is active only for /account
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
                 "flex flex-col items-center justify-center w-full h-full transition-colors",
+                // General styling for non-active items (icon and text will be muted)
                 !isActive && "text-muted-foreground hover:text-primary" 
               )}
               aria-current={isActive ? "page" : undefined}
@@ -42,12 +43,16 @@ export default function BottomNavigationBar() {
               <item.icon 
                 className={cn(
                   "w-6 h-6 mb-0.5", 
-                  isActive ? "text-gradient-nav-active" : ""
+                  // Specific class for active icon (solid primary color)
+                  // For non-active, it will inherit from parent Link's text-muted-foreground
+                  isActive ? "text-primary" : "" 
                 )} 
               />
               <span 
                 className={cn(
                   "text-xs", 
+                  // Specific class for active label (gradient)
+                  // For non-active, it will inherit from parent Link's text-muted-foreground
                   isActive ? "text-gradient-nav-active" : ""
                 )}
               >
