@@ -73,7 +73,7 @@ export default function HomePage() {
       setIsHeaderContentLoaded(true);
     } else {
       // Check scroll direction only if moved more than DELTA
-      if (Math.abs(currentScrollY - lastScrollYRef.current) > SCROLL_DELTA) {
+      if (Math.abs(currentScrollY - lastScrollYRef.current) >= SCROLL_DELTA) { // Changed > to >=
         if (currentScrollY > lastScrollYRef.current) {
           // Scrolling Down: Hide header content
           setIsHeaderContentLoaded(false);
@@ -144,3 +144,4 @@ export default function HomePage() {
     </div>
   );
 }
+
