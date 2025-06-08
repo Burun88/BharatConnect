@@ -3,29 +3,27 @@
 
 import BottomNavigationBar from "@/components/bottom-navigation-bar";
 import PageHeader from "@/components/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { UserCircle2 } from "lucide-react";
+import ProfileCard from "@/components/account/ProfileCard";
+import PrivacySettingsCard from "@/components/account/PrivacySettingsCard";
+import ThemeSettingsCard from "@/components/account/ThemeSettingsCard";
+import LanguageSettingsCard from "@/components/account/LanguageSettingsCard";
+import SecuritySettingsCard from "@/components/account/SecuritySettingsCard";
+import LinkedAppsCard from "@/components/account/LinkedAppsCard";
+import AdvancedOptionsCard from "@/components/account/AdvancedOptionsCard";
 
 export default function AccountPage() {
   return (
-    <div className="flex flex-col h-screen">
-      <PageHeader title="My Account" showBackButton={false} />
+    <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background">
+      <PageHeader title="Account Centre" showBackButton={false} />
       
-      <main className="flex-grow flex flex-col items-center justify-center p-4 text-center overflow-auto mb-16">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <div className="flex justify-center mb-4">
-              <UserCircle2 className="w-16 h-16 text-muted-foreground" />
-            </div>
-            <CardTitle className="text-2xl font-headline">Account Management</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              This is where you'll manage your profile, settings, and preferences.
-              This feature is coming soon!
-            </p>
-          </CardContent>
-        </Card>
+      <main className="flex-grow overflow-y-auto pb-20 pt-4 px-4 space-y-6 hide-scrollbar">
+        <ProfileCard />
+        <PrivacySettingsCard />
+        <ThemeSettingsCard />
+        <LanguageSettingsCard />
+        <SecuritySettingsCard />
+        <LinkedAppsCard />
+        <AdvancedOptionsCard />
       </main>
       
       <BottomNavigationBar />
