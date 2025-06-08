@@ -281,8 +281,8 @@ export default function ChatPage() {
         )}
         aria-hidden={!isEmojiPickerOpen}
       >
-        {/* Render EmojiPicker always for smoother animation, visibility controlled by parent div height/opacity */}
-        <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+        {/* Conditionally render EmojiPicker to prevent issues with ScrollArea during animation */}
+        {isEmojiPickerOpen && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
       </div>
     </div>
   );
