@@ -14,7 +14,6 @@ import { Plus } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 const HEADER_HEIGHT_PX = 64; // Approx h-16 for HomeHeader
-const AURA_BAR_HEIGHT_PX = 120; // Approximate height for AuraBar (adjust if needed: (88px image + 12px space + 16px text + 4px padding) ~120)
 
 export default function HomePage() {
   const router = useRouter();
@@ -30,7 +29,7 @@ export default function HomePage() {
   const [currentUserAuraId] = useLocalStorage<string | null>('currentUserAuraId', null);
 
   const scrollableContainerRef = useRef<HTMLDivElement>(null);
-  const [isHeaderContentLoaded, setIsHeaderContentLoaded] = useState(true); // Controls visibility of header *content*
+  const [isHeaderContentLoaded, setIsHeaderContentLoaded] = useState(true);
   const lastScrollYRef = useRef(0);
 
   useEffect(() => {
@@ -66,22 +65,23 @@ export default function HomePage() {
     if (!scrollableElement) return;
 
     const currentScrollY = scrollableElement.scrollTop;
+    const scrollDirectionUp = currentScrollY < lastScrollYRef.current;
 
     // Show header content if at the top or very near it
     if (currentScrollY <= HEADER_HEIGHT_PX / 2) {
       if (!isHeaderContentLoaded) setIsHeaderContentLoaded(true);
     } else {
-      // Scrolling UP: Hide header content
-      if (currentScrollY < lastScrollYRef.current) {
+      // Scrolling UP (and not at the top): Hide header content
+      if (scrollDirectionUp) {
         if (isHeaderContentLoaded) setIsHeaderContentLoaded(false);
       } 
       // Scrolling DOWN: Show header content
-      else if (currentScrollY > lastScrollYRef.current) {
+      else {
         if (!isHeaderContentLoaded) setIsHeaderContentLoaded(true);
       }
     }
     lastScrollYRef.current = currentScrollY <= 0 ? 0 : currentScrollY;
-  }, [isHeaderContentLoaded, setIsHeaderContentLoaded]); // Added setIsHeaderContentLoaded
+  }, [isHeaderContentLoaded]); 
 
   useEffect(() => {
     const scrollableElement = scrollableContainerRef.current;
@@ -106,21 +106,17 @@ export default function HomePage() {
     <div className="flex flex-col h-screen bg-background">
       <HomeHeader isHeaderContentLoaded={isHeaderContentLoaded} />
       
-      {/* Fixed AuraBar container */}
-      <div className="fixed top-16 left-0 right-0 bg-background z-10 shadow-sm"> {/* Adjust z-index if needed, below header */}
+      <main 
+        ref={scrollableContainerRef} 
+        className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar"
+        style={{ paddingTop: `${HEADER_HEIGHT_PX}px` }} 
+      > 
         <AuraBar 
           isLoading={isLoading} 
           auraBarItems={auraBarItems} 
           currentUserId={mockCurrentUser.id} 
           onCurrentUserAuraClick={handleCurrentUserAuraClick} 
         />
-      </div>
-      
-      <main 
-        ref={scrollableContainerRef} 
-        className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar"
-        style={{ paddingTop: `${HEADER_HEIGHT_PX + AURA_BAR_HEIGHT_PX}px` }} // Padding for both fixed elements
-      > 
         <ChatList 
           isLoading={isLoading} 
           filteredChats={filteredChats} 
@@ -131,7 +127,7 @@ export default function HomePage() {
       <Button
         variant="default"
         size="icon"
-        className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-fab-home text-primary-foreground hover:opacity-90 transition-opacity z-30" // Ensure FAB is above AuraBar
+        className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-fab-home text-primary-foreground hover:opacity-90 transition-opacity z-30"
         aria-label="New chat"
         onClick={() => router.push('/new-chat')} 
       >
