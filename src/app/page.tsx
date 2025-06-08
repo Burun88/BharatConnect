@@ -68,36 +68,49 @@ export default function HomePage() {
 
     const currentScrollY = scrollableElement.scrollTop;
 
-    // Always show content if at the very top or very near it
-    if (currentScrollY <= HEADER_HEIGHT_PX / 4) {
+    if (currentScrollY <= SCROLL_DELTA) { // Show if at top or very close to it
       setIsHeaderContentLoaded(true);
     } else {
       const scrolledDown = currentScrollY > lastScrollYRef.current;
       const scrolledUp = currentScrollY < lastScrollYRef.current;
 
       if (scrolledDown && (currentScrollY - lastScrollYRef.current) >= SCROLL_DELTA) {
-        // Scrolling Down significantly: Hide header content
         setIsHeaderContentLoaded(false);
-      } else if (scrolledUp) {
-        // Scrolling Up (any amount when not at the very top): Show header content
+      } else if (scrolledUp) { // Any upward scroll when not at the top shows header
         setIsHeaderContentLoaded(true);
       }
-      // If scrolling down by a small amount (< SCROLL_DELTA), or not scrolling at all,
-      // the header state remains unchanged by this block.
     }
     lastScrollYRef.current = currentScrollY <= 0 ? 0 : currentScrollY;
   }, []); 
 
   useEffect(() => {
     const scrollableElement = scrollableContainerRef.current;
-    if (scrollableElement) {
+
+    if (isLoading || !scrollableElement) {
+      setIsHeaderContentLoaded(true); 
+      if (scrollableElement) {
+        scrollableElement.removeEventListener('scroll', handleScroll);
+      }
+      return;
+    }
+
+    const canScroll = scrollableElement.scrollHeight > scrollableElement.clientHeight;
+
+    if (canScroll) {
       lastScrollYRef.current = scrollableElement.scrollTop <= 0 ? 0 : scrollableElement.scrollTop;
       scrollableElement.addEventListener('scroll', handleScroll, { passive: true });
-      return () => {
-        scrollableElement.removeEventListener('scroll', handleScroll);
-      };
+      handleScroll(); // Call once to set initial state based on current scroll
+    } else {
+      setIsHeaderContentLoaded(true);
+      scrollableElement.removeEventListener('scroll', handleScroll);
     }
-  }, [handleScroll]);
+
+    return () => {
+      if (scrollableElement) {
+        scrollableElement.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, [isLoading, chats, searchTerm, handleScroll]); // Re-evaluate when isLoading, chats, or searchTerm changes
 
   const filteredChats = chats.filter(chat =>
     chat.name.toLowerCase().includes(searchTerm.toLowerCase())
