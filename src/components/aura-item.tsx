@@ -89,7 +89,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
 
   const nameText = (
     <span className={cn("text-xs text-foreground truncate text-center", `w-24`)}> 
-      {isCurrentUser ? (aura ? "Your Aura" : "Your Story") : user.name}
+      {isCurrentUser ? (aura ? "Your Aura" : "My Aura") : user.name}
     </span>
   );
 
