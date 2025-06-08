@@ -89,6 +89,7 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
+    setIsEmojiPickerOpen(false); // Close emoji picker on send
 
     if (contact) {
         setTimeout(() => {
@@ -220,7 +221,7 @@ export default function ChatPage() {
       </div>
       
       {/* Input Footer */}
-      <footer className="border-t bg-background z-10"> 
+      <footer className="border-t bg-background z-10 flex-shrink-0"> 
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2 p-2">
           <Button 
             variant="ghost" 
@@ -243,6 +244,9 @@ export default function ChatPage() {
             }}
             rows={1}
             className="flex-1 resize-none min-h-[40px] max-h-[100px] rounded-full px-4 py-2.5 leading-tight self-center"
+            onFocus={() => {
+              if(isEmojiPickerOpen) setIsEmojiPickerOpen(false);
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -290,4 +294,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
