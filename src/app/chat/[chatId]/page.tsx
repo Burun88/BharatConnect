@@ -94,6 +94,8 @@ export default function ChatPage() {
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
     setIsEmojiPickerOpen(false); // Close emoji picker on send
+    textareaRef.current?.focus();
+
 
     if (contact) {
         setTimeout(() => {
@@ -151,7 +153,7 @@ export default function ChatPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-screen">
+      <div className="flex flex-col h-dvh"> {/* Changed h-screen to h-dvh */}
         {/* Header Skeleton */}
         <header className="fixed top-0 left-0 right-0 flex items-center p-3 border-b bg-background h-16 z-20">
           <Skeleton className="w-8 h-8 rounded-full mr-2" />
@@ -186,7 +188,7 @@ export default function ChatPage() {
 
   if (!chatDetails || !contact) {
     return (
-      <div className="flex flex-col h-screen items-center justify-center">
+      <div className="flex flex-col h-dvh items-center justify-center"> {/* Changed h-screen to h-dvh */}
         <p className="text-muted-foreground">Chat not found.</p>
         <Button variant="link" onClick={() => router.push('/')}>Go to Chats</Button>
       </div>
@@ -194,7 +196,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-dvh bg-background"> {/* Changed h-screen to h-dvh */}
       <header className="fixed top-0 left-0 right-0 flex items-center p-2.5 border-b bg-background h-16 z-20">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
           <ArrowLeft className="w-5 h-5" />
@@ -217,7 +219,7 @@ export default function ChatPage() {
       </header>
 
       {/* Content below fixed header */}
-      <div className="flex flex-col flex-1 pt-16 overflow-hidden">
+      <div className="flex flex-col flex-1 pt-16 overflow-hidden"> {/* This div wraps messages, input, and emoji picker */}
         {/* Message Area */}
         <div className="flex-grow overflow-y-auto">
           <div className="flex flex-col p-4 space-y-2 pb-2">
@@ -289,13 +291,13 @@ export default function ChatPage() {
         {/* Emoji Picker Container */}
         <div
           className={cn(
-            "transition-all duration-300 ease-in-out flex-shrink-0 overflow-hidden",
+            "transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0",
             isEmojiPickerOpen
               ? "h-[300px] opacity-100 visible pointer-events-auto bg-background"
               : "h-0 opacity-0 invisible pointer-events-none"
           )}
         >
-          {isEmojiPickerOpen && (
+          {isEmojiPickerOpen && ( // Conditionally render EmojiPicker to ensure it mounts with correct state
             <EmojiPicker onEmojiSelect={handleEmojiSelect} />
           )}
         </div>
