@@ -30,7 +30,6 @@ export default function HomePage() {
   const [currentUserAuraId] = useLocalStorage<string | null>('currentUserAuraId', null);
 
   const scrollableContainerRef = useRef<HTMLDivElement>(null);
-  // isHeaderContentLoaded will now control the visibility of the ENTIRE HomeHeader
   const [isHeaderContentLoaded, setIsHeaderContentLoaded] = useState(true); 
   const lastScrollYRef = useRef(0);
 
@@ -69,7 +68,6 @@ export default function HomePage() {
     const currentScrollY = scrollableElement.scrollTop;
 
     // Always show content if at the very top or very near it
-    // HEADER_HEIGHT_PX / 4 is a small threshold to ensure it's visible when near the top.
     if (currentScrollY <= HEADER_HEIGHT_PX / 4) { 
       setIsHeaderContentLoaded(true);
     } else {
@@ -84,9 +82,8 @@ export default function HomePage() {
         }
       }
     }
-    // Update last scroll position, ensuring it's not negative
     lastScrollYRef.current = currentScrollY <= 0 ? 0 : currentScrollY;
-  }, []); // Dependencies: Add any state variables read inside, but refs and constants are fine.
+  }, []); 
 
   useEffect(() => {
     const scrollableElement = scrollableContainerRef.current;
@@ -109,16 +106,13 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      {/* HomeHeader visibility is controlled by isHeaderContentLoaded */}
       <HomeHeader isHeaderContentLoaded={isHeaderContentLoaded} />
       
       <main 
         ref={scrollableContainerRef} 
         className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar"
-        // PaddingTop ensures content starts below the fixed header's space
         style={{ paddingTop: `${HEADER_HEIGHT_PX}px` }} 
       > 
-        {/* AuraBar is now part of the scrollable content */}
         <AuraBar 
           isLoading={isLoading} 
           auraBarItems={auraBarItems} 
@@ -135,7 +129,7 @@ export default function HomePage() {
       <Button
         variant="default"
         size="icon"
-        className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-fab-home text-primary-foreground hover:opacity-90 transition-opacity z-30"
+        className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-bharatconnect-bubble text-primary-foreground hover:opacity-90 transition-opacity z-30"
         aria-label="New chat"
         onClick={() => router.push('/new-chat')} 
       >
