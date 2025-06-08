@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Message } from '@/types';
@@ -11,8 +12,9 @@ interface MessageBubbleProps {
 }
 
 export default function MessageBubble({ message, isOutgoing }: MessageBubbleProps) {
-  const bubbleClass = isOutgoing ? 'message-bubble-outgoing ml-auto' : 'message-bubble-incoming mr-auto';
-  const alignmentClass = isOutgoing ? 'self-end' : 'self-start';
+  // Use ml-auto for outgoing and mr-auto for incoming to align the bubble's container
+  const alignmentClass = isOutgoing ? 'ml-auto' : 'mr-auto';
+  const bubbleClass = isOutgoing ? 'message-bubble-outgoing' : 'message-bubble-incoming';
 
   const DeliveryStatusIcon = () => {
     if (!isOutgoing || message.type === 'system' || !message.status) return null;
@@ -40,6 +42,7 @@ export default function MessageBubble({ message, isOutgoing }: MessageBubbleProp
   }
 
   return (
+    // The alignmentClass (ml-auto/mr-auto) is applied here to the container of the bubble
     <div className={cn("flex flex-col max-w-[75%] my-1 group", alignmentClass)}>
       <div className={cn("px-3 py-2 shadow-md", bubbleClass)}>
         <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
