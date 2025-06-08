@@ -16,6 +16,7 @@
 
     --primary: 207 90% 54%; /* Saturated Blue #42A5F5 */
     --primary-foreground: 0 0% 98%;
+    --primary-dimmed: 207 75% 45%; /* Dimmed primary for toast */
 
     --secondary: 240 4% 18%;
     --secondary-foreground: 0 0% 98%;
@@ -25,6 +26,7 @@
 
     --accent: 291 64% 58%; /* Vibrant Violet #AB47BC */
     --accent-foreground: 0 0% 98%;
+    --accent-dimmed: 291 50% 50%; /* Dimmed accent for toast */
 
     --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 98%;
@@ -237,7 +239,11 @@ body::-webkit-scrollbar {
   }
 
   .bg-gradient-bharatconnect-bubble {
-    @apply bg-gradient-to-r from-primary via-accent to-accent; /* Updated to use direct Tailwind colors */
+    @apply bg-gradient-to-r from-primary to-accent; /* Updated to use direct Tailwind colors */
+  }
+
+  .bg-gradient-bharatconnect-toast {
+    @apply bg-gradient-to-r from-[hsl(var(--primary-dimmed))] to-[hsl(var(--accent-dimmed))];
   }
 }
 
