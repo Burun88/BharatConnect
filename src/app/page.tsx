@@ -111,7 +111,7 @@ export default function HomePage() {
       
       <main 
         ref={scrollableContainerRef} 
-        className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar"
+        className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar min-h-0" // Added min-h-0
         style={{ 
           paddingTop: `${HEADER_HEIGHT_PX}px`,
           paddingBottom: `${BOTTOM_NAV_HEIGHT_PX}px` 
