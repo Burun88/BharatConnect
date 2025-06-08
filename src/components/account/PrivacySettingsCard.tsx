@@ -37,16 +37,14 @@ export default function PrivacySettingsCard() {
           <Label htmlFor="last-seen">Last Seen Visibility</Label>
           <Select value={lastSeen} onValueChange={(value: VisibilityOption) => setLastSeen(value)}>
             <SelectTrigger id="last-seen" className="w-full bg-input">
-              <div className="flex items-center">
-                {getIconForOption(lastSeen)}
-                <SelectValue placeholder="Select visibility" />
-              </div>
+              {/* Icon removed from here, SelectValue will now be the direct child */}
+              <SelectValue placeholder="Select visibility" />
             </SelectTrigger>
             <SelectContent>
               {visibilityOptions.map(option => (
                 <SelectItem key={option} value={option}>
                   <div className="flex items-center">
-                    {getIconForOption(option)}
+                    {getIconForOption(option)} {/* Icons still shown in the dropdown list itself */}
                     {option}
                   </div>
                 </SelectItem>
