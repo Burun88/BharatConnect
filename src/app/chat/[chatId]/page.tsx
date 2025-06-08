@@ -59,8 +59,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (isEmojiPickerOpen) {
-      // Timeout to allow layout to adjust before scrolling, and after animation
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 350); // Matched animation duration
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 350);
     }
   }, [isEmojiPickerOpen]);
 
@@ -73,8 +72,8 @@ export default function ChatPage() {
 
   const toggleEmojiPicker = () => {
     setIsEmojiPickerOpen(prev => !prev);
-    if (!isEmojiPickerOpen) { // If opening picker
-        textareaRef.current?.blur(); // Blur textarea to hide keyboard
+    if (!isEmojiPickerOpen) { 
+        textareaRef.current?.blur(); 
     }
   };
 
@@ -93,7 +92,7 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
-    setIsEmojiPickerOpen(false); // Close emoji picker on send
+    setIsEmojiPickerOpen(false); 
     textareaRef.current?.focus();
 
 
@@ -153,9 +152,9 @@ export default function ChatPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-dvh"> {/* Changed h-screen to h-dvh */}
+      <div className="flex flex-col h-full"> {/* Use h-full for pure flex layout */}
         {/* Header Skeleton */}
-        <header className="fixed top-0 left-0 right-0 flex items-center p-3 border-b bg-background h-16 z-20">
+        <header className="flex items-center p-3 border-b bg-background h-16 flex-shrink-0">
           <Skeleton className="w-8 h-8 rounded-full mr-2" />
           <Skeleton className="w-10 h-10 rounded-full mr-3" />
           <div className="flex-1 space-y-1.5">
@@ -164,7 +163,7 @@ export default function ChatPage() {
           </div>
           <Skeleton className="w-8 h-8 rounded-full ml-auto" />
         </header>
-        <div className="flex flex-col flex-1 pt-16 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0"> {/* min-h-0 for flex-1 content */}
             {/* Messages Skeleton */}
             <div className="flex-grow overflow-y-auto p-4 space-y-4">
             {[...Array(5)].map((_, i) => (
@@ -188,7 +187,7 @@ export default function ChatPage() {
 
   if (!chatDetails || !contact) {
     return (
-      <div className="flex flex-col h-dvh items-center justify-center"> {/* Changed h-screen to h-dvh */}
+      <div className="flex flex-col h-full items-center justify-center"> {/* Use h-full */}
         <p className="text-muted-foreground">Chat not found.</p>
         <Button variant="link" onClick={() => router.push('/')}>Go to Chats</Button>
       </div>
@@ -196,8 +195,8 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-dvh bg-background"> {/* Changed h-screen to h-dvh */}
-      <header className="fixed top-0 left-0 right-0 flex items-center p-2.5 border-b bg-background h-16 z-20">
+    <div className="flex flex-col h-full bg-background"> {/* Use h-full */}
+      <header className="flex items-center p-2.5 border-b bg-background h-16 z-10 flex-shrink-0">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -218,8 +217,8 @@ export default function ChatPage() {
         </Button>
       </header>
 
-      {/* Content below fixed header */}
-      <div className="flex flex-col flex-1 pt-16 overflow-hidden"> {/* This div wraps messages, input, and emoji picker */}
+      {/* Main Content Area: Messages, Input, Emoji Picker */}
+      <div className="flex flex-col flex-1 min-h-0"> {/* flex-1 and min-h-0 are key */}
         {/* Message Area */}
         <div className="flex-grow overflow-y-auto">
           <div className="flex flex-col p-4 space-y-2 pb-2">
@@ -293,11 +292,11 @@ export default function ChatPage() {
           className={cn(
             "transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0",
             isEmojiPickerOpen
-              ? "h-[300px] opacity-100 visible pointer-events-auto bg-background"
+              ? "h-[300px] opacity-100 visible pointer-events-auto bg-background" 
               : "h-0 opacity-0 invisible pointer-events-none"
           )}
         >
-          {isEmojiPickerOpen && ( // Conditionally render EmojiPicker to ensure it mounts with correct state
+          {isEmojiPickerOpen && ( 
             <EmojiPicker onEmojiSelect={handleEmojiSelect} />
           )}
         </div>
@@ -305,3 +304,4 @@ export default function ChatPage() {
     </div>
   );
 }
+
