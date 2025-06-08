@@ -72,7 +72,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
         {isRing && ringGradient && (
           <div
             className={cn(
-              "absolute inset-0 rounded-full animate-spin-slow",
+              "absolute inset-0 rounded-full animate-spin-slow opacity-75", // Added opacity-75
               ringGradient
             )}
           />
@@ -80,7 +80,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
         <div className={cn(
           "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden",
           IMAGE_SIZE_CLASS,
-          isRing && "bg-background p-px" // Changed p-0.5 to p-px for thinner ring
+          isRing && "bg-background p-px" 
         )}>
           {React.cloneElement(avatarContent as React.ReactElement, {
             className: cn((avatarContent as React.ReactElement).props.className, "w-full h-full"),
@@ -203,7 +203,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
               "absolute left-1/2 -translate-x-1/2",
               smallCircleSize,
               emojiOverlapTopClass,
-              "invisible"
+              "invisible" // Keep this to maintain layout consistency for items without an emoji overlap
             )}
           />
       </div>
@@ -214,3 +214,4 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
 
 const AuraItem = React.memo(AuraItemComponent);
 export default AuraItem;
+
