@@ -51,8 +51,10 @@ export default function ChatPage() {
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-  }, [messages]);
+    if (!isEmojiPickerOpen) { // Only auto-scroll if emoji picker is not taking focus
+        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+    }
+  }, [messages, isEmojiPickerOpen]);
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
@@ -62,12 +64,12 @@ export default function ChatPage() {
   // Scroll when emoji picker opens/closes
   useEffect(() => {
     if (isEmojiPickerOpen) {
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100); // Adjusted timeout
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     }
   }, [isEmojiPickerOpen]);
 
   // visualViewport effect for keyboard handling
-  useEffect(() => {
+ useEffect(() => {
     const visualViewport = window.visualViewport;
     const mainContentEl = mainContentRef.current;
 
@@ -76,23 +78,22 @@ export default function ChatPage() {
     }
 
     const handleResize = () => {
+      const keyboardHeight = window.innerHeight - visualViewport.height - visualViewport.offsetTop;
+      
       let keyboardRelatedBottomPadding = 0;
-      // Only apply keyboard-related padding if emoji picker is NOT open
-      if (!isEmojiPickerOpen) {
-        const keyboardHeight = window.innerHeight - (visualViewport.height + visualViewport.offsetTop);
-        keyboardRelatedBottomPadding = Math.max(0, keyboardHeight);
+      if (!isEmojiPickerOpen && keyboardHeight > 50) { 
+         keyboardRelatedBottomPadding = Math.max(0, keyboardHeight);
       }
       mainContentEl.style.paddingBottom = `${keyboardRelatedBottomPadding}px`;
     };
 
     visualViewport.addEventListener('resize', handleResize);
-    // Initial call to set padding if keyboard is already open or layout is otherwise constrained
-    handleResize();
+    handleResize(); 
 
     return () => {
       visualViewport.removeEventListener('resize', handleResize);
       if (mainContentEl) {
-        mainContentEl.style.paddingBottom = '0px'; // Reset padding on unmount
+        mainContentEl.style.paddingBottom = '0px'; 
       }
     };
   }, [isEmojiPickerOpen]);
@@ -124,7 +125,7 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
-    setIsEmojiPickerOpen(false);
+    setIsEmojiPickerOpen(false); // Close emoji picker on send
     textareaRef.current?.focus();
 
     if (contact) {
@@ -183,8 +184,8 @@ export default function ChatPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full">
-        <header className="flex items-center p-3 border-b bg-background h-16 flex-shrink-0">
+      <div className="relative flex flex-col h-dvh bg-background overflow-hidden">
+        <header className="absolute top-0 left-0 right-0 flex items-center p-3 border-b bg-background h-16 z-20">
           <Skeleton className="w-8 h-8 rounded-full mr-2" />
           <Skeleton className="w-10 h-10 rounded-full mr-3" />
           <div className="flex-1 space-y-1.5">
@@ -193,8 +194,8 @@ export default function ChatPage() {
           </div>
           <Skeleton className="w-8 h-8 rounded-full ml-auto" />
         </header>
-        <div className="flex flex-col flex-1 min-h-0">
-            <div className="flex-grow overflow-y-auto p-4 space-y-4">
+        <div className="flex flex-col flex-1 pt-16 overflow-hidden"> {/* pt-16 for header */}
+            <div className="flex-grow overflow-y-auto p-4 space-y-4 min-h-0">
             {[...Array(5)].map((_, i) => (
                 <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
                 <Skeleton className={`w-3/5 h-12 rounded-lg ${i % 2 === 0 ? 'bg-secondary' : 'bg-primary/80'}`} />
@@ -223,8 +224,8 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-dvh bg-background">
-      <header className="fixed top-0 left-0 right-0 flex items-center p-2.5 border-b bg-background h-16 z-20">
+    <div className="relative flex flex-col h-dvh bg-background overflow-hidden"> {/* Outermost container */}
+      <header className="absolute top-0 left-0 right-0 flex items-center p-2.5 border-b bg-background h-16 z-20"> {/* Header: absolute */}
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -245,9 +246,11 @@ export default function ChatPage() {
         </Button>
       </header>
 
+      {/* Main Content Wrapper: takes space below header and manages keyboard padding */}
       <div ref={mainContentRef} className="flex flex-col flex-1 pt-16 overflow-hidden">
-        <div className="flex-grow overflow-y-auto">
-          <div className="flex flex-col p-4 space-y-2 pb-2">
+        {/* Message Area: scrollable, takes most space */}
+        <div className="flex-grow overflow-y-auto min-h-0"> {/* Added min-h-0 */}
+          <div className="flex flex-col p-4 space-y-2 pb-2"> {/* Inner padding for messages */}
             {messages.map(msg => (
               <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
             ))}
@@ -255,6 +258,7 @@ export default function ChatPage() {
           </div>
         </div>
 
+        {/* Input Footer: fixed at bottom of mainContentRef */}
         <footer className="border-t bg-background z-10 flex-shrink-0">
           <form onSubmit={handleSendMessage} className="flex items-end space-x-2 p-2">
             <Button
@@ -312,12 +316,14 @@ export default function ChatPage() {
           </form>
         </footer>
 
+        {/* Emoji Picker Container: fixed at bottom of mainContentRef when open */}
         <div
           className={cn(
             "transition-all duration-300 ease-in-out flex-shrink-0",
             isEmojiPickerOpen
-              ? "h-[300px] opacity-100 visible pointer-events-auto bg-background"
-              : "h-0 opacity-0 invisible pointer-events-none"
+              ? "h-[300px] opacity-100 visible pointer-events-auto"
+              : "h-0 opacity-0 invisible pointer-events-none",
+            isEmojiPickerOpen && "bg-background" // Apply background only when open
           )}
         >
           {isEmojiPickerOpen && (
@@ -328,3 +334,5 @@ export default function ChatPage() {
     </div>
   );
 }
+
+    
