@@ -49,14 +49,14 @@ export default function StatusListItem({ statusUpdate, user, onClick }: StatusLi
           />
         ) : (
           <div
-            className="absolute inset-0 rounded-full border-2 border-[hsl(var(--status-ring-viewed-border))]"
+            className="absolute inset-0 rounded-full border border-[hsl(var(--status-ring-viewed-border))]" // Changed from border-2
           />
         )}
 
         {/* Layer 2: Cutout effect - this div has page background and is inset to form the ring */}
-        <div className="absolute inset-[2px] rounded-full bg-background overflow-hidden">
+        <div className="absolute inset-[1px] rounded-full bg-background overflow-hidden"> {/* Changed from inset-[2px] */}
           {/* Layer 3: Avatar - fills the cutout area, appears static */}
-          <Avatar className="w-full h-full"> {/* Avatar will fill the new 56x56 inner space */}
+          <Avatar className="w-full h-full"> {/* Avatar will fill the new inner space */}
             {user.avatarUrl && (
               <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
             )}
