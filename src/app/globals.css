@@ -187,7 +187,7 @@
     @apply p-2.5 max-w-[70%] sm:max-w-[60%] md:max-w-[50%] mb-1 shadow-sm break-words;
   }
   .message-bubble-outgoing {
-    @apply bg-gradient-to-r from-primary to-accent text-primary-foreground ml-auto rounded-tl-xl rounded-tr-xl rounded-bl-xl rounded-br-xl; 
+    @apply bg-secondary text-secondary-foreground ml-auto rounded-tl-xl rounded-tr-xl rounded-bl-xl rounded-br-xl; 
   }
   .message-bubble-incoming {
     @apply bg-[hsl(var(--incoming-message-bubble-dark))] text-foreground mr-auto rounded-xl; 
@@ -242,55 +242,48 @@
   .placeholder-true-black-muted::placeholder {
     color: hsl(var(--muted-foreground));
   }
-  /* .focus-visible-gradient-border-apply {
-    border: 2px solid transparent; 
-    background-image: linear-gradient(hsl(var(--background)), hsl(var(--background))), 
-                      linear-gradient(to right, hsl(var(--accent)), hsl(var(--primary))); 
-    background-origin: border-box; 
-    background-clip: padding-box, border-box; 
-  } */
 
   .chat-input-sweep-border-wrapper {
     position: relative;
-    display: flex; /* Changed from inline-flex to flex for block behavior if needed */
+    display: flex;
     border-radius: 9999px; /* Fully rounded */
     padding: 2px; /* This creates the border thickness */
     background-color: hsl(var(--border)); /* Default border color (unfocused state) */
     overflow: hidden; /* Important for pseudo-element clipping */
-    transition: background-color 300ms ease-out; /* For unfocus, if ::before fades out */
+    transition: background-color 300ms ease-out, opacity 300ms ease-out; /* For unfocus */
   }
 
   .chat-input-sweep-border-wrapper::before {
     content: "";
     position: absolute;
-    inset: 0; /* Cover the entire wrapper area */
+    width: 200%; /* Make it larger to ensure coverage during rotation */
+    height: 200%;
+    top: -50%; /* Center the oversized pseudo-element */
+    left: -50%;
     border-radius: inherit; /* Match wrapper's rounding */
-    background: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--primary))); /* Violet to Blue gradient */
+    background-image: conic-gradient(from 0deg, hsl(var(--accent)), hsl(var(--primary)), hsl(var(--accent)));
     z-index: 0; /* Sits behind the textarea's own background */
-    /* Start collapsed at bottom-left corner */
-    clip-path: polygon(0% 100%, 0% 100%, 0% 100%, 0% 100%, 0% 100%, 0% 100%); 
-    transition: clip-path 400ms ease-in-out;
+    animation: spin-slow 10s linear infinite paused; /* Paused by default */
+    opacity: 0; /* Hidden by default */
+    transition: opacity 300ms ease-in-out;
   }
-
+  
   .chat-input-sweep-border-wrapper:focus-within {
     background-color: transparent; /* Hide wrapper bg to let ::before show */
   }
 
   .chat-input-sweep-border-wrapper:focus-within::before {
-    /* Expand to fill - diagonal sweep from bottom-left to cover all */
-    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 100%, 0% 0%);
+    opacity: 1; /* Show spinning gradient on focus */
+    animation-play-state: running; /* Start animation */
   }
 
   .chat-input-sweep-border-textarea {
     position: relative; /* To sit on top of the ::before */
     z-index: 1;
-    /* width: 100%; Let flex handle width */
     background-color: hsl(var(--input)); /* Dark background for the text area itself */
     color: hsl(var(--foreground));
     border: none !important; /* Remove default textarea border */
     outline: none !important; /* Remove default focus outline */
-    /* Textarea's own border-radius will be applied by its Tailwind classes (e.g., rounded-full) */
-    /* Padding, min-height, max-height, etc., will come from Tailwind classes on the Textarea component */
   }
   .chat-input-sweep-border-textarea::-webkit-scrollbar { display: none; }
   .chat-input-sweep-border-textarea { -ms-overflow-style: none;  scrollbar-width: none; }
