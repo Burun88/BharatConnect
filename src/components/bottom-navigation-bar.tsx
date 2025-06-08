@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessagesSquare, Newspaper, PhoneCall, UserCircle } from 'lucide-react'; // Changed Activity to Newspaper
+import { MessagesSquare, Image, PhoneCall, UserCircle } from 'lucide-react'; // Changed Newspaper to Image
 import { cn } from '@/lib/utils';
 
 type NavItem = {
@@ -14,7 +14,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: '/', label: 'Chats', icon: MessagesSquare },
-  { href: '/status', label: 'Status', icon: Newspaper }, // Changed icon here
+  { href: '/status', label: 'Status', icon: Image }, // Changed icon here
   { href: '/calls', label: 'Calls', icon: PhoneCall },
   { href: '/account', label: 'Account', icon: UserCircle },
 ];
@@ -49,7 +49,7 @@ export default function BottomNavigationBar() {
               <span 
                 className={cn(
                   "text-xs", 
-                  isActive ? "text-primary" : "text-muted-foreground hover:text-primary" // Removed text-gradient-nav-active, added text-primary
+                  isActive ? "text-primary" : "text-muted-foreground hover:text-primary"
                 )}
               >
                 {item.label}
