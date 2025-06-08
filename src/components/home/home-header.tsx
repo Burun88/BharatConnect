@@ -8,21 +8,33 @@ import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface HomeHeaderProps {
-  isHeaderVisible: boolean;
+  isHeaderContentLoaded: boolean; // Renamed prop for clarity
   // onSearchClick: () => void; // Add if search functionality is implemented
 }
 
-const HomeHeader: FC<HomeHeaderProps> = ({ isHeaderVisible }) => {
+const HomeHeader: FC<HomeHeaderProps> = ({ isHeaderContentLoaded }) => {
   return (
     <header
       className={cn(
-        "flex items-center justify-between p-4 bg-background z-10 h-16 sticky top-0",
-        "transition-transform duration-200 ease-in-out",
-        isHeaderVisible ? "translate-y-0" : "-translate-y-full"
+        "flex items-center justify-between p-4 bg-background z-20 h-16",
+        "fixed top-0 left-0 right-0"
+        // No longer translating the entire header, it's always visible
       )}
     >
-      <Logo size="medium" />
-      <div className="flex items-center space-x-2">
+      <Logo
+        size="medium"
+        className={cn(
+          "transition-all duration-300 ease-in-out",
+          isHeaderContentLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-3"
+        )}
+      />
+      <div
+        className={cn(
+          "flex items-center space-x-2",
+          "transition-all duration-300 ease-in-out",
+          isHeaderContentLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-3"
+        )}
+      >
         <Button variant="ghost" size="icon" aria-label="Search" /* onClick={onSearchClick} */>
           <Search className="w-5 h-5" />
         </Button>

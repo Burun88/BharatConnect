@@ -13,8 +13,8 @@ import { mockCurrentUser, mockAuraBarItemsData, mockChats } from '@/lib/mock-dat
 import { Plus } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
-const HEADER_HEIGHT_PX = 64; // Approx h-16 in pixels (16 * 4)
-const SCROLL_THRESHOLD = 10; // Min pixels to scroll before toggling header visibility
+const HEADER_HEIGHT_PX = 64; // Approx h-16 for HomeHeader
+const AURA_BAR_HEIGHT_PX = 120; // Approximate height for AuraBar (adjust if needed: (88px image + 12px space + 16px text + 4px padding) ~120)
 
 export default function HomePage() {
   const router = useRouter();
@@ -30,37 +30,26 @@ export default function HomePage() {
   const [currentUserAuraId] = useLocalStorage<string | null>('currentUserAuraId', null);
 
   const scrollableContainerRef = useRef<HTMLDivElement>(null);
-  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  const [isHeaderContentLoaded, setIsHeaderContentLoaded] = useState(true); // Controls visibility of header *content*
+  const lastScrollYRef = useRef(0);
 
   useEffect(() => {
-    // Redirect to welcome if onboarding is not complete (in production)
-    // For development, this check might be bypassed to allow direct access to HomePage.
-    // Ensure 'onboardingComplete' is correctly set after the /profile-setup page.
     if (!onboardingComplete && process.env.NODE_ENV === 'production') { 
         router.replace('/welcome');
     } else {
-      // Simulate data fetching
       setTimeout(() => {
-        // Create an updated current user object with profile name and aura
         const updatedCurrentUser = { ...mockCurrentUser, name: userProfile.name || mockCurrentUser.name, currentAuraId: currentUserAuraId, avatarUrl: mockCurrentUser.avatarUrl };
-
-        // Get all users from mock data, replacing or adding the current user
         let allUsersFromMock = mockAuraBarItemsData().map(u => 
             u.id === updatedCurrentUser.id ? updatedCurrentUser : u
         );
-
-        // Ensure current user is first if they exist
         const currentUserIndex = allUsersFromMock.findIndex(u => u.id === updatedCurrentUser.id);
-        if (currentUserIndex > 0) { // If current user exists and is not first, move to front
-          allUsersFromMock.splice(currentUserIndex, 1); // Remove from current position
-          allUsersFromMock.unshift(updatedCurrentUser); // Add to the beginning
-        } else if (currentUserIndex === -1 && updatedCurrentUser.name) { // If current user not in list but has a name, add to front
-          // This case might happen if mockAuraBarItemsData doesn't include currentUser initially
+        if (currentUserIndex > 0) {
+          allUsersFromMock.splice(currentUserIndex, 1);
+          allUsersFromMock.unshift(updatedCurrentUser);
+        } else if (currentUserIndex === -1 && updatedCurrentUser.name) {
           allUsersFromMock.unshift(updatedCurrentUser);
         }
         
-        // Filter for AuraBar: Current user (always) + other users with an active aura
         const finalAuraItems = allUsersFromMock.filter(
             u => u.id === updatedCurrentUser.id || u.currentAuraId
         );
@@ -68,9 +57,9 @@ export default function HomePage() {
         setAuraBarItems(finalAuraItems as User[]);
         setChats(mockChats);
         setIsLoading(false);
-      }, 1500); // Simulate network delay
+      }, 1500);
     }
-  }, [router, onboardingComplete, userProfile.name, currentUserAuraId]); // Dependencies for re-fetching or re-evaluating
+  }, [router, onboardingComplete, userProfile.name, currentUserAuraId]);
 
   const handleScroll = useCallback(() => {
     const scrollableElement = scrollableContainerRef.current;
@@ -78,43 +67,33 @@ export default function HomePage() {
 
     const currentScrollY = scrollableElement.scrollTop;
 
-    // Always show header if scrolled near the top
-    if (currentScrollY < HEADER_HEIGHT_PX / 2) {
-      setIsHeaderVisible(true);
-    } 
-    // Handle hide/show based on scroll direction beyond a certain point
-    else {
-      // Check if scroll difference is significant enough to toggle
-      if (Math.abs(currentScrollY - lastScrollY) > SCROLL_THRESHOLD) {
-        if (currentScrollY > lastScrollY) {
-          // Scrolling Down: Hide header if it's visible and past threshold
-          if (isHeaderVisible && currentScrollY > HEADER_HEIGHT_PX) { // Ensure it's scrolled down enough
-             setIsHeaderVisible(false);
-          }
-        } else {
-          // Scrolling Up: Show header if it's not visible
-          if (!isHeaderVisible) {
-            setIsHeaderVisible(true);
-          }
-        }
+    // Show header content if at the top or very near it
+    if (currentScrollY <= HEADER_HEIGHT_PX / 2) {
+      if (!isHeaderContentLoaded) setIsHeaderContentLoaded(true);
+    } else {
+      // Scrolling UP: Hide header content
+      if (currentScrollY < lastScrollYRef.current) {
+        if (isHeaderContentLoaded) setIsHeaderContentLoaded(false);
+      } 
+      // Scrolling DOWN: Show header content
+      else if (currentScrollY > lastScrollYRef.current) {
+        if (!isHeaderContentLoaded) setIsHeaderContentLoaded(true);
       }
     }
-    setLastScrollY(currentScrollY <= 0 ? 0 : currentScrollY); // Avoid negative scroll values
-  }, [lastScrollY, isHeaderVisible]); // Dependencies for useCallback
+    lastScrollYRef.current = currentScrollY <= 0 ? 0 : currentScrollY;
+  }, [isHeaderContentLoaded, setIsHeaderContentLoaded]); // Added setIsHeaderContentLoaded
 
-  // Effect to add and remove scroll event listener
   useEffect(() => {
     const scrollableElement = scrollableContainerRef.current;
-    if (!scrollableElement) return;
+    if (scrollableElement) {
+      lastScrollYRef.current = scrollableElement.scrollTop <= 0 ? 0 : scrollableElement.scrollTop;
+      scrollableElement.addEventListener('scroll', handleScroll);
+      return () => {
+        scrollableElement.removeEventListener('scroll', handleScroll);
+      };
+    }
+  }, [handleScroll]);
 
-    scrollableElement.addEventListener('scroll', handleScroll);
-    return () => {
-      scrollableElement.removeEventListener('scroll', handleScroll);
-    };
-  }, [handleScroll]); // Re-attach if handleScroll changes
-
-
-  // Filter chats based on search term (if search functionality is implemented)
   const filteredChats = chats.filter(chat =>
     chat.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -125,28 +104,34 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <HomeHeader isHeaderVisible={isHeaderVisible} />
+      <HomeHeader isHeaderContentLoaded={isHeaderContentLoaded} />
       
-      <main className="flex-grow flex flex-col bg-background overflow-hidden"> 
-        <div ref={scrollableContainerRef} className="flex-grow overflow-y-auto hide-scrollbar">
-          <AuraBar 
-            isLoading={isLoading} 
-            auraBarItems={auraBarItems} 
-            currentUserId={mockCurrentUser.id} 
-            onCurrentUserAuraClick={handleCurrentUserAuraClick} 
-          />
-          <ChatList 
-            isLoading={isLoading} 
-            filteredChats={filteredChats} 
-            searchTerm={searchTerm} 
-          />
-        </div>
+      {/* Fixed AuraBar container */}
+      <div className="fixed top-16 left-0 right-0 bg-background z-10 shadow-sm"> {/* Adjust z-index if needed, below header */}
+        <AuraBar 
+          isLoading={isLoading} 
+          auraBarItems={auraBarItems} 
+          currentUserId={mockCurrentUser.id} 
+          onCurrentUserAuraClick={handleCurrentUserAuraClick} 
+        />
+      </div>
+      
+      <main 
+        ref={scrollableContainerRef} 
+        className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar"
+        style={{ paddingTop: `${HEADER_HEIGHT_PX + AURA_BAR_HEIGHT_PX}px` }} // Padding for both fixed elements
+      > 
+        <ChatList 
+          isLoading={isLoading} 
+          filteredChats={filteredChats} 
+          searchTerm={searchTerm} 
+        />
       </main>
 
       <Button
         variant="default"
         size="icon"
-        className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-fab-home text-primary-foreground hover:opacity-90 transition-opacity z-10"
+        className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-fab-home text-primary-foreground hover:opacity-90 transition-opacity z-30" // Ensure FAB is above AuraBar
         aria-label="New chat"
         onClick={() => router.push('/new-chat')} 
       >
