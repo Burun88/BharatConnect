@@ -69,19 +69,21 @@ export default function HomePage() {
     const currentScrollY = scrollableElement.scrollTop;
 
     // Always show content if at the very top or very near it
-    if (currentScrollY <= HEADER_HEIGHT_PX / 4) { 
+    if (currentScrollY <= HEADER_HEIGHT_PX / 4) {
       setIsHeaderContentLoaded(true);
     } else {
-      // Check scroll direction only if moved more than DELTA
-      if (Math.abs(currentScrollY - lastScrollYRef.current) >= SCROLL_DELTA) { // Changed > to >=
-        if (currentScrollY > lastScrollYRef.current) {
-          // Scrolling Down: Hide header content
-          setIsHeaderContentLoaded(false);
-        } else {
-          // Scrolling Up: Show header content
-          setIsHeaderContentLoaded(true);
-        }
+      const scrolledDown = currentScrollY > lastScrollYRef.current;
+      const scrolledUp = currentScrollY < lastScrollYRef.current;
+
+      if (scrolledDown && (currentScrollY - lastScrollYRef.current) >= SCROLL_DELTA) {
+        // Scrolling Down significantly: Hide header content
+        setIsHeaderContentLoaded(false);
+      } else if (scrolledUp) {
+        // Scrolling Up (any amount when not at the very top): Show header content
+        setIsHeaderContentLoaded(true);
       }
+      // If scrolling down by a small amount (< SCROLL_DELTA), or not scrolling at all,
+      // the header state remains unchanged by this block.
     }
     lastScrollYRef.current = currentScrollY <= 0 ? 0 : currentScrollY;
   }, []); 
@@ -144,4 +146,3 @@ export default function HomePage() {
     </div>
   );
 }
-
