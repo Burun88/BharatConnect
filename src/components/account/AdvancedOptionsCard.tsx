@@ -11,7 +11,7 @@ export default function AdvancedOptionsCard() {
     <Card className="rounded-2xl shadow-md bg-card">
       <CardHeader>
         <div className="flex items-center">
-          <Settings2 className="w-5 h-5 mr-2 text-primary" />
+          <Settings2 className="w-5 h-5 mr-2 text-transparent bg-clip-text bg-gradient-to-r from-accent to-primary" />
           <CardTitle className="text-lg">Advanced Options</CardTitle>
         </div>
       </CardHeader>

@@ -59,33 +59,35 @@ export default function ProfileCard() {
     <Card className="rounded-2xl shadow-md bg-card">
       <CardHeader className="items-center text-center">
         <div className="relative">
-          <Image
-            src={profilePicPreview || "https://placehold.co/100x100.png"}
-            alt="Profile Picture"
-            width={100}
-            height={100}
-            className="rounded-full object-cover border-2 border-primary"
-            data-ai-hint="person avatar"
-          />
+          <div className="p-0.5 bg-gradient-to-r from-accent to-primary rounded-full">
+            <Image
+              src={profilePicPreview || "https://placehold.co/100x100.png"}
+              alt="Profile Picture"
+              width={100}
+              height={100}
+              className="rounded-full object-cover border-2 border-background"
+              data-ai-hint="person avatar"
+            />
+          </div>
           <Button
             variant="outline"
             size="icon"
             className="absolute bottom-0 right-0 rounded-full w-8 h-8 bg-muted hover:bg-muted/80"
-            onClick={() => document.getElementById('profile-pic-upload')?.click()}
+            onClick={() => document.getElementById('profile-pic-upload-account')?.click()}
             aria-label="Change profile picture"
           >
             <Camera className="w-4 h-4" />
           </Button>
-          <Input id="profile-pic-upload" type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+          <Input id="profile-pic-upload-account" type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
         </div>
         <CardTitle className="mt-4 text-xl">{isEditing ? tempName : name}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <Label htmlFor="name" className="text-muted-foreground">Name</Label>
+          <Label htmlFor="name-account" className="text-muted-foreground">Name</Label>
           {isEditing ? (
             <Input
-              id="name"
+              id="name-account"
               value={tempName}
               onChange={(e) => setTempName(e.target.value)}
               className="mt-1 bg-input"
@@ -95,19 +97,19 @@ export default function ProfileCard() {
           )}
         </div>
         <div>
-          <Label htmlFor="email" className="text-muted-foreground">Email</Label>
+          <Label htmlFor="email-account" className="text-muted-foreground">Email</Label>
           <Input
-            id="email"
+            id="email-account"
             value={email}
             readOnly
             className="mt-1 bg-muted/50 border-muted/30 text-muted-foreground cursor-not-allowed"
           />
         </div>
         <div>
-          <Label htmlFor="bio" className="text-muted-foreground">Bio</Label>
+          <Label htmlFor="bio-account" className="text-muted-foreground">Bio</Label>
           {isEditing ? (
             <Textarea
-              id="bio"
+              id="bio-account"
               value={tempBio}
               onChange={(e) => setTempBio(e.target.value)}
               rows={3}
@@ -125,7 +127,7 @@ export default function ProfileCard() {
             <Button variant="ghost" onClick={handleCancel}>
               <X className="mr-2" /> Cancel
             </Button>
-            <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
+            <Button onClick={handleSave} className="bg-gradient-to-r from-accent to-primary text-primary-foreground hover:opacity-90 transition-opacity">
               <Save className="mr-2" /> Save
             </Button>
           </>

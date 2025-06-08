@@ -35,12 +35,12 @@ export default function BottomNavigationBar() {
               href={item.href}
               className={cn(
                 "flex flex-col items-center justify-center w-full h-full text-muted-foreground hover:text-primary transition-colors",
-                isActive && "text-primary"
+                isActive && "text-transparent bg-clip-text bg-gradient-to-r from-accent to-primary"
               )}
               aria-current={isActive ? "page" : undefined}
             >
-              <item.icon className={cn("w-6 h-6 mb-0.5", isActive ? "fill-primary/20" : "")} />
-              <span className="text-xs">{item.label}</span>
+              <item.icon className={cn("w-6 h-6 mb-0.5", isActive ? "" : "")} /> {/* Removed fill for active, gradient text handles icon color */}
+              <span className={cn(isActive ? "text-transparent bg-clip-text bg-gradient-to-r from-accent to-primary" : "text-xs")}>{item.label}</span>
             </Link>
           );
         })}

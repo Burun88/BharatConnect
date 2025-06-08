@@ -16,9 +16,9 @@ export default function ThemeSettingsCard() {
     <Card className="rounded-2xl shadow-md bg-card">
       <CardHeader>
          <div className="flex items-center">
-          {selectedTheme === 'light' && <Sun className="w-5 h-5 mr-2 text-primary" />}
-          {selectedTheme === 'dark' && <Moon className="w-5 h-5 mr-2 text-primary" />}
-          {selectedTheme === 'system' && <Laptop className="w-5 h-5 mr-2 text-primary" />}
+          {selectedTheme === 'light' && <Sun className="w-5 h-5 mr-2 text-transparent bg-clip-text bg-gradient-to-r from-accent to-primary" />}
+          {selectedTheme === 'dark' && <Moon className="w-5 h-5 mr-2 text-transparent bg-clip-text bg-gradient-to-r from-accent to-primary" />}
+          {selectedTheme === 'system' && <Laptop className="w-5 h-5 mr-2 text-transparent bg-clip-text bg-gradient-to-r from-accent to-primary" />}
           <CardTitle className="text-lg">App Theme</CardTitle>
         </div>
       </CardHeader>
@@ -34,13 +34,13 @@ export default function ThemeSettingsCard() {
           className="grid grid-cols-3 gap-2"
           aria-label="Theme selection"
         >
-          <ToggleGroupItem value="light" aria-label="Light theme" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+          <ToggleGroupItem value="light" aria-label="Light theme" className="data-[state=on]:bg-gradient-to-r data-[state=on]:from-accent data-[state=on]:to-primary data-[state=on]:text-primary-foreground">
             <Sun className="w-4 h-4 mr-2" /> Light
           </ToggleGroupItem>
-          <ToggleGroupItem value="dark" aria-label="Dark theme" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+          <ToggleGroupItem value="dark" aria-label="Dark theme" className="data-[state=on]:bg-gradient-to-r data-[state=on]:from-accent data-[state=on]:to-primary data-[state=on]:text-primary-foreground">
             <Moon className="w-4 h-4 mr-2" /> Dark
           </ToggleGroupItem>
-          <ToggleGroupItem value="system" aria-label="System default theme" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+          <ToggleGroupItem value="system" aria-label="System default theme" className="data-[state=on]:bg-gradient-to-r data-[state=on]:from-accent data-[state=on]:to-primary data-[state=on]:text-primary-foreground">
             <Laptop className="w-4 h-4 mr-2" /> System
           </ToggleGroupItem>
         </ToggleGroup>
