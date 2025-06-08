@@ -52,6 +52,10 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
 
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    setNewMessage(prevMessage => prevMessage + emoji);
+  }, []); 
+
   useEffect(() => {
     if (isEmojiPickerOpen) {
       // Timeout to allow layout to adjust before scrolling, and after animation
@@ -70,11 +74,6 @@ export default function ChatPage() {
     setIsEmojiPickerOpen(prev => !prev);
   };
 
-  const handleEmojiSelect = useCallback((emoji: string) => {
-    setNewMessage(prevMessage => prevMessage + emoji);
-    // textareaRef.current?.focus(); // Keep focus on textarea after emoji select
-  }, []); 
-
   const handleSendMessage = (e: FormEvent) => {
     e.preventDefault();
     if (newMessage.trim() === '') return;
@@ -90,7 +89,6 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
-    // setIsEmojiPickerOpen(false); // Don't close picker on send, WhatsApp keeps it open
 
     if (contact) {
         setTimeout(() => {
@@ -243,9 +241,6 @@ export default function ChatPage() {
               setNewMessage(e.target.value);
               if (e.target.value && isEmojiPickerOpen) setIsEmojiPickerOpen(false); 
             }}
-            onFocus={() => {
-              // if (isEmojiPickerOpen) setIsEmojiPickerOpen(false); // Current behavior: picker stays open on focus
-            }}
             rows={1}
             className="flex-1 resize-none min-h-[40px] max-h-[100px] rounded-full px-4 py-2.5 leading-tight self-center"
             onKeyDown={(e) => {
@@ -279,10 +274,10 @@ export default function ChatPage() {
         </form>
       </footer>
       
-      {/* Emoji Picker Container - Animates height and opacity */}
+      {/* Emoji Picker Container */}
       <div
         className={cn(
-          "bg-background transition-all duration-300 ease-in-out overflow-hidden",
+          "bg-background transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0",
           isEmojiPickerOpen
             ? "h-[350px] opacity-100"
             : "h-0 opacity-0"
