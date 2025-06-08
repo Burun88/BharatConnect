@@ -360,7 +360,7 @@ export default function ChatPage() {
               </Button>
             </>
           ) : (
-            <Button type="submit" size="icon" onClick={handleSendMessage} className="rounded-full bg-gradient-to-r from-primary to-accent text-primary-foreground w-10 h-10 flex-shrink-0">
+            <Button type="submit" size="icon" onClick={handleSendMessage} className="rounded-full bg-gradient-to-r from-purple-500 to-purple-700 text-primary-foreground w-10 h-10 flex-shrink-0">
               <Send className="w-5 h-5" />
             </Button>
           )}
