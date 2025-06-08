@@ -16,11 +16,13 @@ import { AURA_OPTIONS } from '@/types';
 import { mockMessagesData, mockUsers, mockChats, mockCurrentUser } from '@/lib/mock-data';
 import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ChatPage() {
   const router = useRouter();
   const params = useParams();
   const chatId = params.chatId as string;
+  const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(true);
   const [chatDetails, setChatDetails] = useState<Chat | null>(null);
@@ -49,6 +51,13 @@ export default function ChatPage() {
     // Scroll to bottom when messages change
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
+
+  const showComingSoonToast = () => {
+    toast({
+      title: "Hold Tight, Connecting Soon! 🚀",
+      description: "Our team is busy crafting this awesome feature for you. It'll be ready before your next chai break! Stay tuned with BharatConnect! 🇮🇳✨",
+    });
+  };
 
   const handleSendMessage = (e: FormEvent) => {
     e.preventDefault();
@@ -155,7 +164,7 @@ export default function ChatPage() {
             <h2 className="text-sm font-semibold">{contact.name}</h2>
             <p className="text-xs text-muted-foreground truncate">{contactStatus || 'Offline'}</p>
           </div>
-          <Button variant="ghost" size="icon" className="ml-auto">
+          <Button variant="ghost" size="icon" className="ml-auto" onClick={showComingSoonToast}>
             <MoreVertical className="w-5 h-5" />
           </Button>
         </header>
@@ -172,7 +181,7 @@ export default function ChatPage() {
       {/* Message Input Footer - Remains sticky */}
       <footer className="p-2 border-t bg-background sticky bottom-0 z-10">
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
-          <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent">
+          <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={showComingSoonToast}>
             <SmilePlus className="w-5 h-5 text-muted-foreground" />
           </Button>
           <Textarea
@@ -190,10 +199,10 @@ export default function ChatPage() {
           />
           {newMessage.trim() === '' ? (
             <>
-             <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent">
+             <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={showComingSoonToast}>
                 <Paperclip className="w-5 h-5 text-muted-foreground" />
               </Button>
-              <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent">
+              <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={showComingSoonToast}>
                 <Camera className="w-5 h-5 text-muted-foreground" />
               </Button>
             </>

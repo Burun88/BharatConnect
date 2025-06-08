@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Plus } from 'lucide-react';
 import React from 'react';
+import { useToast } from '@/hooks/use-toast';
 
 interface AuraItemProps {
   user: User;
@@ -16,6 +17,22 @@ interface AuraItemProps {
 
 const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemProps) => {
   const aura = AURA_OPTIONS.find(a => a.id === user.currentAuraId);
+  const { toast } = useToast();
+
+  const showComingSoonToast = () => {
+    toast({
+      title: "Hold Tight, Connecting Soon! 🚀",
+      description: "This user's aura details will be available soon. Stay tuned with BharatConnect! 🇮🇳✨",
+    });
+  };
+
+  const handleItemClick = () => {
+    if (onClick) {
+      onClick();
+    } else if (!isCurrentUser) {
+      showComingSoonToast();
+    }
+  };
 
   const getInitials = (name: string) => {
     if (!name) return '??';
@@ -34,10 +51,10 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
   const ItemContainer: React.FC<{ children: React.ReactNode; 'aria-label': string }> = ({ children, ...props }) => (
     <div
       className="flex flex-col items-center space-y-3 text-center p-1 shrink-0 cursor-pointer"
-      onClick={onClick}
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onKeyDown={(e) => onClick && e.key === 'Enter' && onClick?.()}
+      onClick={handleItemClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleItemClick()}
       aria-label={props['aria-label']}
     >
       {children}
@@ -163,6 +180,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
     );
   }
 
+  // Fallback for other users without an aura (will trigger toast on click)
   return (
     <ItemContainer aria-label={user.name}>
        <div className={cn("relative", mainElementSize)}>

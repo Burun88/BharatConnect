@@ -12,6 +12,7 @@ import type { StatusUpdate, User } from '@/types';
 import { QrCode, Search, MoreVertical, PlusCircle, Pencil, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
 
 interface StatusUpdateWithUser extends StatusUpdate {
   user: User;
@@ -21,6 +22,7 @@ export default function StatusPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [myUser, setMyUser] = useState<User | null>(null);
   const [recentStatusUpdates, setRecentStatusUpdates] = useState<StatusUpdateWithUser[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     // Simulate data fetching
@@ -40,25 +42,31 @@ export default function StatusPage() {
     }, 1000);
   }, []);
 
+  const showComingSoonToast = () => {
+    toast({
+      title: "Hold Tight, Connecting Soon! 🚀",
+      description: "Our team is busy crafting this awesome feature for you. It'll be ready before your next chai break! Stay tuned with BharatConnect! 🇮🇳✨",
+    });
+  };
+
   const getInitials = (name: string) => {
     if (!name) return '??';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
   
   const handleAddStatus = () => {
-    // Placeholder for add status functionality
-    console.log("Add status clicked");
+    showComingSoonToast();
   };
 
   const headerActions = (
     <>
-      <Button variant="ghost" size="icon" aria-label="Scan QR code">
+      <Button variant="ghost" size="icon" aria-label="Scan QR code" onClick={showComingSoonToast}>
         <QrCode className="w-5 h-5" />
       </Button>
-      <Button variant="ghost" size="icon" aria-label="Search statuses">
+      <Button variant="ghost" size="icon" aria-label="Search statuses" onClick={showComingSoonToast}>
         <Search className="w-5 h-5" />
       </Button>
-      <Button variant="ghost" size="icon" aria-label="More options">
+      <Button variant="ghost" size="icon" aria-label="More options" onClick={showComingSoonToast}>
         <MoreVertical className="w-5 h-5" />
       </Button>
     </>
@@ -143,7 +151,7 @@ export default function StatusPage() {
                     key={status.id} 
                     statusUpdate={status} 
                     user={status.user} 
-                    onClick={() => console.log(`View status ${status.id}`)} // Placeholder
+                    onClick={showComingSoonToast}
                   />
                 ))}
               </div>
@@ -166,7 +174,7 @@ export default function StatusPage() {
           size="icon" 
           className="rounded-full w-12 h-12 shadow-lg bg-card hover:bg-card/80"
           aria-label="New text status"
-          onClick={() => console.log("New text status")}
+          onClick={showComingSoonToast}
         >
           <Pencil className="w-5 h-5" />
         </Button>
@@ -175,7 +183,7 @@ export default function StatusPage() {
           size="icon" 
           className="rounded-full w-14 h-14 shadow-xl bg-primary hover:bg-primary/90"
           aria-label="New camera status"
-          onClick={() => console.log("New camera status")}
+          onClick={showComingSoonToast}
         >
           <Camera className="w-6 h-6" />
         </Button>
@@ -185,4 +193,3 @@ export default function StatusPage() {
     </div>
   );
 }
-
