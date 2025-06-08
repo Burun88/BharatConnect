@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type ChangeEvent, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -70,10 +70,10 @@ export default function ChatPage() {
     setIsEmojiPickerOpen(prev => !prev);
   };
 
-  const handleEmojiSelect = (emoji: string) => {
+  const handleEmojiSelect = useCallback((emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
-    textareaRef.current?.focus();
-  };
+    // textareaRef.current?.focus(); // Keep focus on textarea after emoji select
+  }, []); // setNewMessage is stable from useState
 
   const handleSendMessage = (e: FormEvent) => {
     e.preventDefault();
@@ -90,7 +90,7 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
-    // setIsEmojiPickerOpen(false); // Keep picker open or close based on preference, for now, let's keep it open if user wants to add more.
+    setIsEmojiPickerOpen(false); 
 
     if (contact) {
         setTimeout(() => {
@@ -219,7 +219,7 @@ export default function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
       </div>
-
+      
       <footer className="border-t bg-background z-10">
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2 p-2">
           <Button 
@@ -277,18 +277,15 @@ export default function ChatPage() {
         </form>
       </footer>
       
-      <div
-        className={cn(
-          "h-[350px] bg-background transition-all duration-300 ease-in-out",
-          isEmojiPickerOpen 
-            ? "opacity-100 visible translate-y-0" 
-            : "opacity-0 invisible translate-y-full pointer-events-none"
-        )}
-        aria-hidden={!isEmojiPickerOpen}
-      >
+      <div className={cn(
+        "absolute bottom-0 left-0 right-0 z-10 bg-background transition-all duration-300 ease-in-out",
+        isEmojiPickerOpen
+          ? "opacity-100 visible translate-y-0"
+          : "opacity-0 invisible translate-y-full pointer-events-none",
+        "h-[350px]" 
+      )}>
         {isEmojiPickerOpen && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
       </div>
     </div>
   );
 }
-
