@@ -14,6 +14,7 @@ import { Plus } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 const HEADER_HEIGHT_PX = 64; // Height of the HomeHeader (h-16)
+const BOTTOM_NAV_HEIGHT_PX = 64; // Height of the BottomNavigationBar (h-16)
 const SCROLL_DELTA = 5; // Minimum scroll difference to trigger animation
 
 export default function HomePage() {
@@ -111,7 +112,10 @@ export default function HomePage() {
       <main 
         ref={scrollableContainerRef} 
         className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar"
-        style={{ paddingTop: `${HEADER_HEIGHT_PX}px` }} 
+        style={{ 
+          paddingTop: `${HEADER_HEIGHT_PX}px`,
+          paddingBottom: `${BOTTOM_NAV_HEIGHT_PX}px` 
+        }} 
       > 
         <AuraBar 
           isLoading={isLoading} 
