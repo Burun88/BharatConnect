@@ -4,17 +4,14 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Skeleton } from '@/components/ui/skeleton';
 import BottomNavigationBar from '@/components/bottom-navigation-bar';
-import AuraItem from '@/components/aura-item';
-import ChatItem from '@/components/chat-item';
+import HomeHeader from '@/components/home/home-header';
+import AuraBar from '@/components/home/aura-bar';
+import ChatList from '@/components/home/chat-list';
 import type { User, Chat } from '@/types';
 import { mockCurrentUser, mockAuraBarItemsData, mockChats } from '@/lib/mock-data';
-import { Search, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import Logo from '@/components/shared/Logo';
-import { cn } from '@/lib/utils';
 
 const HEADER_HEIGHT_PX = 64; // Approx h-16 in pixels (16 * 4)
 const SCROLL_THRESHOLD = 10; // Min pixels to scroll before toggling header visibility
@@ -72,32 +69,24 @@ export default function HomePage() {
 
     const currentScrollY = scrollableElement.scrollTop;
 
-    // Scenario 1: Scrolled to the top or very near it (e.g., within half header height)
     if (currentScrollY < HEADER_HEIGHT_PX / 2) {
       setIsHeaderVisible(true);
     } 
-    // Scenario 2: User is scrolling further down
     else {
-      // Check if scroll is significant enough to warrant a change
       if (Math.abs(currentScrollY - lastScrollY) > SCROLL_THRESHOLD) {
         if (currentScrollY > lastScrollY) {
-          // Scrolling Down
-          // Hide header only if it's currently visible and scrolled past its full height
           if (isHeaderVisible && currentScrollY > HEADER_HEIGHT_PX) {
              setIsHeaderVisible(false);
           }
         } else {
-          // Scrolling Up
-          // Show header only if it's currently hidden
           if (!isHeaderVisible) {
             setIsHeaderVisible(true);
           }
         }
       }
     }
-    // Update lastScrollY, ensuring it's not negative (for bounce effects)
     setLastScrollY(currentScrollY <= 0 ? 0 : currentScrollY);
-  }, [lastScrollY, isHeaderVisible]); // Removed setIsHeaderVisible, setLastScrollY as they are directly handled by useState
+  }, [lastScrollY, isHeaderVisible]);
 
   useEffect(() => {
     const scrollableElement = scrollableContainerRef.current;
@@ -120,78 +109,23 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      {/* Main Content Area - Now a flex container, scrolling handled by child */}
-      <main className="flex-grow flex flex-col bg-background overflow-hidden"> {/* Added overflow-hidden here */}
-        {/* This div is now the main scrollable area for Header + Aura Bar + Chat List */}
+      <main className="flex-grow flex flex-col bg-background"> 
         <div ref={scrollableContainerRef} className="flex-grow overflow-y-auto hide-scrollbar">
-          {/* Header */}
-          <header className={cn(
-            "flex items-center justify-between p-4 bg-background z-10 h-16 sticky top-0",
-            "transition-transform duration-200 ease-in-out", 
-            isHeaderVisible ? "translate-y-0" : "-translate-y-full"
-          )}>
-            <Logo size="medium" />
-            <div className="flex items-center space-x-2">
-              <Button variant="ghost" size="icon" aria-label="Search">
-                <Search className="w-5 h-5" />
-              </Button>
-            </div>
-          </header>
-
-          {/* Aura Bar */}
-          <div className="px-2 py-3 bg-background aura-horizontal-scroll"> {/* Removed sticky and z-index */}
-            <ScrollArea className="w-full"> {/* Horizontal scroll for auras */}
-              <div className="flex space-x-1 pb-2 whitespace-nowrap">
-                {isLoading ? (
-                  Array.from({ length: 5 }).map((_, index) => (
-                    <div key={index} className="flex flex-col items-center space-y-1 p-1">
-                      <Skeleton className="w-20 h-20 rounded-full" />
-                      <Skeleton className="w-16 h-4 rounded" />
-                    </div>
-                  ))
-                ) : (
-                  auraBarItems.map(user => (
-                    <AuraItem
-                      key={user.id}
-                      user={user}
-                      isCurrentUser={user.id === mockCurrentUser.id}
-                      onClick={user.id === mockCurrentUser.id ? handleCurrentUserAuraClick : undefined}
-                    />
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-          
-          {/* Chat List - No longer a ScrollArea for vertical scroll */}
-          <div className="bg-background">
-            <div className="">
-              {isLoading ? (
-                Array.from({ length: 10 }).map((_, index) => (
-                  <div key={index} className="flex items-center p-3">
-                    <Skeleton className="w-12 h-12 rounded-full mr-3" />
-                    <div className="flex-1 space-y-2">
-                      <Skeleton className="w-3/4 h-4 rounded" />
-                      <Skeleton className="w-1/2 h-3 rounded" />
-                    </div>
-                  </div>
-                ))
-              ) : filteredChats.length > 0 ? (
-                filteredChats.map(chat => (
-                  <ChatItem key={chat.id} chat={chat} />
-                ))
-              ) : (
-                <div className="text-center py-10 text-muted-foreground">
-                  <p>No chats found{searchTerm && ` for "${searchTerm}"`}.</p>
-                  {!searchTerm && <p>Start a new conversation!</p>}
-                </div>
-              )}
-            </div>
-          </div>
+          <HomeHeader isHeaderVisible={isHeaderVisible} />
+          <AuraBar 
+            isLoading={isLoading} 
+            auraBarItems={auraBarItems} 
+            currentUserId={mockCurrentUser.id} 
+            onCurrentUserAuraClick={handleCurrentUserAuraClick} 
+          />
+          <ChatList 
+            isLoading={isLoading} 
+            filteredChats={filteredChats} 
+            searchTerm={searchTerm} 
+          />
         </div>
       </main>
 
-      {/* Floating Action Button */}
       <Button
         variant="default"
         size="icon"
@@ -202,7 +136,6 @@ export default function HomePage() {
         <Plus className="w-7 h-7" />
       </Button>
 
-      {/* Bottom Navigation */}
       <BottomNavigationBar />
     </div>
   );

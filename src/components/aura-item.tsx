@@ -22,19 +22,12 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const IMAGE_SIZE_CLASS = "w-[88px] h-[88px]"; // Increased from 72px
-  const mainElementSize = "w-24 h-24"; // Increased from w-20 h-20 (80px to 96px). Ring padding p-1 (4px on each side). Overall size = 88px + 4px*2 = 96px.
+  const IMAGE_SIZE_CLASS = "w-[88px] h-[88px]"; 
+  const mainElementSize = "w-24 h-24"; 
 
-  const smallCircleSize = "w-7 h-7"; // 28px (remains same)
+  const smallCircleSize = "w-7 h-7"; 
   const smallCircleIconSize = "w-4 h-4";
   const smallCircleEmojiFontSize = "text-sm";
-
-  // Adjusted for new mainElementSize
-  // Old mainElementSize h-20 (80px), emojiOverlapTopClass top-[62px].
-  // New mainElementSize h-24 (96px). Diff = 16px.
-  // Top of emoji circle = 96px (main_element_bottom) - 14px (half_emoji_height) = 82px.
-  // Let's use top-[78px] (similar relative overlap as before)
-  // 96 (new height) - 78 (new top) = 18px from bottom of main circle to top of emoji.
   const emojiOverlapTopClass = "top-[78px]";
 
 
@@ -62,7 +55,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
         {isRing && ringGradient && (
           <div
             className={cn(
-              "absolute inset-0 rounded-full animate-spin-slow", // Added animate-spin-slow
+              "absolute inset-0 rounded-full animate-spin-slow", 
               ringGradient
             )}
           />
@@ -70,7 +63,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
         <div className={cn(
           "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden",
           IMAGE_SIZE_CLASS,
-          isRing && "bg-background p-1"
+          isRing && "bg-background p-1" 
         )}>
           {React.cloneElement(avatarContent as React.ReactElement, {
             className: cn((avatarContent as React.ReactElement).props.className, "w-full h-full"),
@@ -82,7 +75,8 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
             className={cn(
               "absolute left-1/2 -translate-x-1/2 rounded-full flex items-center justify-center border-2 border-background",
               smallCircleSize,
-              emojiOverlapTopClass
+              emojiOverlapTopClass,
+              aura?.gradient ? 'bg-card' : 'bg-primary' // Ensure emoji circle background contrasts
             )}
           >
             {overlapContent}
@@ -94,7 +88,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
 
 
   const nameText = (
-    <span className={cn("text-xs text-foreground truncate text-center", `w-24`)}> {/* Increased width from w-20 */}
+    <span className={cn("text-xs text-foreground truncate text-center", `w-24`)}> 
       {isCurrentUser ? (aura ? "Your Aura" : "Your Story") : user.name}
     </span>
   );
@@ -104,7 +98,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
       {user.avatarUrl ? (
         <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
       ) : (
-        <AvatarFallback className={cn(aura ? "bg-transparent" : "bg-card text-card-foreground")}>
+        <AvatarFallback className={cn(aura?.gradient ? "bg-transparent" : "bg-card text-card-foreground")}>
           {getInitials(user.name)}
         </AvatarFallback>
       )}
@@ -116,7 +110,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
         {user.avatarUrl ? (
             <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
         ) : (
-            <AvatarFallback className={cn(aura ? "bg-transparent" : "bg-card text-card-foreground")}>
+            <AvatarFallback className={cn(aura?.gradient ? "bg-transparent" : "bg-card text-card-foreground")}>
             {getInitials(user.name)}
             </AvatarFallback>
         )}
@@ -141,7 +135,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
             </Avatar>
           }
           overlapContent={
-            <div className={cn("w-full h-full rounded-full flex items-center justify-center bg-primary")}>
+            <div className={cn("w-full h-full rounded-full flex items-center justify-center")}> {/* Removed bg-primary here, handled in AvatarWithOverlap */}
               <Plus className={cn(smallCircleIconSize, "text-primary-foreground")} />
             </div>
           }
@@ -159,7 +153,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
           ringGradient={aura.gradient}
           avatarContent={isCurrentUser ? currentUserAvatar : otherUserAvatar}
           overlapContent={
-            <div className={cn("w-full h-full rounded-full flex items-center justify-center bg-card")}>
+            <div className={cn("w-full h-full rounded-full flex items-center justify-center")}> {/* Removed bg-card here, handled in AvatarWithOverlap */}
               <span className={smallCircleEmojiFontSize}>{aura.emoji}</span>
             </div>
           }
@@ -169,7 +163,6 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
     );
   }
 
-  // Fallback for users without an aura (not the current user)
   return (
     <ItemContainer aria-label={user.name}>
        <div className={cn("relative", mainElementSize)}>
