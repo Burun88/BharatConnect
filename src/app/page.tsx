@@ -34,24 +34,33 @@ export default function HomePage() {
   const [lastScrollY, setLastScrollY] = useState(0);
 
   useEffect(() => {
+    // Redirect to welcome if onboarding is not complete (in production)
+    // For development, this check might be bypassed to allow direct access to HomePage.
+    // Ensure 'onboardingComplete' is correctly set after the /profile-setup page.
     if (!onboardingComplete && process.env.NODE_ENV === 'production') { 
         router.replace('/welcome');
     } else {
+      // Simulate data fetching
       setTimeout(() => {
+        // Create an updated current user object with profile name and aura
         const updatedCurrentUser = { ...mockCurrentUser, name: userProfile.name || mockCurrentUser.name, currentAuraId: currentUserAuraId, avatarUrl: mockCurrentUser.avatarUrl };
 
+        // Get all users from mock data, replacing or adding the current user
         let allUsersFromMock = mockAuraBarItemsData().map(u => 
             u.id === updatedCurrentUser.id ? updatedCurrentUser : u
         );
 
+        // Ensure current user is first if they exist
         const currentUserIndex = allUsersFromMock.findIndex(u => u.id === updatedCurrentUser.id);
-        if (currentUserIndex > 0) {
-          allUsersFromMock.splice(currentUserIndex, 1);
-          allUsersFromMock.unshift(updatedCurrentUser);
-        } else if (currentUserIndex === -1 && updatedCurrentUser.name) { 
+        if (currentUserIndex > 0) { // If current user exists and is not first, move to front
+          allUsersFromMock.splice(currentUserIndex, 1); // Remove from current position
+          allUsersFromMock.unshift(updatedCurrentUser); // Add to the beginning
+        } else if (currentUserIndex === -1 && updatedCurrentUser.name) { // If current user not in list but has a name, add to front
+          // This case might happen if mockAuraBarItemsData doesn't include currentUser initially
           allUsersFromMock.unshift(updatedCurrentUser);
         }
         
+        // Filter for AuraBar: Current user (always) + other users with an active aura
         const finalAuraItems = allUsersFromMock.filter(
             u => u.id === updatedCurrentUser.id || u.currentAuraId
         );
@@ -59,9 +68,9 @@ export default function HomePage() {
         setAuraBarItems(finalAuraItems as User[]);
         setChats(mockChats);
         setIsLoading(false);
-      }, 1500);
+      }, 1500); // Simulate network delay
     }
-  }, [router, onboardingComplete, userProfile.name, currentUserAuraId]);
+  }, [router, onboardingComplete, userProfile.name, currentUserAuraId]); // Dependencies for re-fetching or re-evaluating
 
   const handleScroll = useCallback(() => {
     const scrollableElement = scrollableContainerRef.current;
@@ -69,25 +78,31 @@ export default function HomePage() {
 
     const currentScrollY = scrollableElement.scrollTop;
 
+    // Always show header if scrolled near the top
     if (currentScrollY < HEADER_HEIGHT_PX / 2) {
       setIsHeaderVisible(true);
     } 
+    // Handle hide/show based on scroll direction beyond a certain point
     else {
+      // Check if scroll difference is significant enough to toggle
       if (Math.abs(currentScrollY - lastScrollY) > SCROLL_THRESHOLD) {
         if (currentScrollY > lastScrollY) {
-          if (isHeaderVisible && currentScrollY > HEADER_HEIGHT_PX) {
+          // Scrolling Down: Hide header if it's visible and past threshold
+          if (isHeaderVisible && currentScrollY > HEADER_HEIGHT_PX) { // Ensure it's scrolled down enough
              setIsHeaderVisible(false);
           }
         } else {
+          // Scrolling Up: Show header if it's not visible
           if (!isHeaderVisible) {
             setIsHeaderVisible(true);
           }
         }
       }
     }
-    setLastScrollY(currentScrollY <= 0 ? 0 : currentScrollY);
-  }, [lastScrollY, isHeaderVisible]);
+    setLastScrollY(currentScrollY <= 0 ? 0 : currentScrollY); // Avoid negative scroll values
+  }, [lastScrollY, isHeaderVisible]); // Dependencies for useCallback
 
+  // Effect to add and remove scroll event listener
   useEffect(() => {
     const scrollableElement = scrollableContainerRef.current;
     if (!scrollableElement) return;
@@ -96,9 +111,10 @@ export default function HomePage() {
     return () => {
       scrollableElement.removeEventListener('scroll', handleScroll);
     };
-  }, [handleScroll]);
+  }, [handleScroll]); // Re-attach if handleScroll changes
 
 
+  // Filter chats based on search term (if search functionality is implemented)
   const filteredChats = chats.filter(chat =>
     chat.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -109,9 +125,10 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <main className="flex-grow flex flex-col bg-background"> 
+      <HomeHeader isHeaderVisible={isHeaderVisible} />
+      
+      <main className="flex-grow flex flex-col bg-background overflow-hidden"> 
         <div ref={scrollableContainerRef} className="flex-grow overflow-y-auto hide-scrollbar">
-          <HomeHeader isHeaderVisible={isHeaderVisible} />
           <AuraBar 
             isLoading={isLoading} 
             auraBarItems={auraBarItems} 
