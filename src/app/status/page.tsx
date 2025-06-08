@@ -80,12 +80,12 @@ export default function StatusPage() {
           {/* Recent Updates Skeleton */}
           <div>
             <Skeleton className="w-28 h-4 mb-3" />
-            <div className="space-y-3">
+            <div className="space-y-px"> {/* Reduced gap for skeleton items */}
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="flex items-center space-x-3">
+                <div key={i} className="flex items-center space-x-3 p-3"> {/* Added p-3 to match StatusListItem's padding */}
                   <Skeleton className="w-14 h-14 rounded-full" /> {/* Adjusted to match increased size */}
-                  <div className="space-y-1.5">
-                    <Skeleton className="w-32 h-4" />
+                  <div className="flex-1 min-w-0">
+                    <Skeleton className="w-32 h-4 mb-1.5" /> {/* Adjusted for consistency */}
                     <Skeleton className="w-20 h-3" />
                   </div>
                 </div>
@@ -137,7 +137,7 @@ export default function StatusPage() {
           {recentStatusUpdates.length > 0 && (
             <div className="mt-4">
               <h4 className="text-xs font-medium text-muted-foreground px-1 mb-1">Recent updates</h4>
-              <div className="space-y-0.5"> {/* Decreased space from space-y-1 */}
+              <div className="space-y-px"> {/* Further reduced space between items */}
                 {recentStatusUpdates.map((status) => (
                   <StatusListItem 
                     key={status.id} 
