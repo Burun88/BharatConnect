@@ -215,6 +215,13 @@
     color: transparent;
   }
 
+  .text-gradient-nav-active {
+    @apply bg-gradient-to-r from-accent to-primary; /* Violet to Blue */
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
   .bg-gradient-fab-home {
     @apply bg-gradient-to-br from-[var(--gradient-fab-home-from)] via-[var(--instabharat-logo-via)] to-[var(--gradient-fab-home-to)];
   }
