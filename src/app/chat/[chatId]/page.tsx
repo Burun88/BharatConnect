@@ -279,13 +279,13 @@ export default function ChatPage() {
         </form>
       </footer>
       
-      {/* Emoji Picker Container - Fixed height, animates opacity/visibility */}
+      {/* Emoji Picker Container - Animates max-height and opacity */}
       <div
         className={cn(
-          "bg-background h-[350px]", // Fixed height, matches EmojiPicker's internal height
+          "bg-background transition-all duration-300 ease-in-out overflow-hidden",
           isEmojiPickerOpen
-            ? "opacity-100 visible transition-opacity duration-300 ease-in-out"
-            : "opacity-0 invisible pointer-events-none" 
+            ? "max-h-[350px] opacity-100"
+            : "max-h-0 opacity-0"
         )}
       >
         {isEmojiPickerOpen && ( 
@@ -295,4 +295,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
