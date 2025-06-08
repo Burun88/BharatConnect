@@ -72,8 +72,9 @@ export default function ChatPage() {
 
   const toggleEmojiPicker = () => {
     setIsEmojiPickerOpen(prev => !prev);
-    if (!isEmojiPickerOpen) { 
-        textareaRef.current?.blur(); 
+    if (!isEmojiPickerOpen && textareaRef.current) { 
+        // If opening picker, ensure textarea doesn't have focus to prevent keyboard
+        // If closing picker, it's fine if textarea regains focus later
     }
   };
 
@@ -92,9 +93,8 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
-    setIsEmojiPickerOpen(false); 
-    textareaRef.current?.focus();
-
+    setIsEmojiPickerOpen(false); // Close emoji picker on send
+    textareaRef.current?.focus(); // Refocus textarea
 
     if (contact) {
         setTimeout(() => {
@@ -152,8 +152,7 @@ export default function ChatPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full"> {/* Use h-full for pure flex layout */}
-        {/* Header Skeleton */}
+      <div className="flex flex-col h-full">
         <header className="flex items-center p-3 border-b bg-background h-16 flex-shrink-0">
           <Skeleton className="w-8 h-8 rounded-full mr-2" />
           <Skeleton className="w-10 h-10 rounded-full mr-3" />
@@ -163,8 +162,7 @@ export default function ChatPage() {
           </div>
           <Skeleton className="w-8 h-8 rounded-full ml-auto" />
         </header>
-        <div className="flex flex-col flex-1 min-h-0"> {/* min-h-0 for flex-1 content */}
-            {/* Messages Skeleton */}
+        <div className="flex flex-col flex-1 min-h-0">
             <div className="flex-grow overflow-y-auto p-4 space-y-4">
             {[...Array(5)].map((_, i) => (
                 <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
@@ -172,7 +170,6 @@ export default function ChatPage() {
                 </div>
             ))}
             </div>
-            {/* Footer Skeleton */}
             <footer className="p-3 border-t bg-background flex-shrink-0">
             <div className="flex items-center space-x-2">
                 <Skeleton className="w-8 h-10 rounded-md" />
@@ -187,7 +184,7 @@ export default function ChatPage() {
 
   if (!chatDetails || !contact) {
     return (
-      <div className="flex flex-col h-full items-center justify-center"> {/* Use h-full */}
+      <div className="flex flex-col h-full items-center justify-center">
         <p className="text-muted-foreground">Chat not found.</p>
         <Button variant="link" onClick={() => router.push('/')}>Go to Chats</Button>
       </div>
@@ -195,8 +192,8 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background"> {/* Use h-full */}
-      <header className="flex items-center p-2.5 border-b bg-background h-16 z-10 flex-shrink-0">
+    <div className="flex flex-col h-full bg-background"> {/* Use h-full from layout.tsx */}
+      <header className="fixed top-0 left-0 right-0 flex items-center p-2.5 border-b bg-background h-16 z-20"> {/* Fixed header */}
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -217,10 +214,10 @@ export default function ChatPage() {
         </Button>
       </header>
 
-      {/* Main Content Area: Messages, Input, Emoji Picker */}
-      <div className="flex flex-col flex-1 min-h-0"> {/* flex-1 and min-h-0 are key */}
+      {/* Main Content Area: Messages, Input, Emoji Picker, occupies space below fixed header */}
+      <div className="flex flex-col flex-1 pt-16"> {/* pt-16 for fixed header height, flex-1 to take remaining space */}
         {/* Message Area */}
-        <div className="flex-grow overflow-y-auto">
+        <div className="flex-grow overflow-y-auto"> {/* flex-grow to take space, overflow for scrolling */}
           <div className="flex flex-col p-4 space-y-2 pb-2">
             {messages.map(msg => (
               <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
@@ -229,7 +226,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Input Footer */}
+        {/* Input Footer - should not shrink */}
         <footer className="border-t bg-background z-10 flex-shrink-0">
           <form onSubmit={handleSendMessage} className="flex items-end space-x-2 p-2">
             <Button
@@ -287,13 +284,14 @@ export default function ChatPage() {
           </form>
         </footer>
 
-        {/* Emoji Picker Container */}
+        {/* Emoji Picker Container - should not shrink */}
         <div
           className={cn(
             "transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0",
             isEmojiPickerOpen
-              ? "h-[300px] opacity-100 visible pointer-events-auto bg-background" 
-              : "h-0 opacity-0 invisible pointer-events-none"
+              ? "h-[300px] opacity-100 visible pointer-events-auto" 
+              : "h-0 opacity-0 invisible pointer-events-none",
+            isEmojiPickerOpen && "bg-background" // Apply background only when open
           )}
         >
           {isEmojiPickerOpen && ( 
@@ -304,4 +302,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
