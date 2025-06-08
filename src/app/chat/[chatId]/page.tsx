@@ -54,8 +54,8 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (isEmojiPickerOpen) {
-      // Timeout to allow layout to adjust before scrolling
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      // Timeout to allow layout to adjust before scrolling, and after animation
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 350); // Increased delay
     }
   }, [isEmojiPickerOpen]);
 
@@ -73,7 +73,7 @@ export default function ChatPage() {
   const handleEmojiSelect = useCallback((emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
     // textareaRef.current?.focus(); // Keep focus on textarea after emoji select
-  }, []); // setNewMessage is stable from useState
+  }, []); 
 
   const handleSendMessage = (e: FormEvent) => {
     e.preventDefault();
@@ -90,7 +90,7 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
-    setIsEmojiPickerOpen(false); 
+    // setIsEmojiPickerOpen(false); // Don't close picker on send, WhatsApp keeps it open
 
     if (contact) {
         setTimeout(() => {
@@ -220,7 +220,7 @@ export default function ChatPage() {
         </div>
       </div>
       
-      <footer className="border-t bg-background z-10">
+      <footer className="border-t bg-background z-10"> {/* z-10 to be above emoji picker in flow, but below for absolute */}
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2 p-2">
           <Button 
             variant="ghost" 
@@ -242,7 +242,7 @@ export default function ChatPage() {
               if (e.target.value && isEmojiPickerOpen) setIsEmojiPickerOpen(false); 
             }}
             onFocus={() => {
-              if (isEmojiPickerOpen) setIsEmojiPickerOpen(false);
+              // if (isEmojiPickerOpen) setIsEmojiPickerOpen(false); // Don't close on focus, allow picker usage
             }}
             rows={1}
             className="flex-1 resize-none min-h-[40px] max-h-[100px] rounded-full px-4 py-2.5 leading-tight self-center"
@@ -277,15 +277,21 @@ export default function ChatPage() {
         </form>
       </footer>
       
-      <div className={cn(
-        "absolute bottom-0 left-0 right-0 z-10 bg-background transition-all duration-300 ease-in-out",
-        isEmojiPickerOpen
-          ? "opacity-100 visible translate-y-0"
-          : "opacity-0 invisible translate-y-full pointer-events-none",
-        "h-[350px]" 
-      )}>
-        {isEmojiPickerOpen && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
+      {/* Emoji Picker Container - Animates visibility and position */}
+      <div
+        className={cn(
+          "absolute bottom-0 left-0 right-0 z-10 bg-background transition-all duration-300 ease-in-out",
+          "h-[350px]", // Fixed height for the container
+          isEmojiPickerOpen
+            ? "opacity-100 visible translate-y-0"
+            : "opacity-0 invisible translate-y-full pointer-events-none"
+        )}
+      >
+        {isEmojiPickerOpen && ( // Conditionally render EmojiPicker for clean mount/unmount
+          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+        )}
       </div>
     </div>
   );
 }
+
