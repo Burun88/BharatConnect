@@ -13,7 +13,8 @@ import { mockCurrentUser, mockAuraBarItemsData, mockChats } from '@/lib/mock-dat
 import { Plus } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
-const HEADER_HEIGHT_PX = 64; // Approx h-16 for HomeHeader
+const HEADER_HEIGHT_PX = 64; // Height of the HomeHeader (h-16)
+const SCROLL_DELTA = 5; // Minimum scroll difference to trigger animation
 
 export default function HomePage() {
   const router = useRouter();
@@ -65,29 +66,31 @@ export default function HomePage() {
     if (!scrollableElement) return;
 
     const currentScrollY = scrollableElement.scrollTop;
-    const scrollDirectionUp = currentScrollY < lastScrollYRef.current;
 
-    // Show header content if at the top or very near it
-    if (currentScrollY <= HEADER_HEIGHT_PX / 2) {
-      if (!isHeaderContentLoaded) setIsHeaderContentLoaded(true);
+    // Always show content if at the very top or very near it
+    if (currentScrollY <= HEADER_HEIGHT_PX / 4) { // Reduced threshold for "at the top"
+      setIsHeaderContentLoaded(true);
     } else {
-      // Scrolling UP (and not at the top): Hide header content
-      if (scrollDirectionUp) {
-        if (isHeaderContentLoaded) setIsHeaderContentLoaded(false);
-      } 
-      // Scrolling DOWN: Show header content
-      else {
-        if (!isHeaderContentLoaded) setIsHeaderContentLoaded(true);
+      // Check scroll direction only if moved more than DELTA
+      if (Math.abs(currentScrollY - lastScrollYRef.current) > SCROLL_DELTA) {
+        if (currentScrollY > lastScrollYRef.current) {
+          // Scrolling Down: Hide content
+          setIsHeaderContentLoaded(false);
+        } else {
+          // Scrolling Up: Show content
+          setIsHeaderContentLoaded(true);
+        }
       }
     }
+    // Update last scroll position, ensuring it's not negative
     lastScrollYRef.current = currentScrollY <= 0 ? 0 : currentScrollY;
-  }, [isHeaderContentLoaded]); 
+  }, []); // Empty dependency array, relies on refs and state setters
 
   useEffect(() => {
     const scrollableElement = scrollableContainerRef.current;
     if (scrollableElement) {
       lastScrollYRef.current = scrollableElement.scrollTop <= 0 ? 0 : scrollableElement.scrollTop;
-      scrollableElement.addEventListener('scroll', handleScroll);
+      scrollableElement.addEventListener('scroll', handleScroll, { passive: true });
       return () => {
         scrollableElement.removeEventListener('scroll', handleScroll);
       };
