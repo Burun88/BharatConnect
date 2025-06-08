@@ -187,7 +187,7 @@
     @apply p-2.5 max-w-[70%] sm:max-w-[60%] md:max-w-[50%] mb-1 shadow-sm break-words;
   }
   .message-bubble-outgoing {
-    @apply bg-secondary text-secondary-foreground ml-auto rounded-tl-xl rounded-tr-xl rounded-bl-xl rounded-br-xl; 
+    @apply bg-gradient-to-br from-[hsl(var(--background))] to-[hsl(var(--secondary))] text-secondary-foreground ml-auto rounded-tl-xl rounded-tr-xl rounded-bl-xl rounded-br-xl; 
   }
   .message-bubble-incoming {
     @apply bg-[hsl(var(--incoming-message-bubble-dark))] text-foreground mr-auto rounded-xl; 
