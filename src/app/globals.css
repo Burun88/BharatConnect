@@ -270,6 +270,14 @@
     /* padding-bottom will be handled by its content or might not be needed if an exact height is set */
     background-color: hsl(var(--background)); /* Ensure it has a background */
   }
+
+  .focus-visible-gradient-border-apply {
+    border-width: 2px;
+    border-style: solid;
+    border-image-slice: 1;
+    border-image-source: linear-gradient(to right, hsl(var(--accent)), hsl(var(--primary)));
+    /* outline: none; */ /* Keeping Tailwind's focus-visible:outline-none for accessibility if border-image fails */
+  }
 }
 
     
