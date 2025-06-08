@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ export default function ChatPage() {
   const [newMessage, setNewMessage] = useState('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null); // Ref for scrolling to bottom
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Simulate fetching chat details and messages
@@ -52,10 +53,17 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
 
-  const showComingSoonToast = () => {
+  const showComingSoonToastEmoji = () => {
     toast({
       title: "Hold Tight, Connecting Soon! 🚀",
-      description: "Our team is busy crafting this awesome feature for you. It'll be ready before your next chai break! Stay tuned with BharatConnect! 🇮🇳✨",
+      description: "Emoji picker is on its way! Stay tuned with BharatConnect! 🇮🇳✨",
+    });
+  };
+
+  const showComingSoonToastOptions = () => {
+    toast({
+      title: "Hold Tight, Connecting Soon! 🚀",
+      description: "More chat options are coming soon! Stay tuned with BharatConnect! 🇮🇳✨",
     });
   };
 
@@ -88,6 +96,39 @@ export default function ChatPage() {
             };
             setMessages(prevMessages => [...prevMessages, replyMessage]);
         }, 1500);
+    }
+  };
+
+  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      toast({
+        title: "File Selected",
+        description: `You selected: ${file.name}. Sending files coming soon!`,
+      });
+      // Reset file input to allow selecting the same file again
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
+  const handleCameraClick = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      toast({
+        title: "Camera Access Granted! 📸",
+        description: "Camera is ready. Sending photos/videos coming soon!",
+      });
+      // Stop the tracks to turn off the camera light
+      stream.getTracks().forEach(track => track.stop());
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      toast({
+        variant: 'destructive',
+        title: "Camera Access Denied 🙁",
+        description: "Please enable camera permissions in your browser settings to use this feature.",
+      });
     }
   };
   
@@ -164,7 +205,7 @@ export default function ChatPage() {
             <h2 className="text-sm font-semibold">{contact.name}</h2>
             <p className="text-xs text-muted-foreground truncate">{contactStatus || 'Offline'}</p>
           </div>
-          <Button variant="ghost" size="icon" className="ml-auto" onClick={showComingSoonToast}>
+          <Button variant="ghost" size="icon" className="ml-auto" onClick={showComingSoonToastOptions}>
             <MoreVertical className="w-5 h-5" />
           </Button>
         </header>
@@ -181,7 +222,7 @@ export default function ChatPage() {
       {/* Message Input Footer - Remains sticky */}
       <footer className="p-2 border-t bg-background sticky bottom-0 z-10">
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
-          <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={showComingSoonToast}>
+          <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={showComingSoonToastEmoji}>
             <SmilePlus className="w-5 h-5 text-muted-foreground" />
           </Button>
           <Textarea
@@ -197,12 +238,19 @@ export default function ChatPage() {
               }
             }}
           />
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileSelect} 
+            style={{ display: 'none' }} 
+            accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,text/plain,audio/*"
+          />
           {newMessage.trim() === '' ? (
             <>
-             <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={showComingSoonToast}>
+             <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={() => fileInputRef.current?.click()}>
                 <Paperclip className="w-5 h-5 text-muted-foreground" />
               </Button>
-              <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={showComingSoonToast}>
+              <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={handleCameraClick}>
                 <Camera className="w-5 h-5 text-muted-foreground" />
               </Button>
             </>
