@@ -5,9 +5,8 @@ import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'r
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input'; // Using Input as base for textarea-like component
+import { Input } from '@/components/ui/input'; 
 import { Textarea } from '@/components/ui/textarea';
-// import { ScrollArea } from '@/components/ui/scroll-area'; // No longer needed here
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import MessageBubble from '@/components/message-bubble';
@@ -17,6 +16,9 @@ import { mockMessagesData, mockUsers, mockChats, mockCurrentUser } from '@/lib/m
 import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import EmojiPicker from '@/components/emoji-picker';
+
 
 export default function ChatPage() {
   const router = useRouter();
@@ -29,12 +31,12 @@ export default function ChatPage() {
   const [contact, setContact] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   
-  const messagesEndRef = useRef<HTMLDivElement>(null); // Ref for scrolling to bottom
+  const messagesEndRef = useRef<HTMLDivElement>(null); 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Simulate fetching chat details and messages
     setTimeout(() => {
       const currentChat = mockChats.find(c => c.id === chatId);
       if (currentChat) {
@@ -49,22 +51,18 @@ export default function ChatPage() {
   }, [chatId]);
 
   useEffect(() => {
-    // Scroll to bottom when messages change
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
-
-  const showComingSoonToastEmoji = () => {
-    toast({
-      title: "Hold Tight, Connecting Soon! 🚀",
-      description: "Emoji picker is on its way! Stay tuned with BharatConnect! 🇮🇳✨",
-    });
-  };
 
   const showComingSoonToastOptions = () => {
     toast({
       title: "Hold Tight, Connecting Soon! 🚀",
       description: "More chat options are coming soon! Stay tuned with BharatConnect! 🇮🇳✨",
     });
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    setNewMessage(prevMessage => prevMessage + emoji);
   };
 
   const handleSendMessage = (e: FormEvent) => {
@@ -83,7 +81,6 @@ export default function ChatPage() {
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
 
-    // Simulate receiving a reply after a short delay
     if (contact) {
         setTimeout(() => {
             const replyMessage: Message = {
@@ -106,7 +103,6 @@ export default function ChatPage() {
         title: "File Selected",
         description: `You selected: ${file.name}. Sending files coming soon!`,
       });
-      // Reset file input to allow selecting the same file again
       if (event.target) {
         event.target.value = '';
       }
@@ -120,7 +116,6 @@ export default function ChatPage() {
         title: "Camera Access Granted! 📸",
         description: "Camera is ready. Sending photos/videos coming soon!",
       });
-      // Stop the tracks to turn off the camera light
       stream.getTracks().forEach(track => track.stop());
     } catch (error) {
       console.error('Error accessing camera:', error);
@@ -144,7 +139,6 @@ export default function ChatPage() {
     return (
       <div className="flex flex-col h-screen">
         <div className="flex-grow overflow-y-auto">
-          {/* Header Skeleton - No longer sticky */}
           <header className="flex items-center p-3 border-b bg-background h-16">
             <Skeleton className="w-8 h-8 rounded-full mr-2" />
             <Skeleton className="w-10 h-10 rounded-full mr-3" />
@@ -154,7 +148,6 @@ export default function ChatPage() {
             </div>
             <Skeleton className="w-8 h-8 rounded-full ml-auto" />
           </header>
-          {/* Message Area Skeleton */}
           <div className="p-4 space-y-4">
             {[...Array(5)].map((_, i) => (
               <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
@@ -163,7 +156,6 @@ export default function ChatPage() {
             ))}
           </div>
         </div>
-        {/* Input Footer Skeleton - Remains sticky */}
         <footer className="p-3 border-t bg-background sticky bottom-0 z-10">
           <div className="flex items-center space-x-2">
             <Skeleton className="w-8 h-10 rounded-md" />
@@ -186,9 +178,7 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-screen">
-      {/* This div is now the main scrollable area for header + messages */}
       <div className="flex-grow overflow-y-auto">
-        {/* Header - No longer sticky */}
         <header className="flex items-center p-2.5 border-b bg-background h-16">
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
             <ArrowLeft className="w-5 h-5" />
@@ -210,21 +200,26 @@ export default function ChatPage() {
           </Button>
         </header>
 
-        {/* Message Area - Now a simple div, scrolling handled by parent */}
         <div className="flex flex-col p-4 space-y-2 pb-4">
           {messages.map(msg => (
             <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === 'currentUser'} />
           ))}
-          <div ref={messagesEndRef} /> {/* Empty div to scroll to for new messages */}
+          <div ref={messagesEndRef} />
         </div>
       </div>
 
-      {/* Message Input Footer - Remains sticky */}
       <footer className="p-2 border-t bg-background sticky bottom-0 z-10">
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
-          <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={showComingSoonToastEmoji}>
-            <SmilePlus className="w-5 h-5 text-muted-foreground" />
-          </Button>
+          <Popover open={isEmojiPickerOpen} onOpenChange={setIsEmojiPickerOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent">
+                <SmilePlus className="w-5 h-5 text-muted-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 border-0 mb-2 shadow-none" side="top" align="start">
+              <EmojiPicker onEmojiSelect={handleEmojiSelect} onClose={() => setIsEmojiPickerOpen(false)} />
+            </PopoverContent>
+          </Popover>
           <Textarea
             placeholder="Type a message..."
             value={newMessage}
