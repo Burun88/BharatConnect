@@ -15,7 +15,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 const HEADER_HEIGHT_PX = 64; // Height of the HomeHeader (h-16)
 const BOTTOM_NAV_HEIGHT_PX = 64; // Height of the BottomNavigationBar (h-16)
-const SCROLL_DELTA = 5; // Minimum scroll difference to trigger animation
+const SCROLL_DELTA = 5; // Minimum scroll difference to trigger animation state change in handleScroll
 
 export default function HomePage() {
   const router = useRouter();
@@ -62,55 +62,86 @@ export default function HomePage() {
     }
   }, [router, onboardingComplete, userProfile.name, currentUserAuraId]);
 
+  // Callback to handle scroll events for showing/hiding the header
   const handleScroll = useCallback(() => {
     const scrollableElement = scrollableContainerRef.current;
     if (!scrollableElement) return;
 
     const currentScrollY = scrollableElement.scrollTop;
 
-    if (currentScrollY <= SCROLL_DELTA) { // Show if at top or very close to it
+    // If scrolled to the very top (or very close to it), always show the header
+    if (currentScrollY <= SCROLL_DELTA) {
       setIsHeaderContentLoaded(true);
     } else {
       const scrolledDown = currentScrollY > lastScrollYRef.current;
       const scrolledUp = currentScrollY < lastScrollYRef.current;
 
+      // Hide header if scrolling down significantly
       if (scrolledDown && (currentScrollY - lastScrollYRef.current) >= SCROLL_DELTA) {
         setIsHeaderContentLoaded(false);
-      } else if (scrolledUp) { // Any upward scroll when not at the top shows header
+      } 
+      // Show header if scrolling up (any amount when not at the top)
+      else if (scrolledUp) {
         setIsHeaderContentLoaded(true);
       }
     }
+    // Update last scroll position, ensuring it's not negative
     lastScrollYRef.current = currentScrollY <= 0 ? 0 : currentScrollY;
-  }, []); 
+  }, []); // SCROLL_DELTA is a constant defined outside, so no dependencies needed here.
 
+  // Effect to manage scroll behavior and listeners based on content scrollability
   useEffect(() => {
     const scrollableElement = scrollableContainerRef.current;
 
-    if (isLoading || !scrollableElement) {
-      setIsHeaderContentLoaded(true); 
-      if (scrollableElement) {
+    // This function determines if animations should be active and sets listeners accordingly
+    const updateScrollBehavior = () => {
+      // If the scrollable element isn't available yet, or if content is loading,
+      // default to showing the header and ensure no listeners are active.
+      if (!scrollableElement || isLoading) {
+        setIsHeaderContentLoaded(true);
+        if (scrollableElement) {
+          scrollableElement.removeEventListener('scroll', handleScroll);
+        }
+        return;
+      }
+
+      // Define a minimum scrollable distance for animations to be active.
+      // e.g., content must be at least half the header's height taller than the viewport.
+      const MIN_SCROLL_DIFFERENCE_FOR_ANIMATION = HEADER_HEIGHT_PX * 0.5; 
+
+      const isSignificantlyScrollable = 
+        scrollableElement.scrollHeight > scrollableElement.clientHeight + MIN_SCROLL_DIFFERENCE_FOR_ANIMATION;
+
+      if (isSignificantlyScrollable) {
+        // Content is significantly scrollable, enable animations.
+        // Determine initial header state: if loaded scrolled down, hide header.
+        if (scrollableElement.scrollTop > SCROLL_DELTA) {
+          setIsHeaderContentLoaded(false);
+        } else {
+          setIsHeaderContentLoaded(true);
+        }
+        lastScrollYRef.current = scrollableElement.scrollTop;
+        scrollableElement.addEventListener('scroll', handleScroll, { passive: true });
+      } else {
+        // Content is not significantly scrollable, so keep header visible and remove listener.
+        setIsHeaderContentLoaded(true);
         scrollableElement.removeEventListener('scroll', handleScroll);
       }
-      return;
-    }
+    };
 
-    const canScroll = scrollableElement.scrollHeight > scrollableElement.clientHeight;
+    updateScrollBehavior(); // Call on mount and when dependencies change
 
-    if (canScroll) {
-      lastScrollYRef.current = scrollableElement.scrollTop <= 0 ? 0 : scrollableElement.scrollTop;
-      scrollableElement.addEventListener('scroll', handleScroll, { passive: true });
-      handleScroll(); // Call once to set initial state based on current scroll
-    } else {
-      setIsHeaderContentLoaded(true);
-      scrollableElement.removeEventListener('scroll', handleScroll);
-    }
+    // Add resize listener to re-evaluate scrollability if window size changes
+    window.addEventListener('resize', updateScrollBehavior);
 
+    // Cleanup function to remove listeners when component unmounts or dependencies change
     return () => {
       if (scrollableElement) {
         scrollableElement.removeEventListener('scroll', handleScroll);
       }
+      window.removeEventListener('resize', updateScrollBehavior);
     };
-  }, [isLoading, chats, searchTerm, handleScroll]); // Re-evaluate when isLoading, chats, or searchTerm changes
+  }, [isLoading, chats, searchTerm, handleScroll]); // Re-run if loading state, content, or handleScroll callback changes
 
   const filteredChats = chats.filter(chat =>
     chat.name.toLowerCase().includes(searchTerm.toLowerCase())
