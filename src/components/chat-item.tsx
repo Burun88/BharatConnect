@@ -69,7 +69,7 @@ export default function ChatItem({ chat }: ChatItemProps) {
             {chat.lastMessage?.text || 'No messages yet'}
           </p>
           {chat.unreadCount > 0 && (
-            <Badge variant="default" className="px-2 py-0.5 text-xs bg-primary text-primary-foreground">
+            <Badge variant="default" className="px-2 py-0.5 text-xs bg-gradient-to-r from-primary to-accent text-primary-foreground">
               {chat.unreadCount}
             </Badge>
           )}
@@ -78,3 +78,4 @@ export default function ChatItem({ chat }: ChatItemProps) {
     </Link>
   );
 }
+
