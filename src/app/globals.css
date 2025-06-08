@@ -71,14 +71,29 @@
 }
 
 @layer base {
+  html {
+    @apply h-full overflow-hidden; /* Ensure html is full height and hides its own overflow */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+  html::-webkit-scrollbar {
+    display: none; /* Webkit browsers */
+  }
+
   * {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground h-full overflow-hidden; /* Ensure body is full height and hides its own overflow */
     font-family: var(--font-inter), sans-serif;
     @apply antialiased;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
   }
+  body::-webkit-scrollbar {
+    display: none; /* Webkit browsers */
+  }
+
   a:not([class*="bg-"], [class*="text-"], [class*="border-"], [data-nostyle-link]) {
     @apply text-primary hover:text-primary/80; /* Default link to primary blue */
   }
@@ -116,15 +131,6 @@
   -ms-overflow-style: none;
 }
 .hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-html, body {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-html::-webkit-scrollbar,
-body::-webkit-scrollbar {
   display: none;
 }
 
@@ -246,4 +252,3 @@ body::-webkit-scrollbar {
     @apply bg-gradient-to-r from-[hsl(var(--primary-dimmed))] to-[hsl(var(--accent-dimmed))];
   }
 }
-
