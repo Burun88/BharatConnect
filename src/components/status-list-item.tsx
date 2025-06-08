@@ -45,7 +45,7 @@ export default function StatusListItem({ statusUpdate, user, onClick }: StatusLi
         {/* Layer 1: Spinning Gradient (active) or Static Border (viewed) */}
         {!statusUpdate.viewedByCurrentUser ? (
           <div
-            className="absolute inset-0 rounded-full bg-gradient-primary-accent-ring animate-spin-slow"
+            className="absolute inset-0 rounded-full bg-gradient-to-r from-primary to-accent animate-spin-slow"
           />
         ) : (
           <div

@@ -60,8 +60,6 @@
     --incoming-message-bubble-dark: 0 0% 12%;
     --system-message-bubble-dark: 200 50% 15%;
     
-    --gradient-title-bharatconnect-from: var(--instabharat-logo-from);
-    --gradient-title-bharatconnect-to: var(--instabharat-logo-to);
     --gradient-fab-home-from: var(--instabharat-logo-from);
     --gradient-fab-home-to: var(--instabharat-logo-to);
     --tab-active-underline-color: var(--instabharat-logo-from);
@@ -205,7 +203,7 @@ body::-webkit-scrollbar {
   }
 
   .text-gradient-bharatconnect {
-    @apply bg-gradient-to-r from-[var(--gradient-title-bharatconnect-from)] via-[var(--instabharat-logo-via)] to-[var(--gradient-title-bharatconnect-to)];
+    @apply bg-gradient-to-r from-primary via-accent to-accent; /* Updated to use direct Tailwind colors */
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -239,7 +237,7 @@ body::-webkit-scrollbar {
   }
 
   .bg-gradient-bharatconnect-bubble {
-    @apply bg-gradient-to-r from-[var(--gradient-title-bharatconnect-from)] via-[var(--instabharat-logo-via)] to-[var(--gradient-title-bharatconnect-to)];
+    @apply bg-gradient-to-r from-primary via-accent to-accent; /* Updated to use direct Tailwind colors */
   }
 }
 
