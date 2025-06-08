@@ -77,7 +77,7 @@ export default function ChatPage() {
         keyboardHeight = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
       }
       
-      bbEl.style.bottom = `${keyboardHeight}px`;
+      bbEl.style.bottom = `${isEmojiPickerOpen ? 0 : keyboardHeight}px`;
       mcEl.style.paddingBottom = `${currentBottomBarOffsetHeight + (isEmojiPickerOpen ? 0 : keyboardHeight)}px`;
       
       if (keyboardHeight > 0 && keyboardHeight !== lastKeyboardHeight && document.activeElement === textareaRef.current) {
@@ -98,20 +98,21 @@ export default function ChatPage() {
     });
     resizeObserver.observe(bbEl);
     
-    updateLayout();
+    updateLayout(); // Initial call to set layout
 
     return () => {
       visualViewport.removeEventListener('resize', updateLayout);
       resizeObserver.disconnect();
-      // Reset styles on cleanup if needed
+      // Reset styles on cleanup
       bbEl.style.bottom = '0px';
       mcEl.style.paddingBottom = `${lastBottomBarOffsetHeight}px`;
     };
-  }, [isEmojiPickerOpen, textareaRef]); 
+  }, [isEmojiPickerOpen, textareaRef]); // Added textareaRef dependency
 
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
+    // Do not focus textarea here to keep emoji picker open
   }, []);
 
   const showComingSoonToastOptions = () => {
@@ -127,7 +128,8 @@ export default function ChatPage() {
     if (openingEmojiPicker) { 
       textareaRef.current?.blur(); 
     } else {
-      setTimeout(() => textareaRef.current?.focus(), 0);
+      // Delay focus slightly to allow keyboard to fully retract if it was open
+      setTimeout(() => textareaRef.current?.focus(), 50);
     }
   };
 
@@ -221,8 +223,8 @@ export default function ChatPage() {
           <Skeleton className="w-8 h-8 rounded-full ml-auto" />
         </header>
         <div 
-            ref={mainContentRef}
-            className="flex flex-col flex-1 pt-16" 
+            ref={mainContentRef} // Keep ref for potential future direct manipulation if needed for padding
+            className="flex flex-col flex-1 pt-16" // Padding top for header
         >
             <div className="flex-grow overflow-y-auto p-4 space-y-4">
                 {[...Array(5)].map((_, i) => (
@@ -233,8 +235,9 @@ export default function ChatPage() {
             </div>
         </div>
          <div 
-            ref={bottomBarRef}
+            ref={bottomBarRef} // Keep ref for height observation
             className="fixed left-0 right-0 z-10 bg-background border-t"
+            style={{ bottom: '0px' }} // Initial bottom position
         >
             <Skeleton className="w-full h-10 rounded-full p-2.5" />
         </div>
@@ -295,10 +298,10 @@ export default function ChatPage() {
         ref={bottomBarRef}
         className={cn(
             "fixed left-0 right-0 z-10 bg-background border-t",
-            "pb-[env(safe-area-inset-bottom)]", 
-            "transition-transform duration-200 ease-out"
+            "pb-[env(safe-area-inset-bottom)]"
+            // Removed "transition-transform duration-200 ease-out"
         )}
-        style={{ bottom: '0px' }} 
+        style={{ bottom: '0px', transform: 'translateZ(0px)' }} // Initial bottom, added translateZ
       >
         <footer className="flex items-end space-x-2 p-2.5 flex-shrink-0">
            <Button
