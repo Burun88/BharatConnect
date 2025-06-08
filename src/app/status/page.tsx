@@ -131,8 +131,8 @@ export default function StatusPage() {
                   {myUser ? getInitials(myUser.name) : '??'}
                 </AvatarFallback>
               </Avatar>
-              <div className="absolute bottom-0 right-0 bg-gradient-to-br from-[hsl(var(--accent))] to-[hsl(var(--accent-dimmed))] text-accent-foreground rounded-full w-7 h-7 flex items-center justify-center border-2 border-background transform translate-x-1/4 translate-y-1/4">
-                <PlusCircle className="w-4 h-4" />
+              <div className="absolute bottom-0 right-0 bg-gradient-to-br from-[hsl(var(--accent))] to-[hsl(var(--primary))] text-accent-foreground rounded-full w-6 h-6 flex items-center justify-center border-2 border-background transform translate-x-1/4 translate-y-1/4">
+                <PlusCircle className="w-3 h-3" />
               </div>
             </div>
             <div>
