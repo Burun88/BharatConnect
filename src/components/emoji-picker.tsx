@@ -57,7 +57,7 @@ export default function EmojiPicker({ onEmojiSelect, onClose }: EmojiPickerProps
   };
 
   return (
-    <div className="w-full max-w-xs sm:max-w-sm md:max-w-md rounded-lg bg-background p-0 border-none shadow-xl">
+    <div className="w-full rounded-lg bg-background p-0 border-none shadow-xl">
       <Tabs defaultValue="emoji" className="w-full">
         <TabsList className="grid w-full grid-cols-3 rounded-t-lg rounded-b-none">
           <TabsTrigger value="emoji" className="rounded-tl-lg">😊 Emoji</TabsTrigger>
