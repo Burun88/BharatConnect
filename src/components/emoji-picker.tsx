@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { cn } from '@/lib/utils';
-import { Clock, Smile, Dog, Utensils, Car, Lightbulb, Drama, Package, Flag } from 'lucide-react';
+import { Clock, Smile, Dog, Utensils, Car, Lightbulb, Drama, Flag } from 'lucide-react'; // Removed Package as it's not used for a category
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 interface EmojiPickerProps {
@@ -35,7 +35,6 @@ const EmojiPickerComponent = ({ onEmojiSelect }: EmojiPickerProps) => {
 
   const handleEmojiClick = useCallback((emoji: string) => {
     onEmojiSelect(emoji);
-
     const updatedRecents = [emoji, ...recentEmojis.filter(e => e !== emoji)].slice(0, MAX_RECENT_EMOJIS);
     setRecentEmojis(updatedRecents);
   }, [onEmojiSelect, recentEmojis, setRecentEmojis]);
@@ -52,14 +51,14 @@ const EmojiPickerComponent = ({ onEmojiSelect }: EmojiPickerProps) => {
         {currentCategoryName}
       </div>
 
-      <div className="flex-grow overflow-y-auto px-3 pb-1 custom-scrollbar-dark">
+      <div className="flex-grow overflow-y-auto px-3 pb-1 custom-scrollbar-dark"> {/* Removed h-[250px] */}
         {currentEmojis.length > 0 ? (
-          <div className="grid grid-cols-8 gap-0.5">
+          <div className="grid grid-cols-8 gap-0.5"> {/* Reduced gap for tighter packing */}
             {currentEmojis.map((emoji, index) => (
               <Button
                 key={`${activeCategory}-${emoji}-${index}`}
                 variant="ghost"
-                className="aspect-square p-0 text-2xl rounded-md h-auto w-auto"
+                className="aspect-square p-0 text-2xl rounded-md h-auto w-auto hover:bg-transparent" // Removed hover:bg-accent/50
                 onClick={() => handleEmojiClick(emoji)}
                 aria-label={emoji}
               >
@@ -84,8 +83,8 @@ const EmojiPickerComponent = ({ onEmojiSelect }: EmojiPickerProps) => {
               variant="ghost"
               size="icon"
               className={cn(
-                "p-2 h-9 w-9 rounded-md",
-                activeCategory === key ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
+                "p-2 h-9 w-9 rounded-md", // Standardized size
+                activeCategory === key ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent/10' // Subtle hover for non-active
               )}
               onClick={() => setActiveCategory(key)}
               aria-label={category.name}
@@ -102,3 +101,5 @@ const EmojiPickerComponent = ({ onEmojiSelect }: EmojiPickerProps) => {
 
 const EmojiPicker = React.memo(EmojiPickerComponent);
 export default EmojiPicker;
+
+    
