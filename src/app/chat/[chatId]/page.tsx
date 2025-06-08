@@ -33,7 +33,7 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
-  const mainContentRef = useRef<HTMLDivElement>(null); // Wraps message list + bottom bar logic
+  const mainContentRef = useRef<HTMLDivElement>(null); 
   const messageListContainerRef = useRef<HTMLDivElement>(null); 
   const bottomBarRef = useRef<HTMLDivElement>(null); 
 
@@ -58,8 +58,8 @@ export default function ChatPage() {
   }, [messages]);
   
   useEffect(() => {
-    const mcEl = mainContentRef.current; // Main content wrapper (scrollable message area)
-    const bbEl = bottomBarRef.current; // Fixed bottom bar (input + emoji picker)
+    const mcEl = mainContentRef.current; 
+    const bbEl = bottomBarRef.current; 
     const visualViewport = window.visualViewport;
 
     if (!mcEl || !bbEl || !visualViewport) return;
@@ -81,7 +81,9 @@ export default function ChatPage() {
       mcEl.style.paddingBottom = `${currentBottomBarOffsetHeight + (isEmojiPickerOpen ? 0 : keyboardHeight)}px`;
       
       if (keyboardHeight > 0 && keyboardHeight !== lastKeyboardHeight && document.activeElement === textareaRef.current) {
-        mcEl.scrollTop = mcEl.scrollHeight;
+        if (messageListContainerRef.current) {
+           messageListContainerRef.current.scrollTop = messageListContainerRef.current.scrollHeight;
+        }
       }
       
       lastKeyboardHeight = keyboardHeight;
@@ -101,6 +103,7 @@ export default function ChatPage() {
     return () => {
       visualViewport.removeEventListener('resize', updateLayout);
       resizeObserver.disconnect();
+      // Reset styles on cleanup if needed
       bbEl.style.bottom = '0px';
       mcEl.style.paddingBottom = `${lastBottomBarOffsetHeight}px`;
     };
@@ -109,7 +112,6 @@ export default function ChatPage() {
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
-    // DO NOT refocus textarea here, to keep emoji picker open
   }, []);
 
   const showComingSoonToastOptions = () => {
@@ -220,7 +222,7 @@ export default function ChatPage() {
         </header>
         <div 
             ref={mainContentRef}
-            className="flex flex-col flex-1 pt-16" // mainContentRef for dynamic padding
+            className="flex flex-col flex-1 pt-16" 
         >
             <div className="flex-grow overflow-y-auto p-4 space-y-4">
                 {[...Array(5)].map((_, i) => (
@@ -274,12 +276,12 @@ export default function ChatPage() {
 
       <div 
         ref={mainContentRef}
-        className="flex flex-col flex-1 pt-16 overflow-hidden" // mainContentRef for dynamic padding
+        className="flex flex-col flex-1 pt-16 overflow-hidden" 
       >
         <div 
             ref={messageListContainerRef}
             className={cn(
-                "flex-grow overflow-y-auto hide-scrollbar pt-2 pb-6 px-2 space-y-2 min-h-0" // Increased pb- to 6
+                "flex-grow overflow-y-auto hide-scrollbar pt-2 pb-2 px-2 space-y-2 min-h-0" 
             )}
         >
             {messages.map(msg => (
@@ -294,7 +296,7 @@ export default function ChatPage() {
         className={cn(
             "fixed left-0 right-0 z-10 bg-background border-t",
             "pb-[env(safe-area-inset-bottom)]", 
-            "transition-transform duration-200 ease-out" // transform replaced by bottom
+            "transition-transform duration-200 ease-out"
         )}
         style={{ bottom: '0px' }} 
       >
@@ -377,3 +379,4 @@ export default function ChatPage() {
     </div>
   );
 }
+
