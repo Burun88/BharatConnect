@@ -90,7 +90,8 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
               "absolute left-1/2 -translate-x-1/2 rounded-full flex items-center justify-center border-2 border-background",
               smallCircleSize,
               emojiOverlapTopClass,
-              aura?.gradient ? 'bg-card' : 'bg-primary'
+              // Background for emoji/plus icon container is different from avatar fallback
+              aura?.gradient && isCurrentUser ? 'bg-card' : 'bg-primary' 
             )}
           >
             {overlapContent}
@@ -107,32 +108,24 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
     </span>
   );
 
-  const currentUserAvatar = (
+  // Consistent avatar rendering logic
+  const renderAvatar = (forCurrentUser: boolean) => (
     <Avatar className={IMAGE_SIZE_CLASS}>
       {user.avatarUrl ? (
         <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
       ) : (
         <AvatarFallback className={cn(
-            aura?.gradient ? "bg-transparent" : "bg-muted",
+            "bg-muted", // Always muted background for fallback
             "flex items-center justify-center"
         )}>
-           <UserCircle2 className={cn("w-12 h-12 text-muted-foreground")} />
+           <UserCircle2 className={cn("w-12 h-12 text-muted-foreground")} /> {/* Always muted icon color */}
         </AvatarFallback>
       )}
     </Avatar>
   );
 
-  const otherUserAvatar = (
-    <Avatar className={IMAGE_SIZE_CLASS}>
-        {user.avatarUrl ? (
-            <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
-        ) : (
-            <AvatarFallback className={cn(aura?.gradient ? "bg-transparent" : "bg-muted", "text-muted-foreground")}>
-             <UserCircle2 className="w-12 h-12 text-muted-foreground" />
-            </AvatarFallback>
-        )}
-    </Avatar>
-  );
+  const currentUserAvatar = renderAvatar(true);
+  const otherUserAvatar = renderAvatar(false);
 
 
   if (isCurrentUser && !aura) {
@@ -140,17 +133,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
       <ItemContainer aria-label="Set your story or aura">
         <AvatarWithOverlap
           isRing={false}
-          avatarContent={
-             <Avatar className={IMAGE_SIZE_CLASS}>
-              {user.avatarUrl ? (
-                <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
-              ) : (
-                <AvatarFallback className={cn("bg-muted", "flex items-center justify-center")}>
-                  <UserCircle2 className="w-12 h-12 text-muted-foreground" />
-                </AvatarFallback>
-              )}
-            </Avatar>
-          }
+          avatarContent={currentUserAvatar}
           overlapContent={
             <div className={cn("w-full h-full rounded-full flex items-center justify-center")}>
               <Plus className={cn(smallCircleIconSize, "text-primary-foreground")} />
@@ -183,30 +166,11 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
   // Fallback for other users without an aura
   return (
     <ItemContainer aria-label={user.name}>
-       <div className={cn("relative", mainElementSize)}>
-         <div className={cn(
-            "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden",
-            IMAGE_SIZE_CLASS
-          )}>
-            <Avatar className={IMAGE_SIZE_CLASS}>
-              {user.avatarUrl ? (
-                  <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
-              ) : (
-                  <AvatarFallback className="bg-muted text-muted-foreground">
-                     <UserCircle2 className="w-12 h-12 text-muted-foreground" />
-                  </AvatarFallback>
-              )}
-            </Avatar>
-          </div>
-           <div
-            className={cn(
-              "absolute left-1/2 -translate-x-1/2",
-              smallCircleSize,
-              emojiOverlapTopClass,
-              "invisible"
-            )}
-          />
-      </div>
+       <AvatarWithOverlap
+        isRing={false}
+        avatarContent={otherUserAvatar}
+        // No overlap content for other users without aura
+       />
       {nameText}
     </ItemContainer>
   );
