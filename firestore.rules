@@ -1,81 +1,79 @@
 
 rules_version = '2';
 
+// Helper function to check if a map contains only specific allowed keys.
+// Not used in the simplified rules below but can be useful for more complex validation.
+// function hasOnlyAllowedKeys(map, allowedKeys) {
+//   return map.keys().removeAll(allowedKeys).size() == 0;
+// }
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // InstaBharat Profiles (e.g., collection named 'users')
-    // - Allow authenticated users to read their own profile.
-    // - This rule assumes InstaBharat has its own rules for writing/updating these profiles.
-    //   From BharatConnect's perspective, these are typically read-only after initial setup.
-    match /users/{userId} { // IMPORTANT: If your InstaBharat profiles are NOT in a collection named 'users', you MUST change 'users' here.
+    // InstaBharat Users collection (typically /users/{userId})
+    // These are the rules for YOUR EXISTING InstaBharat app.
+    // BharatConnect only needs to READ the current user's own document from here.
+    // Replace this placeholder with your actual, working InstaBharat rules for the /users collection.
+    match /users/{userId} {
+      // For BharatConnect to read the current user's InstaBharat profile:
       allow read: if request.auth != null && request.auth.uid == userId;
-      // Deny writes from BharatConnect context to InstaBharat profiles.
-      // InstaBharat app/backend would have its own, more permissive rules for its own operations.
-      allow write: if false;
+      
+      // IMPORTANT: BharatConnect should NOT write to /users/{userId}.
+      // InstaBharat app manages its own writes to this collection.
+      // So, no 'allow write', 'allow create', or 'allow update' here
+      // intended for BharatConnect's direct use.
+      // Your full InstaBharat rules for create/update/delete by InstaBharat app itself go here.
+      // Example (very basic, replace with your actual InstaBharat rules):
+      // allow write: if request.auth != null && request.auth.uid == userId; // If InstaBharat app allows user to write their own doc.
     }
 
-    // BharatConnect User Profiles
-    // - Allow authenticated users to create, read, and update their own profile.
-    // - Ensure the document ID matches the authenticated user's UID.
-    // - For create, also ensure the 'id' field within the document matches the UID.
-    match /bharatConnectProfiles/{userId} {
+    // BharatConnect User Shadow Profiles - minimal identity copy
+    // Collection: /bharatConnectUserShadows/{userId}
+    match /bharatConnectUserShadows/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
-      // User can create their own profile, ensuring the document id is their uid
-      // and the 'id' field in the document is also their uid.
-      // Also ensure 'onboardingComplete' is explicitly set during creation.
-      allow create: if request.auth != null
-                    && request.auth.uid == userId
-                    && request.resource.data.id == userId
-                    && request.resource.data.name is string && request.resource.data.name.size() > 0
-                    && request.resource.data.email == request.auth.token.email
-                    && (request.resource.data.onboardingComplete == true || request.resource.data.onboardingComplete == false);
-
-      // User can update their own profile.
-      // Disallow updates to 'email', 'id', and 'createdAt'.
-      // Ensure 'onboardingComplete' can only be set to true if it was false.
-      allow update: if request.auth != null && request.auth.uid == userId
-                    && !(request.resource.data.email != resource.data.email)
-                    && !(request.resource.data.id != resource.data.id)
-                    && !(request.resource.data.createdAt != resource.data.createdAt)
-                    && (request.resource.data.onboardingComplete == true || request.resource.data.onboardingComplete == false);
-
-      // Deleting profiles is usually a more complex operation, often handled by a backend function
-      // to ensure cleanup of related data (chats, messages, etc.). So, direct client delete is often disallowed.
-      allow delete: if false;
+      
+      // Allow create and update (merge:true) if it's the user's own document
+      // and specific fields are being set/updated.
+      allow write: if request.auth != null && request.auth.uid == userId &&
+                      request.resource.data.uid == userId &&
+                      request.resource.data.updatedAt == request.time &&
+                      // Validate keys being written. Can be specific for create vs update if needed.
+                      request.resource.data.keys().hasAll(['uid', 'name', 'profileImageUrl', 'username', 'updatedAt']) &&
+                      request.resource.data.keys().size() == 5; // Exact number of keys
     }
 
-    // BharatConnect Chats
-    // - Users can read chats they are a participant in.
-    // - Users can create new chats if their UID is in the 'participantsUids' array of the new chat.
-    // - Users can update chat metadata (like lastMessage, unreadCount) if they are a participant.
-    // - Assume 'participantsUids' is an array of UIDs in the chat document.
-    match /bharatConnectChats/{chatId} {
-      allow read: if request.auth != null && request.auth.uid in resource.data.participantsUids;
-      allow create: if request.auth != null && request.auth.uid in request.resource.data.participantsUids;
-      allow update: if request.auth != null && request.auth.uid in resource.data.participantsUids;
-      allow delete: if false; // Deleting chats also often involves backend cleanup.
-    }
-
-    // BharatConnect Messages (as a subcollection of chats)
-    // - Users can read messages in chats they are a participant in (checked by looking up the parent chat doc).
-    // - Users can create messages if they are the sender and a participant in the chat.
-    // - Messages are generally immutable after creation or only soft-deleted.
-    match /bharatConnectChats/{chatId}/messages/{messageId} {
-      allow read: if request.auth != null && get(/databases/$(database)/documents/bharatConnectChats/$(chatId)).data.participantsUids.hasAny([request.auth.uid]);
-      // Ensure the senderId in the message matches the authenticated user
-      // and the user is a participant in the parent chat.
-      allow create: if request.auth != null
-                    && request.resource.data.senderId == request.auth.uid
-                    && get(/databases/$(database)/documents/bharatConnectChats/$(chatId)).data.participantsUids.hasAny([request.auth.uid]);
-      allow update: if false; // Messages are typically not updated directly by clients.
-      allow delete: if false; // Message deletion is usually a soft delete or admin action.
-    }
-
-    // Default Deny: By default, deny all reads and writes to any path not explicitly matched above.
-    // This is a security best practice.
-    match /{document=**} {
-      allow read, write: if false;
+    // BharatConnect Full User Data
+    // Collection: /bharatConnectUsers/{userId}
+    match /bharatConnectUsers/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      allow create: if request.auth != null && request.auth.uid == userId &&
+                       request.resource.data.id == userId &&
+                       request.resource.data.email == request.auth.token.email && // Verify email against auth token
+                       request.resource.data.onboardingComplete == true &&
+                       request.resource.data.createdAt == request.time &&
+                       request.resource.data.updatedAt == request.time &&
+                       // Ensure only allowed fields are present on create
+                       request.resource.data.keys().hasOnly([
+                         'id', 'name', 'email', 'username', 'phone', 'photoURL',
+                         'bio', 'currentAuraId', 'onboardingComplete',
+                         'createdAt', 'updatedAt'
+                       ]);
+                       
+      allow update: if request.auth != null && request.auth.uid == userId &&
+                       request.resource.data.id == userId && // ID cannot change
+                       request.resource.data.email == resource.data.email && // Email cannot be changed via this update
+                       request.resource.data.username == resource.data.username && // Username cannot be changed via this update
+                       request.resource.data.createdAt == resource.data.createdAt && // createdAt cannot change
+                       request.resource.data.onboardingComplete == resource.data.onboardingComplete && // onboardingComplete state should be managed carefully
+                       request.resource.data.updatedAt == request.time &&
+                       // Allow only specific fields to be updated after creation
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                         'name', 'phone', 'photoURL', 'bio', 'currentAuraId', 'updatedAt'
+                         // 'onboardingComplete' could be part of a different update rule if needed
+                       ]);
+      // Delete is typically handled via Admin SDK or Cloud Functions for user data.
+      // allow delete: if request.auth != null && request.auth.uid == userId; // If direct deletion is allowed
     }
   }
 }
