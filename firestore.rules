@@ -8,7 +8,7 @@ service cloud.firestore {
     // - Allow authenticated users to read their own profile.
     // - This rule assumes InstaBharat has its own rules for writing/updating these profiles.
     //   From BharatConnect's perspective, these are typically read-only after initial setup.
-    match /users/{userId} {
+    match /users/{userId} { // IMPORTANT: If your InstaBharat profiles are NOT in a collection named 'users', you MUST change 'users' here.
       allow read: if request.auth != null && request.auth.uid == userId;
       // Deny writes from BharatConnect context to InstaBharat profiles.
       // InstaBharat app/backend would have its own, more permissive rules for its own operations.
@@ -23,10 +23,23 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == userId;
       // User can create their own profile, ensuring the document id is their uid
       // and the 'id' field in the document is also their uid.
-      allow create: if request.auth != null && request.auth.uid == userId && request.resource.data.id == userId;
+      // Also ensure 'onboardingComplete' is explicitly set during creation.
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.id == userId
+                    && request.resource.data.name is string && request.resource.data.name.size() > 0
+                    && request.resource.data.email == request.auth.token.email
+                    && (request.resource.data.onboardingComplete == true || request.resource.data.onboardingComplete == false);
+
       // User can update their own profile.
-      // You might want to add more granular checks here, e.g., disallowing updates to 'email' or 'createdAt'.
-      allow update: if request.auth != null && request.auth.uid == userId;
+      // Disallow updates to 'email', 'id', and 'createdAt'.
+      // Ensure 'onboardingComplete' can only be set to true if it was false.
+      allow update: if request.auth != null && request.auth.uid == userId
+                    && !(request.resource.data.email != resource.data.email)
+                    && !(request.resource.data.id != resource.data.id)
+                    && !(request.resource.data.createdAt != resource.data.createdAt)
+                    && (request.resource.data.onboardingComplete == true || request.resource.data.onboardingComplete == false);
+
       // Deleting profiles is usually a more complex operation, often handled by a backend function
       // to ensure cleanup of related data (chats, messages, etc.). So, direct client delete is often disallowed.
       allow delete: if false;
@@ -36,11 +49,10 @@ service cloud.firestore {
     // - Users can read chats they are a participant in.
     // - Users can create new chats if their UID is in the 'participantsUids' array of the new chat.
     // - Users can update chat metadata (like lastMessage, unreadCount) if they are a participant.
+    // - Assume 'participantsUids' is an array of UIDs in the chat document.
     match /bharatConnectChats/{chatId} {
       allow read: if request.auth != null && request.auth.uid in resource.data.participantsUids;
       allow create: if request.auth != null && request.auth.uid in request.resource.data.participantsUids;
-      // For updates, you might want to be more specific about which fields can be updated.
-      // Example: allow update: if request.auth != null && request.auth.uid in resource.data.participantsUids && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'unreadCount']));
       allow update: if request.auth != null && request.auth.uid in resource.data.participantsUids;
       allow delete: if false; // Deleting chats also often involves backend cleanup.
     }
@@ -60,9 +72,6 @@ service cloud.firestore {
       allow delete: if false; // Message deletion is usually a soft delete or admin action.
     }
 
-    // --- Add rules for other collections specific to BharatConnect here ---
-    // e.g., /statusUpdates/{statusId}, etc.
-
     // Default Deny: By default, deny all reads and writes to any path not explicitly matched above.
     // This is a security best practice.
     match /{document=**} {
@@ -70,4 +79,3 @@ service cloud.firestore {
     }
   }
 }
-    
