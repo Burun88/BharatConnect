@@ -1,0 +1,73 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // InstaBharat Profiles (e.g., collection named 'users')
+    // - Allow authenticated users to read their own profile.
+    // - This rule assumes InstaBharat has its own rules for writing/updating these profiles.
+    //   From BharatConnect's perspective, these are typically read-only after initial setup.
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Deny writes from BharatConnect context to InstaBharat profiles.
+      // InstaBharat app/backend would have its own, more permissive rules for its own operations.
+      allow write: if false;
+    }
+
+    // BharatConnect User Profiles
+    // - Allow authenticated users to create, read, and update their own profile.
+    // - Ensure the document ID matches the authenticated user's UID.
+    // - For create, also ensure the 'id' field within the document matches the UID.
+    match /bharatConnectProfiles/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // User can create their own profile, ensuring the document id is their uid
+      // and the 'id' field in the document is also their uid.
+      allow create: if request.auth != null && request.auth.uid == userId && request.resource.data.id == userId;
+      // User can update their own profile.
+      // You might want to add more granular checks here, e.g., disallowing updates to 'email' or 'createdAt'.
+      allow update: if request.auth != null && request.auth.uid == userId;
+      // Deleting profiles is usually a more complex operation, often handled by a backend function
+      // to ensure cleanup of related data (chats, messages, etc.). So, direct client delete is often disallowed.
+      allow delete: if false;
+    }
+
+    // BharatConnect Chats
+    // - Users can read chats they are a participant in.
+    // - Users can create new chats if their UID is in the 'participantsUids' array of the new chat.
+    // - Users can update chat metadata (like lastMessage, unreadCount) if they are a participant.
+    match /bharatConnectChats/{chatId} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.participantsUids;
+      allow create: if request.auth != null && request.auth.uid in request.resource.data.participantsUids;
+      // For updates, you might want to be more specific about which fields can be updated.
+      // Example: allow update: if request.auth != null && request.auth.uid in resource.data.participantsUids && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'unreadCount']));
+      allow update: if request.auth != null && request.auth.uid in resource.data.participantsUids;
+      allow delete: if false; // Deleting chats also often involves backend cleanup.
+    }
+
+    // BharatConnect Messages (as a subcollection of chats)
+    // - Users can read messages in chats they are a participant in (checked by looking up the parent chat doc).
+    // - Users can create messages if they are the sender and a participant in the chat.
+    // - Messages are generally immutable after creation or only soft-deleted.
+    match /bharatConnectChats/{chatId}/messages/{messageId} {
+      allow read: if request.auth != null && get(/databases/$(database)/documents/bharatConnectChats/$(chatId)).data.participantsUids.hasAny([request.auth.uid]);
+      // Ensure the senderId in the message matches the authenticated user
+      // and the user is a participant in the parent chat.
+      allow create: if request.auth != null
+                    && request.resource.data.senderId == request.auth.uid
+                    && get(/databases/$(database)/documents/bharatConnectChats/$(chatId)).data.participantsUids.hasAny([request.auth.uid]);
+      allow update: if false; // Messages are typically not updated directly by clients.
+      allow delete: if false; // Message deletion is usually a soft delete or admin action.
+    }
+
+    // --- Add rules for other collections specific to BharatConnect here ---
+    // e.g., /statusUpdates/{statusId}, etc.
+
+    // Default Deny: By default, deny all reads and writes to any path not explicitly matched above.
+    // This is a security best practice.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+    
