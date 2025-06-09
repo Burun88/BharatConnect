@@ -52,7 +52,7 @@ export async function getInstaBharatProfileData(uid: string): Promise<{ name: st
 
     if (docSnap.exists()) {
       const data = docSnap.data() as InstaBharatRawProfile;
-      console.log(`Fetched InstaBharat raw data for UID ${uid}:`, JSON.stringify(data, null, 2)); // Added log
+      console.log(`Fetched InstaBharat raw data for UID ${uid}:`, JSON.stringify(data, null, 2));
       const name = data.fullName || null;
       let photoURL = null;
 
@@ -135,7 +135,7 @@ export async function createOrUpdateBharatConnectProfile(
 
     await setDoc(profileDocRef, dataToSet, { merge: true });
     console.log(`BharatConnect profile for UID: ${uid} successfully written/merged.`);
-  } catch (error)_
+  } catch (error) {
     console.error("Error writing BharatConnect profile:", error);
     throw error; // Re-throw to allow caller to handle
   }
