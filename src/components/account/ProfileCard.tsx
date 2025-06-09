@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserCircle2, Edit3, Save, X, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 export default function ProfileCard() {
   const { toast } = useToast();
@@ -59,16 +60,18 @@ export default function ProfileCard() {
     <Card className="rounded-2xl shadow-md bg-card">
       <CardHeader className="items-center text-center">
         <div className="relative">
-          <Avatar className="w-[100px] h-[100px]">
-            <AvatarImage src={profilePicPreview || undefined} alt="Profile Picture" data-ai-hint="ai avatar" />
-            <AvatarFallback className="bg-muted">
-              <UserCircle2 className="w-16 h-16 text-muted-foreground" />
-            </AvatarFallback>
-          </Avatar>
+          <div className="p-1 rounded-full bg-gradient-to-br from-primary to-accent">
+            <Avatar className="w-[100px] h-[100px] border-2 border-background"> {/* Added border-background for inset look */}
+              <AvatarImage src={profilePicPreview || undefined} alt="Profile Picture" data-ai-hint="ai avatar" />
+              <AvatarFallback className="bg-muted">
+                <UserCircle2 className="w-16 h-16 text-muted-foreground" />
+              </AvatarFallback>
+            </Avatar>
+          </div>
           <Button
             variant="outline"
             size="icon"
-            className="absolute bottom-0 right-0 rounded-full w-8 h-8 bg-muted hover:bg-muted/80"
+            className="absolute bottom-1 right-1 rounded-full w-8 h-8 bg-muted hover:bg-muted/80 border-background border-2" // Adjusted position and added border
             onClick={() => document.getElementById('profile-pic-upload-account')?.click()}
             aria-label="Change profile picture"
           >

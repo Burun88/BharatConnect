@@ -5,7 +5,7 @@ import type { User } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Plus } from 'lucide-react';
+import { Plus, UserCircle2 } from 'lucide-react'; // Added UserCircle2
 import React from 'react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -32,11 +32,6 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
     } else if (!isCurrentUser) {
       showComingSoonToast();
     }
-  };
-
-  const getInitials = (name: string) => {
-    if (!name) return '??';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   const IMAGE_SIZE_CLASS = "w-[72px] h-[72px]";
@@ -81,7 +76,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
           className={cn(
             "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden",
             IMAGE_SIZE_CLASS,
-            isRing && "bg-background p-px" // Apply 1px padding for ring thickness
+            isRing && "bg-background p-px" 
           )}
         >
           {React.cloneElement(avatarContent as React.ReactElement, {
@@ -117,20 +112,20 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
       {user.avatarUrl ? (
         <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
       ) : (
-        <AvatarFallback className={cn(aura?.gradient ? "bg-transparent" : "bg-card text-card-foreground")}>
-          {getInitials(user.name)}
+        <AvatarFallback className={cn(aura?.gradient ? "bg-transparent" : "bg-card text-card-foreground", "flex items-center justify-center")}>
+           <UserCircle2 className="w-12 h-12" /> {/* Used UserCircle2 icon */}
         </AvatarFallback>
       )}
     </Avatar>
   );
 
-  const otherUserAvatar = (
+  const otherUserAvatar = ( // Kept initials for other users as per typical chat app behavior
     <Avatar className={IMAGE_SIZE_CLASS}>
         {user.avatarUrl ? (
             <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
         ) : (
             <AvatarFallback className={cn(aura?.gradient ? "bg-transparent" : "bg-card text-card-foreground")}>
-            {getInitials(user.name)}
+            {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)}
             </AvatarFallback>
         )}
     </Avatar>
@@ -147,8 +142,8 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
               {user.avatarUrl ? (
                 <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
               ) : (
-                <AvatarFallback className="bg-card text-card-foreground">
-                  {getInitials(user.name)}
+                <AvatarFallback className={cn("bg-card text-card-foreground", "flex items-center justify-center")}>
+                  <UserCircle2 className="w-12 h-12" /> {/* Used UserCircle2 icon */}
                 </AvatarFallback>
               )}
             </Avatar>
@@ -193,9 +188,9 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
             <Avatar className={IMAGE_SIZE_CLASS}>
               {user.avatarUrl ? (
                   <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
-              ) : (
+              ) : ( // Kept initials for other users as per typical chat app behavior
                   <AvatarFallback className="bg-card text-card-foreground">
-                  {getInitials(user.name)}
+                  {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)}
                   </AvatarFallback>
               )}
             </Avatar>
@@ -216,4 +211,3 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
 
 const AuraItem = React.memo(AuraItemComponent);
 export default AuraItem;
-

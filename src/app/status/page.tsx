@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import StatusListItem from '@/components/status-list-item';
 import { mockCurrentUser, mockUsers, mockStatusUpdates } from '@/lib/mock-data';
 import type { StatusUpdate, User } from '@/types';
-import { QrCode, Search, MoreVertical, PlusCircle, Pencil, Camera } from 'lucide-react';
+import { QrCode, Search, MoreVertical, PlusCircle, Pencil, Camera, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -47,11 +47,6 @@ export default function StatusPage() {
       title: "Hold Tight, Connecting Soon! 🚀",
       description: "Our team is busy crafting this awesome feature for you. It'll be ready before your next chai break! Stay tuned with BharatConnect! 🇮🇳✨",
     });
-  };
-
-  const getInitials = (name: string) => {
-    if (!name) return '??';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
   
   const handleAddStatus = () => {
@@ -124,12 +119,13 @@ export default function StatusPage() {
           >
             <div className="relative">
               <Avatar className="w-14 h-14"> {/* Increased size */}
-                {myUser?.avatarUrl && (
+                {myUser?.avatarUrl ? (
                   <AvatarImage src={myUser.avatarUrl} alt={myUser.name} data-ai-hint="person avatar" />
+                ) : (
+                  <AvatarFallback className="bg-muted text-muted-foreground">
+                    {myUser ? <UserCircle2 className="w-10 h-10" /> : <UserCircle2 className="w-10 h-10" />}
+                  </AvatarFallback>
                 )}
-                <AvatarFallback className="bg-muted text-muted-foreground">
-                  {myUser ? getInitials(myUser.name) : '??'}
-                </AvatarFallback>
               </Avatar>
               <div className="absolute bottom-0 right-0 bg-gradient-to-br from-[hsl(var(--accent))] to-[hsl(var(--primary))] text-accent-foreground rounded-full w-6 h-6 flex items-center justify-center border-2 border-background transform translate-x-1/4 translate-y-1/4">
                 <PlusCircle className="w-3 h-3" />
@@ -193,4 +189,3 @@ export default function StatusPage() {
     </div>
   );
 }
-
