@@ -90,8 +90,8 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
               "absolute left-1/2 -translate-x-1/2 rounded-full flex items-center justify-center border-2 border-background",
               smallCircleSize,
               emojiOverlapTopClass,
-              // Background for emoji/plus icon container is different from avatar fallback
-              aura?.gradient && isCurrentUser ? 'bg-card' : 'bg-primary' 
+              // Logic: Current user with aura gets 'bg-card'. Other user with aura gets 'bg-muted'. Current user's plus icon gets 'bg-primary'.
+              aura && isCurrentUser ? 'bg-card' : (aura && !isCurrentUser ? 'bg-muted' : 'bg-primary')
             )}
           >
             {overlapContent}
@@ -108,24 +108,34 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
     </span>
   );
 
-  // Consistent avatar rendering logic
-  const renderAvatar = (forCurrentUser: boolean) => (
+  // Consistent avatar rendering logic for the image or UserCircle2 fallback
+  const renderAvatarFallbackIcon = () => (
+    <UserCircle2 className={cn("w-12 h-12 text-muted-foreground")} />
+  );
+
+  const currentUserAvatar = (
     <Avatar className={IMAGE_SIZE_CLASS}>
       {user.avatarUrl ? (
         <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
       ) : (
-        <AvatarFallback className={cn(
-            "bg-muted", // Always muted background for fallback
-            "flex items-center justify-center"
-        )}>
-           <UserCircle2 className={cn("w-12 h-12 text-muted-foreground")} /> {/* Always muted icon color */}
+        <AvatarFallback className="bg-muted">
+          {renderAvatarFallbackIcon()}
         </AvatarFallback>
       )}
     </Avatar>
   );
-
-  const currentUserAvatar = renderAvatar(true);
-  const otherUserAvatar = renderAvatar(false);
+  
+  const otherUserAvatar = (
+     <Avatar className={IMAGE_SIZE_CLASS}>
+      {user.avatarUrl ? (
+        <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
+      ) : (
+        <AvatarFallback className="bg-muted">
+           {renderAvatarFallbackIcon()}
+        </AvatarFallback>
+      )}
+    </Avatar>
+  );
 
 
   if (isCurrentUser && !aura) {
@@ -163,7 +173,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
     );
   }
 
-  // Fallback for other users without an aura
+  // Fallback for other users without an aura (should show their pic or default UserCircle icon)
   return (
     <ItemContainer aria-label={user.name}>
        <AvatarWithOverlap
