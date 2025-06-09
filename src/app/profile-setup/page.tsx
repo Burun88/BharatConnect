@@ -8,12 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from '@/components/ui/card';
-import { UserCircle2, Camera, Phone, User } from 'lucide-react'; // Added User icon
+import { UserCircle2, Camera, Phone, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { auth } from '@/lib/firebase';
 import { createOrUpdateBharatConnectProfile } from '@/services/profileService';
-import type { User as AuthUser } from 'firebase/auth'; // Renamed to avoid conflict
+import type { User as AuthUser } from 'firebase/auth';
 import Logo from '@/components/shared/Logo';
 
 function ProfileSetupContent() {
@@ -21,20 +21,17 @@ function ProfileSetupContent() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
-  // State for form fields
   const [name, setName] = useState('');
-  const [username, setUsername] = useState(''); // State for username
+  const [username, setUsername] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [profilePicPreview, setProfilePicPreview] = useState<string | null>(null);
   const [profilePicFile, setProfilePicFile] = useState<File | null>(null);
 
-  // User and error states
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(auth.currentUser);
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // LocalStorage for onboarding status and basic profile info
   const initialProfile = useMemo(() => ({ name: '', phone: '', email: '' }), []);
   const [userProfileLs, setUserProfileLs] = useLocalStorage('userProfile', initialProfile);
   const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
@@ -53,16 +50,15 @@ function ProfileSetupContent() {
   }, [router]);
 
   useEffect(() => {
-    // Pre-fill from query parameters
     const namePrefill = searchParams.get('name_prefill');
     const photoPrefill = searchParams.get('photo_prefill');
     const emailPrefill = searchParams.get('email');
-    const usernamePrefill = searchParams.get('username_prefill'); // Get username
+    const usernamePrefill = searchParams.get('username_prefill');
 
     if (namePrefill) setName(namePrefill);
     if (photoPrefill) setProfilePicPreview(photoPrefill);
     if (emailPrefill && !auth.currentUser?.email) setEmail(emailPrefill);
-    if (usernamePrefill) setUsername(usernamePrefill); // Set username state
+    if (usernamePrefill) setUsername(usernamePrefill);
 
   }, [searchParams]);
 
@@ -108,6 +104,7 @@ function ProfileSetupContent() {
       await createOrUpdateBharatConnectProfile(currentUser.uid, {
         name: name.trim(),
         email: currentUser.email || email, 
+        username: username || undefined, // Pass username if available
         phone: phoneNumber.trim() || undefined,
         photoURL: finalPhotoURL || undefined,
         onboardingComplete: true,
@@ -150,9 +147,6 @@ function ProfileSetupContent() {
            <div className="flex justify-center mb-6">
              <Logo size="large" />
           </div>
-          {/* <CardTitle className="text-3xl font-headline font-bold text-gradient-bharatconnect">
-            Setup Your BharatConnect Profile
-          </CardTitle> */}
           <CardDescription className="text-muted-foreground pt-2">
             Let others know who you are. Your email: {currentUser?.email || email}
           </CardDescription>

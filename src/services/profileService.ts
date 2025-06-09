@@ -16,6 +16,7 @@ export interface BharatConnectProfile {
   id: string; // Firebase UID
   name: string;
   email: string; // Email used for auth/profile
+  username?: string; // Optional username, consistent with InstaBharat
   phone?: string; // Optional phone number
   photoURL?: string; // URL of the profile picture used in BharatConnect
   currentAuraId?: string | null;
@@ -26,7 +27,7 @@ export interface BharatConnectProfile {
 
 interface InstaBharatRawProfile {
   fullName?: string;
-  username?: string; // Added username
+  username?: string;
   profilePicURL?: string;
   profilePictureUrls?: {
     main?: string;
@@ -45,6 +46,7 @@ interface InstaBharatRawProfile {
  */
 export async function getInstaBharatProfileData(uid: string): Promise<{ name: string | null; photoURL: string | null; username: string | null } | null> {
   if (!uid) return null;
+  console.log(`Fetching InstaBharat profile data for UID: ${uid}`);
   try {
     // IMPORTANT: If your InstaBharat profiles are NOT in a collection named 'users',
     // you MUST change 'users' below to your actual collection name.
@@ -54,14 +56,14 @@ export async function getInstaBharatProfileData(uid: string): Promise<{ name: st
     if (docSnap.exists()) {
       const data = docSnap.data() as InstaBharatRawProfile;
       console.log(`Fetched InstaBharat raw data for UID ${uid}:`, JSON.stringify(data, null, 2));
+      
       const name = data.fullName || null;
-      const username = data.username || null; // Extract username
+      const username = data.username || null;
       let photoURL = null;
 
       if (data.profilePictureUrls?.main) {
         photoURL = data.profilePictureUrls.main;
       } else if (data.profilePicURL) {
-        // Fallback to top-level profilePicURL if map isn't present or main is missing
         photoURL = data.profilePicURL;
       }
       
@@ -73,7 +75,7 @@ export async function getInstaBharatProfileData(uid: string): Promise<{ name: st
     }
   } catch (error) {
     console.error("Error fetching InstaBharat profile data:", error);
-    return null; // Return null on error to handle gracefully
+    return null;
   }
 }
 
@@ -107,7 +109,7 @@ export async function getBharatConnectProfile(uid: string): Promise<BharatConnec
  */
 export async function createOrUpdateBharatConnectProfile(
   uid: string,
-  profileData: Partial<Omit<BharatConnectProfile, 'id' | 'createdAt' | 'updatedAt'>> & { name: string; email: string; }
+  profileData: Partial<Omit<BharatConnectProfile, 'id' | 'createdAt' | 'updatedAt'>> & { name: string; email: string; username?: string; }
 ): Promise<void> {
   if (!uid) throw new Error("UID is required to create or update a profile.");
   if (!profileData.name) throw new Error("Name is required for the profile.");
@@ -118,21 +120,31 @@ export async function createOrUpdateBharatConnectProfile(
     const existingProfileSnap = await getDoc(profileDocRef);
 
     const dataToSet: Partial<BharatConnectProfile> = {
-      ...profileData,
-      id: uid, // Ensure id is always set
+      ...profileData, // Includes name, email, phone, photoURL, username
+      id: uid,
       updatedAt: serverTimestamp(),
     };
 
     if (!existingProfileSnap.exists()) {
       dataToSet.createdAt = serverTimestamp();
-      dataToSet.onboardingComplete = profileData.onboardingComplete || false; // Default to false if not provided
+      dataToSet.onboardingComplete = profileData.onboardingComplete || false;
     } else {
-      // Ensure onboardingComplete is explicitly carried over or set
       dataToSet.onboardingComplete = profileData.onboardingComplete !== undefined 
         ? profileData.onboardingComplete 
         : existingProfileSnap.data()?.onboardingComplete || false;
     }
     
+    // Ensure username is explicitly set or removed if undefined
+    if (profileData.username !== undefined) {
+      dataToSet.username = profileData.username;
+    } else if (existingProfileSnap.exists() && existingProfileSnap.data()?.username) {
+      // If username is not in profileData but exists, keep it unless explicitly cleared
+      // For this setup, if username is not provided in profileData, it's effectively cleared (or not set if new)
+      // We can choose to explicitly set it to null or remove it.
+      // Let's set it if provided, otherwise let it be undefined to potentially remove it or not set it.
+    }
+
+
     console.log('Attempting to set BharatConnect Firestore document with data:', JSON.stringify(dataToSet, null, 2));
     await setDoc(profileDocRef, dataToSet, { merge: true });
     console.log(`BharatConnect profile for UID: ${uid} successfully written/merged.`);
