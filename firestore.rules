@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 // Helper function to check if a map contains only specific allowed keys.
@@ -13,15 +14,12 @@ function affectedKeysAreSubset(request, resource, allowedKeys) {
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // !!! --- PASTE YOUR EXISTING INSTABHARAT /users/... and /posts/... RULES HERE --- !!!
-    // It's crucial that your complete, working rules for the existing InstaBharat app
-    // are placed in this section. The example below is just a placeholder.
-
-    // START InstaBharat /users collection rules (example placeholder, replace with your actual rules)
+    // !!! --- PASTE YOUR EXISTING INSTABHARAT /users/... RULES HERE --- !!!
+    // Example base /users/{userId} rule (expand with your followers/following etc.)
     match /users/{userId} {
-      allow read: if true; // Public read for user profiles (as per your existing rule for InstaBharat)
+      allow read: if true; // Public read for user profiles (InstaBharat)
 
-      // Scenario 1: User creating their own profile document (e.g., during signup)
+      // Scenario 1: User creating their own profile document (e.g., during signup for InstaBharat)
       allow create: if request.auth != null && request.auth.uid == userId &&
                        request.resource.data.email == request.auth.token.email &&
                        request.resource.data.username_lowercase == request.resource.data.username.toLowerCase() &&
@@ -41,7 +39,7 @@ service cloud.firestore {
                          'profilePicURL', 'profilePictureUrls', 'profilePictureStatus', 'profilePicError', 'profilePicLastUpdated_ms'
                        ]);
 
-      // Scenario 2: User updating their own profile (general edit OR specific counter updates)
+      // Scenario 2: User updating their own InstaBharat profile
       allow update: if request.auth != null && request.auth.uid == userId &&
                       (
                         // SCENARIO_PROFILE_EDIT: General profile information update
@@ -49,15 +47,12 @@ service cloud.firestore {
                           request.resource.data.username == resource.data.username &&
                           request.resource.data.username_lowercase == resource.data.username_lowercase &&
                           request.resource.data.email == resource.data.email &&
-                          // Ensure counters are not changed through this general update path
                           request.resource.data.postsCount == resource.data.postsCount &&
                           request.resource.data.followersCount == resource.data.followersCount &&
                           request.resource.data.followingCount == resource.data.followingCount &&
                           request.resource.data.likedPostsCount == resource.data.likedPostsCount &&
                           request.resource.data.createdAt_ms == resource.data.createdAt_ms &&
                           request.resource.data.updatedAt_ms == request.time.toMillis() &&
-                          // Allow only designated profile fields to be part of this general update
-                          // Ensure that only the allowed keys are being modified or are present in the diff
                           request.resource.data.diff(resource.data).affectedKeys().hasAny([
                             'fullName', 'fullName_lowercase', 'bio', 'website', 'facebookLink', 'instagramLink', 'interests',
                             'location', 'pronouns', 'gender', 'hasActiveStory', 'updatedAt_ms',
@@ -72,18 +67,17 @@ service cloud.firestore {
                            request.resource.data.likedPostsCount == resource.data.likedPostsCount - 1) &&
                           request.resource.data.updatedAt_ms == request.time.toMillis()
                         ) ||
-                        // SCENARIO_USER_FOLLOW_UNFOLLOW: User updating their own following/follower counts (e.g., when they follow/unfollow someone)
+                        // SCENARIO_USER_FOLLOW_UNFOLLOW
                         (
                           ( (request.resource.data.followersCount == resource.data.followersCount + 1 || request.resource.data.followersCount == resource.data.followersCount - 1) ||
                             (request.resource.data.followingCount == resource.data.followingCount + 1 || request.resource.data.followingCount == resource.data.followingCount - 1)
                           ) &&
                           request.resource.data.updatedAt_ms == request.time.toMillis() &&
                            request.resource.data.diff(resource.data).affectedKeys().hasAny(['followersCount', 'followingCount', 'updatedAt_ms']) &&
-                           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['email', 'username', 'postsCount', 'likedPostsCount', 'bio' /* etc. */])
+                           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['email', 'username', 'postsCount', 'likedPostsCount', 'bio'])
                         )
                       );
-
-      // Subcollections for followers/following
+      // Subcollections for followers/following (InstaBharat)
       match /followers/{followerId} {
         allow read: if true;
         allow create: if request.auth != null && request.auth.uid == followerId &&
@@ -99,18 +93,18 @@ service cloud.firestore {
         allow delete: if request.auth != null && request.auth.uid == userId;
       }
     }
-    // END InstaBharat /users collection rules
 
     // !!! --- PASTE YOUR EXISTING INSTABHARAT /posts/... RULES HERE --- !!!
-    // START InstaBharat /posts collection rules (example placeholder, replace with your actual rules)
+    // Example base /posts/{postId} rule (expand with your comments/likes etc.)
     match /posts/{postId} {
-      allow read: if true; // Public read for posts
+      allow read: if true; // Public read for posts (InstaBharat)
 
+      // User can create their own post with validated data (InstaBharat)
       allow create: if request.auth != null && request.auth.uid == request.resource.data.userId &&
                        request.resource.data.likesCount == 0 &&
                        request.resource.data.commentsCount == 0 &&
                        request.resource.data.createdAt == request.time &&
-                       request.resource.data.updatedAt == request.time && 
+                       request.resource.data.updatedAt == request.time &&
                        request.resource.data.user.username is string &&
                        request.resource.data.mediaUrl is string &&
                        request.resource.data.storagePath is string &&
@@ -122,22 +116,23 @@ service cloud.firestore {
                          'aspectRatio', 'mediaProcessingStatus', 'likesCount', 'commentsCount', 'createdAt', 'updatedAt'
                        ]);
 
+      // Allow updates under specific scenarios (InstaBharat)
       allow update: if request.auth != null &&
                       (
-                        (
-                          resource.data.userId == request.auth.uid && 
-                          request.resource.data.userId == resource.data.userId && 
-                          request.resource.data.createdAt == resource.data.createdAt && 
-                          affectedKeysAreSubset(request, resource, ['caption', 'updatedAt']) && 
+                        ( // Owner updating caption
+                          resource.data.userId == request.auth.uid &&
+                          request.resource.data.userId == resource.data.userId &&
+                          request.resource.data.createdAt == resource.data.createdAt &&
+                          affectedKeysAreSubset(request, resource, ['caption', 'updatedAt']) &&
                           request.resource.data.updatedAt == request.time
                         ) ||
-                        (
+                        ( // Any user liking/unliking
                           affectedKeysAreSubset(request, resource, ['likesCount', 'updatedAt']) &&
                           (request.resource.data.likesCount == resource.data.likesCount + 1 ||
                            request.resource.data.likesCount == resource.data.likesCount - 1) &&
                           request.resource.data.updatedAt == request.time
                         ) ||
-                        (
+                        ( // Cloud Function updating media processing
                           affectedKeysAreSubset(request, resource, [
                             'feedImageUrl', 'thumbnailUrl', 'videoPosterUrl',
                             'mediaProcessingStatus', 'mediaProcessingError', 'processedAt', 'updatedAt', 'aspectRatio'
@@ -145,9 +140,9 @@ service cloud.firestore {
                           request.resource.data.updatedAt == request.time
                         )
                       );
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId; // Owner can delete (InstaBharat)
 
-      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
-
+      // Comments Subcollection (InstaBharat)
       match /comments/{commentId} {
         allow read: if true;
         allow create: if request.auth != null &&
@@ -161,6 +156,7 @@ service cloud.firestore {
         allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
       }
 
+      // Likes Subcollection (InstaBharat)
       match /likes/{likeUserId} {
         allow read: if request.auth != null;
         allow create: if request.auth != null && request.auth.uid == likeUserId &&
@@ -169,64 +165,46 @@ service cloud.firestore {
         allow delete: if request.auth != null && request.auth.uid == likeUserId;
       }
     }
-    // END InstaBharat /posts collection rules
 
-
-    // BharatConnect Specific Collections
-
-    // Shadow profiles from InstaBharat
+    // BharatConnect User Shadow Profiles
     match /bharatConnectUserShadows/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null && request.auth.uid == userId; // User creates their own shadow on first BC interaction
-      allow update: if request.auth != null && request.auth.uid == userId; // User might update it if their IB info changes and is re-fetched
-      allow delete: if false;
+      allow create, update: if request.auth != null &&
+                               request.auth.uid == userId &&
+                               request.resource.data.uid == userId &&
+                               request.resource.data.updatedAt == request.time;
+      // No delete for shadow profiles by users.
     }
 
-    // Full BharatConnect User Profiles
+    // BharatConnect Full User Profiles
     match /bharatConnectUsers/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
 
-      // TEMPORARY SIMPLIFIED RULE FOR DEBUGGING:
-      // Allows create/update if user is authenticated and the UID matches.
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && request.auth.uid == userId;
-
-      // SECURE CREATE RULE (Commented out - Restore after debugging auth issue):
+      // TEMPORARILY WIDE OPEN FOR DIAGNOSTICS - REVERT AFTER TESTING
+      allow create: if true;
       // allow create: if request.auth != null &&
       //                  request.auth.uid == userId &&
       //                  request.resource.data.id == userId &&
       //                  request.resource.data.email == request.auth.token.email &&
       //                  request.resource.data.onboardingComplete == true &&
-      //                  request.resource.data.createdAt != null && 
-      //                  request.resource.data.updatedAt != null; 
+      //                  request.resource.data.createdAt != null && // serverTimestamp should make it non-null
+      //                  request.resource.data.updatedAt != null;   // serverTimestamp should make it non-null
 
-      // SECURE UPDATE RULE (Commented out - Restore after debugging auth issue):
+      // TEMPORARILY WIDE OPEN FOR DIAGNOSTICS - REVERT AFTER TESTING
+      allow update: if true;
       // allow update: if request.auth != null &&
       //                  request.auth.uid == userId &&
-      //                  request.resource.data.id == userId &&
-      //                  request.resource.data.email == resource.data.email && 
-      //                  request.resource.data.username == resource.data.username &&
-      //                  request.resource.data.createdAt == resource.data.createdAt &&
-      //                  request.resource.data.updatedAt != resource.data.updatedAt &&
-      //                  (!('onboardingComplete' in request.resource.data) || request.resource.data.onboardingComplete == true);
+      //                  request.resource.data.id == userId && // ID should not change
+      //                  request.resource.data.email == resource.data.email && // Email should not change (usually)
+      //                  request.resource.data.username == resource.data.username && // InstaBharat username should not change via BC
+      //                  request.resource.data.createdAt == resource.data.createdAt && // createdAt should not change
+      //                  request.resource.data.updatedAt != resource.data.updatedAt && // Ensures updatedAt is being changed
+      //                  !('onboardingComplete' in request.resource.data.diff(resource.data).affectedKeys() && request.resource.data.onboardingComplete == false); // Prevent setting onboardingComplete to false
 
-      allow delete: if false;
+
+      // No delete rule for now, can be added if needed for account deletion features.
     }
-
-    // Add other BharatConnect specific collections here (e.g., chats, messages)
-    // Example:
-    // match /chats/{chatId} {
-    //   // Allow read/write if the user's UID is in the 'participants' array of the chat document
-    //   allow read, write: if request.auth != null && request.auth.uid in resource.data.participantsUids;
-    //
-    //   match /messages/{messageId} {
-    //     allow read: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantsUids;
-    //     allow create: if request.auth != null && request.auth.uid == request.resource.data.senderId &&
-    //                    request.auth.uid in resource.data.participantsUids; // Ensure sender is a participant
-    //     // No updates or deletes for messages typically to maintain chat integrity
-    //     allow update, delete: if false;
-    //   }
-    // }
-
   }
 }
+
+    
