@@ -4,12 +4,12 @@
 import type { Chat } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 import { mockUsers } from '@/lib/mock-data';
-import Image from 'next/image';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNowStrict } from 'date-fns';
+import { UserCircle2 } from 'lucide-react';
 
 interface ChatItemProps {
   chat: Chat;
@@ -19,33 +19,31 @@ export default function ChatItem({ chat }: ChatItemProps) {
   const contactUser = chat.contactUserId ? mockUsers.find(u => u.id === chat.contactUserId) : null;
   const contactAura = contactUser?.currentAuraId ? AURA_OPTIONS.find(a => a.id === contactUser.currentAuraId) : null;
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
-  }
-  
   const formatTimestamp = (timestamp: number | undefined) => {
     if (!timestamp) return '';
     return formatDistanceToNowStrict(new Date(timestamp), { addSuffix: true });
   };
 
   return (
-    <Link 
-      href={`/chat/${chat.id}`} 
-      className="flex items-center p-3 transition-colors rounded-lg bg-background hover:bg-muted/50" // Changed bg-muted to bg-background
+    <Link
+      href={`/chat/${chat.id}`}
+      className="flex items-center p-3 transition-colors rounded-lg bg-background hover:bg-muted/50"
     >
       <div className="relative mr-3">
         <Avatar className="w-12 h-12">
            {chat.avatarUrl && (
               <AvatarImage src={chat.avatarUrl} alt={chat.name} data-ai-hint="person avatar" />
            )}
-          <AvatarFallback 
+          <AvatarFallback
             className={cn(
-              "bg-muted text-muted-foreground", // Kept fallback muted for contrast if no image/aura
+              contactAura?.gradient ? (contactAura.gradient.includes('bg-gradient') ? '' : 'bg-muted text-muted-foreground') : 'bg-muted text-muted-foreground',
               contactAura?.gradient
             )}
-            style={contactAura?.gradient ? { backgroundImage: contactAura.gradient.replace('bg-gradient-to-r ', 'linear-gradient(to right, ').replace(/from-(\w+)-(\d+)/g, 'var(--color-$1-$2)').replace(/via-(\w+)-(\d+)/g, ', var(--color-$1-$2)').replace(/to-(\w+)-(\d+)/g, ', var(--color-$1-$2)')+ ')' } : {}}
+            style={contactAura?.gradient && contactAura.gradient.includes('bg-gradient') ? { backgroundImage: contactAura.gradient.replace('bg-gradient-to-r ', 'linear-gradient(to right, ').replace(/from-(\w+)-(\d+)/g, 'var(--color-$1-$2)').replace(/via-(\w+)-(\d+)/g, ', var(--color-$1-$2)').replace(/to-(\w+)-(\d+)/g, ', var(--color-$1-$2)')+ ')' } : {}}
           >
-            {chat.name ? getInitials(chat.name) : '??'}
+            {!chat.avatarUrl && (!contactAura || !contactAura.gradient) ? (
+              <UserCircle2 className="w-8 h-8 text-muted-foreground" />
+            ) : contactAura?.emoji /* Show emoji if aura gradient and no image */ }
           </AvatarFallback>
         </Avatar>
         {contactAura && (

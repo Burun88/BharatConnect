@@ -11,7 +11,7 @@ import MessageBubble from '@/components/message-bubble';
 import type { Message, User, Chat } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 import { mockMessagesData, mockUsers, mockChats, mockCurrentUser } from '@/lib/mock-data';
-import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera } from 'lucide-react';
+import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import EmojiPicker from '@/components/emoji-picker';
@@ -32,10 +32,10 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
-  const mainContentRef = useRef<HTMLDivElement>(null); 
-  const messageListContainerRef = useRef<HTMLDivElement>(null); 
-  const bottomBarRef = useRef<HTMLDivElement>(null); 
+
+  const mainContentRef = useRef<HTMLDivElement>(null);
+  const messageListContainerRef = useRef<HTMLDivElement>(null);
+  const bottomBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setTimeout(() => {
@@ -56,10 +56,10 @@ export default function ChatPage() {
         messageListContainerRef.current.scrollTop = messageListContainerRef.current.scrollHeight;
     }
   }, [messages]);
-  
+
   useEffect(() => {
-    const mcEl = mainContentRef.current; 
-    const bbEl = bottomBarRef.current; 
+    const mcEl = mainContentRef.current;
+    const bbEl = bottomBarRef.current;
     const visualViewport = window.visualViewport;
 
     if (!mcEl || !bbEl || !visualViewport) return;
@@ -70,26 +70,26 @@ export default function ChatPage() {
     const updateLayout = () => {
       const currentBottomBarOffsetHeight = bbEl.offsetHeight;
       let keyboardHeight = 0;
-      
-      const isKeyboardEffectivelyOpen = window.innerHeight > visualViewport.height + 50; 
+
+      const isKeyboardEffectivelyOpen = window.innerHeight > visualViewport.height + 50;
 
       if (isKeyboardEffectivelyOpen && !isEmojiPickerOpen) {
         keyboardHeight = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
       }
-      
+
       bbEl.style.bottom = `${isEmojiPickerOpen ? 0 : keyboardHeight}px`;
       mcEl.style.paddingBottom = `${currentBottomBarOffsetHeight + (isEmojiPickerOpen ? 0 : keyboardHeight)}px`;
-      
+
       if (keyboardHeight > 0 && keyboardHeight !== lastKeyboardHeight && document.activeElement === textareaRef.current) {
         if (messageListContainerRef.current) {
            messageListContainerRef.current.scrollTop = messageListContainerRef.current.scrollHeight;
         }
       }
-      
+
       lastKeyboardHeight = keyboardHeight;
       lastBottomBarOffsetHeight = currentBottomBarOffsetHeight;
     };
-    
+
     visualViewport.addEventListener('resize', updateLayout);
     const resizeObserver = new ResizeObserver(() => {
         if(bbEl.offsetHeight !== lastBottomBarOffsetHeight) {
@@ -97,22 +97,20 @@ export default function ChatPage() {
         }
     });
     resizeObserver.observe(bbEl);
-    
+
     updateLayout(); // Initial call to set layout
 
     return () => {
       visualViewport.removeEventListener('resize', updateLayout);
       resizeObserver.disconnect();
-      // Reset styles on cleanup
       bbEl.style.bottom = '0px';
       mcEl.style.paddingBottom = `${lastBottomBarOffsetHeight}px`;
     };
-  }, [isEmojiPickerOpen, textareaRef]); // Added textareaRef dependency
+  }, [isEmojiPickerOpen, textareaRef]);
 
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
-    // Do not focus textarea here to keep emoji picker open
   }, []);
 
   const showComingSoonToastOptions = () => {
@@ -125,10 +123,9 @@ export default function ChatPage() {
   const toggleEmojiPicker = () => {
     const openingEmojiPicker = !isEmojiPickerOpen;
     setIsEmojiPickerOpen(openingEmojiPicker);
-    if (openingEmojiPicker) { 
-      textareaRef.current?.blur(); 
+    if (openingEmojiPicker) {
+      textareaRef.current?.blur();
     } else {
-      // Delay focus slightly to allow keyboard to fully retract if it was open
       setTimeout(() => textareaRef.current?.focus(), 50);
     }
   };
@@ -148,12 +145,12 @@ export default function ChatPage() {
     };
     setMessages(prevMessages => [...prevMessages, messageToSend]);
     setNewMessage('');
-    
+
     if (isEmojiPickerOpen) {
       setIsEmojiPickerOpen(false);
     }
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'; 
+      textareaRef.current.style.height = 'auto';
       textareaRef.current.focus();
     }
 
@@ -203,10 +200,6 @@ export default function ChatPage() {
     }
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2);
-  }
-
   const contactAura = contact?.currentAuraId ? AURA_OPTIONS.find(a => a.id === contact.currentAuraId) : null;
   const contactStatus = contactAura ? `Feeling ${contactAura.name} ${contactAura.emoji}` : contact?.status;
 
@@ -222,9 +215,9 @@ export default function ChatPage() {
           </div>
           <Skeleton className="w-8 h-8 rounded-full ml-auto" />
         </header>
-        <div 
-            ref={mainContentRef} // Keep ref for potential future direct manipulation if needed for padding
-            className="flex flex-col flex-1 pt-16" // Padding top for header
+        <div
+            ref={mainContentRef}
+            className="flex flex-col flex-1 pt-16"
         >
             <div className="flex-grow overflow-y-auto p-4 space-y-4">
                 {[...Array(5)].map((_, i) => (
@@ -234,10 +227,10 @@ export default function ChatPage() {
                 ))}
             </div>
         </div>
-         <div 
-            ref={bottomBarRef} // Keep ref for height observation
+         <div
+            ref={bottomBarRef}
             className="fixed left-0 right-0 z-10 bg-background border-t"
-            style={{ bottom: '0px' }} // Initial bottom position
+            style={{ bottom: '0px' }}
         >
             <Skeleton className="w-full h-10 rounded-full p-2.5" />
         </div>
@@ -261,12 +254,15 @@ export default function ChatPage() {
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <Avatar className="w-10 h-10 mr-3">
-          {contact.avatarUrl && (
+          {contact.avatarUrl ? (
             <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar"/>
+          ) : (
+            <AvatarFallback className={cn(
+              contactAura?.gradient ? 'bg-transparent' : 'bg-muted text-muted-foreground'
+            )}>
+              {contactAura ? contactAura.emoji : <UserCircle2 className="w-7 h-7 text-muted-foreground" />}
+            </AvatarFallback>
           )}
-          <AvatarFallback className={cn(contactAura?.gradient)}>
-            {contactAura ? contactAura.emoji : getInitials(contact.name)}
-          </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
           <h2 className="text-sm font-semibold">{contact.name}</h2>
@@ -277,14 +273,14 @@ export default function ChatPage() {
         </Button>
       </header>
 
-      <div 
+      <div
         ref={mainContentRef}
-        className="flex flex-col flex-1 pt-16 overflow-hidden" 
+        className="flex flex-col flex-1 pt-16 overflow-hidden"
       >
-        <div 
+        <div
             ref={messageListContainerRef}
             className={cn(
-                "flex-grow overflow-y-auto hide-scrollbar pt-2 pb-2 px-2 space-y-2 min-h-0" 
+                "flex-grow overflow-y-auto hide-scrollbar pt-2 pb-2 px-2 space-y-2 min-h-0"
             )}
         >
             {messages.map(msg => (
@@ -293,14 +289,14 @@ export default function ChatPage() {
             <div ref={messagesEndRef} />
         </div>
       </div>
-      
-      <div 
+
+      <div
         ref={bottomBarRef}
         className={cn(
             "fixed left-0 right-0 z-10 bg-background border-t",
             "pb-[env(safe-area-inset-bottom)]"
         )}
-        style={{ bottom: '0px', transform: 'translateZ(0px)' }} 
+        style={{ bottom: '0px', transform: 'translateZ(0px)' }}
       >
         <footer className="flex items-end space-x-2 p-2.5 flex-shrink-0">
            <Button
@@ -329,7 +325,7 @@ export default function ChatPage() {
               }}
               rows={1}
               className={cn(
-                  "chat-input-sweep-border-textarea", 
+                  "chat-input-sweep-border-textarea",
                   "resize-none min-h-[40px] max-h-[100px] rounded-full px-6 py-2.5 leading-tight hide-scrollbar"
               )}
               onKeyDown={(e) => {
@@ -337,7 +333,7 @@ export default function ChatPage() {
                   e.preventDefault();
                   handleSendMessage(e as any);
                   if (textareaRef.current) {
-                      textareaRef.current.style.height = 'auto'; 
+                      textareaRef.current.style.height = 'auto';
                   }
                 }
               }}
@@ -365,17 +361,17 @@ export default function ChatPage() {
             </Button>
           )}
         </footer>
-        
+
         <div
           className={cn(
-            "transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0", 
+            "transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0",
             isEmojiPickerOpen
               ? "h-[300px] opacity-100 visible pointer-events-auto"
               : "h-0 opacity-0 invisible pointer-events-none",
-            isEmojiPickerOpen && "bg-background" 
+            isEmojiPickerOpen && "bg-background"
           )}
         >
-          {isEmojiPickerOpen && ( 
+          {isEmojiPickerOpen && (
             <EmojiPicker onEmojiSelect={handleEmojiSelect} />
           )}
         </div>
@@ -383,4 +379,3 @@ export default function ChatPage() {
     </div>
   );
 }
-

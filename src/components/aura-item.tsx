@@ -5,7 +5,7 @@ import type { User } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Plus, UserCircle2 } from 'lucide-react'; 
+import { Plus, UserCircle2 } from 'lucide-react';
 import React from 'react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -45,7 +45,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
 
   const ItemContainer: React.FC<{ children: React.ReactNode; 'aria-label': string }> = ({ children, ...props }) => (
     <div
-      className="flex flex-col items-center space-y-2 text-center p-1 shrink-0 cursor-pointer" 
+      className="flex flex-col items-center space-y-2 text-center p-1 shrink-0 cursor-pointer"
       onClick={handleItemClick}
       role="button"
       tabIndex={0}
@@ -76,7 +76,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
           className={cn(
             "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden",
             IMAGE_SIZE_CLASS,
-            isRing && "bg-background p-px" 
+            isRing && "bg-background p-px"
           )}
         >
           {React.cloneElement(avatarContent as React.ReactElement, {
@@ -113,22 +113,22 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
         <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
       ) : (
         <AvatarFallback className={cn(
-            aura?.gradient ? "bg-transparent" : "bg-muted", 
+            aura?.gradient ? "bg-transparent" : "bg-muted",
             "flex items-center justify-center"
         )}>
-           <UserCircle2 className={cn("w-12 h-12", "text-muted-foreground")} /> 
+           <UserCircle2 className={cn("w-12 h-12 text-muted-foreground")} />
         </AvatarFallback>
       )}
     </Avatar>
   );
 
-  const otherUserAvatar = ( 
+  const otherUserAvatar = (
     <Avatar className={IMAGE_SIZE_CLASS}>
         {user.avatarUrl ? (
             <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
         ) : (
-            <AvatarFallback className={cn(aura?.gradient ? "bg-transparent" : "bg-muted text-muted-foreground")}>
-            {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)}
+            <AvatarFallback className={cn(aura?.gradient ? "bg-transparent" : "bg-muted", "text-muted-foreground")}>
+             <UserCircle2 className="w-12 h-12 text-muted-foreground" />
             </AvatarFallback>
         )}
     </Avatar>
@@ -146,7 +146,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
                 <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
               ) : (
                 <AvatarFallback className={cn("bg-muted", "flex items-center justify-center")}>
-                  <UserCircle2 className="w-12 h-12 text-muted-foreground" /> 
+                  <UserCircle2 className="w-12 h-12 text-muted-foreground" />
                 </AvatarFallback>
               )}
             </Avatar>
@@ -180,7 +180,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
     );
   }
 
-  // Fallback for other users without an aura (will trigger toast on click)
+  // Fallback for other users without an aura
   return (
     <ItemContainer aria-label={user.name}>
        <div className={cn("relative", mainElementSize)}>
@@ -191,9 +191,9 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
             <Avatar className={IMAGE_SIZE_CLASS}>
               {user.avatarUrl ? (
                   <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
-              ) : ( 
+              ) : (
                   <AvatarFallback className="bg-muted text-muted-foreground">
-                  {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)}
+                     <UserCircle2 className="w-12 h-12 text-muted-foreground" />
                   </AvatarFallback>
               )}
             </Avatar>
@@ -203,7 +203,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
               "absolute left-1/2 -translate-x-1/2",
               smallCircleSize,
               emojiOverlapTopClass,
-              "invisible" 
+              "invisible"
             )}
           />
       </div>

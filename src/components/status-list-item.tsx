@@ -5,6 +5,7 @@ import type { StatusUpdate, User } from '@/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNowStrict } from 'date-fns';
+import { UserCircle2 } from 'lucide-react';
 
 interface StatusListItemProps {
   statusUpdate: StatusUpdate;
@@ -13,11 +14,6 @@ interface StatusListItemProps {
 }
 
 export default function StatusListItem({ statusUpdate, user, onClick }: StatusListItemProps) {
-  const getInitials = (name: string) => {
-    if (!name) return '??';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
-
   const formatTimestamp = (timestamp: number | undefined) => {
     if (!timestamp) return '';
     const date = new Date(timestamp);
@@ -40,34 +36,28 @@ export default function StatusListItem({ statusUpdate, user, onClick }: StatusLi
       onKeyDown={(e) => onClick && (e.key === 'Enter' || e.key === ' ') && onClick()}
       aria-label={`View status from ${user.name}`}
     >
-      {/* Container for avatar and ring, sized precisely */}
-      <div className="relative mr-4 w-[60px] h-[60px]"> {/* Increased size from w-[52px] h-[52px] */}
-        {/* Layer 1: Spinning Gradient (active) or Static Border (viewed) */}
+      <div className="relative mr-4 w-[60px] h-[60px]">
         {!statusUpdate.viewedByCurrentUser ? (
           <div
             className="absolute inset-0 rounded-full bg-gradient-to-r from-primary to-accent animate-spin-slow"
           />
         ) : (
           <div
-            className="absolute inset-0 rounded-full border-2 border-[hsl(var(--status-ring-viewed-border))]" // Changed from border to border-2
+            className="absolute inset-0 rounded-full border-2 border-[hsl(var(--status-ring-viewed-border))]"
           />
         )}
-
-        {/* Layer 2: Cutout effect - this div has page background and is inset to form the ring */}
-        <div className="absolute inset-[2px] rounded-full bg-background overflow-hidden"> {/* Changed from inset-[1px] to inset-[2px] */}
-          {/* Layer 3: Avatar - fills the cutout area, appears static */}
-          <Avatar className="w-full h-full"> {/* Avatar will fill the new inner space */}
-            {user.avatarUrl && (
+        <div className="absolute inset-[2px] rounded-full bg-background overflow-hidden">
+          <Avatar className="w-full h-full">
+            {user.avatarUrl ? (
               <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
+            ) : (
+              <AvatarFallback className="bg-muted text-muted-foreground">
+                <UserCircle2 className="w-10 h-10 text-muted-foreground" />
+              </AvatarFallback>
             )}
-            <AvatarFallback className="bg-muted text-muted-foreground">
-              {getInitials(user.name)}
-            </AvatarFallback>
           </Avatar>
         </div>
       </div>
-
-      {/* User info */}
       <div className="flex-1 min-w-0">
         <h3 className="text-sm font-semibold text-foreground truncate">{user.name}</h3>
         <p className="text-xs text-muted-foreground truncate">
@@ -77,4 +67,3 @@ export default function StatusListItem({ statusUpdate, user, onClick }: StatusLi
     </div>
   );
 }
-
