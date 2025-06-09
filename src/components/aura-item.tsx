@@ -113,10 +113,10 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
         <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
       ) : (
         <AvatarFallback className={cn(
-            aura?.gradient ? "bg-transparent" : "bg-muted text-muted-foreground", 
+            aura?.gradient ? "bg-transparent" : "bg-muted", 
             "flex items-center justify-center"
         )}>
-           <UserCircle2 className="w-12 h-12" /> 
+           <UserCircle2 className={cn("w-12 h-12", aura?.gradient ? "text-card-foreground" : "text-muted-foreground")} /> 
         </AvatarFallback>
       )}
     </Avatar>
@@ -145,8 +145,8 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
               {user.avatarUrl ? (
                 <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
               ) : (
-                <AvatarFallback className={cn("bg-muted text-muted-foreground", "flex items-center justify-center")}>
-                  <UserCircle2 className="w-12 h-12" /> 
+                <AvatarFallback className={cn("bg-muted", "flex items-center justify-center")}>
+                  <UserCircle2 className="w-12 h-12 text-muted-foreground" /> 
                 </AvatarFallback>
               )}
             </Avatar>
