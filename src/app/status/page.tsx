@@ -2,32 +2,76 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import BottomNavigationBar from "@/components/bottom-navigation-bar";
 import PageHeader from "@/components/page-header";
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import StatusListItem from '@/components/status-list-item';
 import { mockCurrentUser, mockUsers, mockStatusUpdates } from '@/lib/mock-data';
-import type { StatusUpdate, User } from '@/types';
+import type { StatusUpdate, User as BharatConnectUser } from '@/types'; // Renamed to BharatConnectUser
 import { QrCode, Search, MoreVertical, PlusCircle, Pencil, Camera, UserCircle2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { auth } from '@/lib/firebase';
+import type { User as AuthUser } from 'firebase/auth'; // Firebase Auth User
+import { onAuthStateChanged } from 'firebase/auth';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 interface StatusUpdateWithUser extends StatusUpdate {
-  user: User;
+  user: BharatConnectUser;
 }
 
 export default function StatusPage() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [myUser, setMyUser] = useState<User | null>(null);
-  const [recentStatusUpdates, setRecentStatusUpdates] = useState<StatusUpdateWithUser[]>([]);
+  const router = useRouter();
   const { toast } = useToast();
 
+  const [authUser, setAuthUser] = useState<AuthUser | null | undefined>(undefined);
+  const [authCheckCompleted, setAuthCheckCompleted] = useState(false);
+  const [onboardingComplete] = useLocalStorage('onboardingComplete', false);
+  const [isGuardLoading, setIsGuardLoading] = useState(true);
+  
+  const [isPageLoading, setIsPageLoading] = useState(true); // Renamed from isLoading
+  const [myUser, setMyUser] = useState<BharatConnectUser | null>(null);
+  const [recentStatusUpdates, setRecentStatusUpdates] = useState<StatusUpdateWithUser[]>([]);
+
   useEffect(() => {
-    // Simulate data fetching
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setAuthUser(user);
+      setAuthCheckCompleted(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!authCheckCompleted) {
+      setIsGuardLoading(true);
+      return;
+    }
+    if (!authUser) {
+      router.replace('/login');
+      return;
+    }
+    if (!onboardingComplete) {
+      router.replace('/profile-setup');
+      return;
+    }
+    setIsGuardLoading(false);
+  }, [authCheckCompleted, authUser, onboardingComplete, router]);
+
+  useEffect(() => {
+    if (isGuardLoading) return; // Don't load page data until guard passes
+
+    setIsPageLoading(true);
     setTimeout(() => {
-      setMyUser(mockCurrentUser);
+      // Use authUser info if available for 'myUser'
+      const currentAppUser = authUser ? {
+        ...mockCurrentUser, // Base mock
+        id: authUser.uid,
+        name: authUser.displayName || 'You',
+        avatarUrl: authUser.photoURL || mockCurrentUser.avatarUrl,
+      } : mockCurrentUser;
+      setMyUser(currentAppUser);
 
       const updatesWithUsers = mockStatusUpdates
         .map(status => {
@@ -35,12 +79,12 @@ export default function StatusPage() {
           return user ? { ...status, user } : null;
         })
         .filter((item): item is StatusUpdateWithUser => item !== null)
-        .sort((a, b) => b.timestamp - a.timestamp); // Sort by most recent
+        .sort((a, b) => b.timestamp - a.timestamp); 
 
       setRecentStatusUpdates(updatesWithUsers);
-      setIsLoading(false);
+      setIsPageLoading(false);
     }, 1000);
-  }, []);
+  }, [isGuardLoading, authUser]);
 
   const showComingSoonToast = () => {
     toast({
@@ -67,40 +111,17 @@ export default function StatusPage() {
     </>
   );
 
-  if (isLoading) {
+  if (isGuardLoading || isPageLoading) {
     return (
-      <div className="flex flex-col h-screen">
-        <PageHeader title="Status" actions={headerActions} />
-        <main className="flex-grow p-4 overflow-auto mb-16 space-y-6">
-          {/* My Status Skeleton */}
-          <div className="flex items-center space-x-3">
-            <Skeleton className="w-14 h-14 rounded-full" /> {/* Adjusted to match increased size */}
-            <div className="space-y-1.5">
-              <Skeleton className="w-24 h-4" />
-              <Skeleton className="w-32 h-3" />
-            </div>
-          </div>
-          {/* Recent Updates Skeleton */}
-          <div>
-            <Skeleton className="w-28 h-4 mb-3" />
-            <div className="space-y-px"> {/* Reduced gap for skeleton items */}
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="flex items-center space-x-3 p-3"> {/* Added p-3 to match StatusListItem's padding */}
-                  <Skeleton className="w-14 h-14 rounded-full" /> {/* Adjusted to match increased size */}
-                  <div className="flex-1 min-w-0">
-                    <Skeleton className="w-32 h-4 mb-1.5" /> {/* Adjusted for consistency */}
-                    <Skeleton className="w-20 h-3" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </main>
-        <BottomNavigationBar />
+      <div className="flex flex-col h-screen items-center justify-center bg-background">
+         <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p className="mt-4 text-muted-foreground">Loading Status...</p>
       </div>
     );
   }
-
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -108,7 +129,6 @@ export default function StatusPage() {
       
       <main className="flex-grow overflow-y-auto mb-16 hide-scrollbar">
         <div className="p-3">
-          {/* My Status Section */}
           <div
             className="flex items-center space-x-3 py-3 cursor-pointer hover:bg-muted/30 rounded-lg"
             onClick={handleAddStatus}
@@ -118,12 +138,12 @@ export default function StatusPage() {
             aria-label="Add new status"
           >
             <div className="relative">
-              <Avatar className="w-14 h-14"> {/* Increased size */}
+              <Avatar className="w-14 h-14">
                 {myUser?.avatarUrl ? (
                   <AvatarImage src={myUser.avatarUrl} alt={myUser.name} data-ai-hint="person avatar" />
                 ) : (
                   <AvatarFallback className="bg-muted text-muted-foreground">
-                    {myUser ? <UserCircle2 className="w-10 h-10" /> : <UserCircle2 className="w-10 h-10" />}
+                    <UserCircle2 className="w-10 h-10" />
                   </AvatarFallback>
                 )}
               </Avatar>
@@ -137,11 +157,10 @@ export default function StatusPage() {
             </div>
           </div>
 
-          {/* Recent Updates Section */}
           {recentStatusUpdates.length > 0 && (
             <div className="mt-4">
               <h4 className="text-xs font-medium text-muted-foreground px-1 mb-1">Recent updates</h4>
-              <div className="space-y-px"> {/* Further reduced space between items */}
+              <div className="space-y-px"> 
                 {recentStatusUpdates.map((status) => (
                   <StatusListItem 
                     key={status.id} 
@@ -153,17 +172,9 @@ export default function StatusPage() {
               </div>
             </div>
           )}
-
-            {/* Muted Updates Section (Placeholder) */}
-            {/* You can add similar logic for muted updates if needed */}
-            {/* <div className="mt-6">
-              <h4 className="text-xs font-medium text-muted-foreground px-1 mb-1">Muted updates</h4>
-               Placeholder for muted updates list 
-            </div> */}
         </div>
       </main>
       
-      {/* Floating Action Buttons */}
       <div className="fixed bottom-20 right-4 space-y-3 z-20">
          <Button 
           variant="secondary" 

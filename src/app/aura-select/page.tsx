@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -11,18 +12,52 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Sparkles, XCircle } from 'lucide-react';
+import { auth } from '@/lib/firebase';
+import type { User as AuthUser } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function AuraSelectPage() {
   const router = useRouter();
   const { toast } = useToast();
+
+  const [authUser, setAuthUser] = useState<AuthUser | null | undefined>(undefined);
+  const [authCheckCompleted, setAuthCheckCompleted] = useState(false);
+  const [onboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // Renamed to avoid conflict
+  const [isGuardLoading, setIsGuardLoading] = useState(true);
+  
   const [currentUserAuraId, setCurrentUserAuraId] = useLocalStorage<string | null>('currentUserAuraId', null);
   const [selectedAuraId, setSelectedAuraId] = useState<string | null>(currentUserAuraId);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isPageLoading, setIsPageLoading] = useState(true); // Renamed from isLoading
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setAuthUser(user);
+      setAuthCheckCompleted(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!authCheckCompleted) {
+      setIsGuardLoading(true);
+      return;
+    }
+    if (!authUser) {
+      router.replace('/login');
+      return;
+    }
+    if (!onboardingCompleteLs) {
+      router.replace('/profile-setup');
+      return;
+    }
+    setIsGuardLoading(false);
+  }, [authCheckCompleted, authUser, onboardingCompleteLs, router]);
+
+  useEffect(() => {
+    if (isGuardLoading) return; // Don't run this effect until guard passes
     setSelectedAuraId(currentUserAuraId);
-    setIsLoading(false);
-  }, [currentUserAuraId]);
+    setIsPageLoading(false);
+  }, [currentUserAuraId, isGuardLoading]);
 
   const handleSelectAura = (aura: UserAura) => {
     setSelectedAuraId(aura.id);
@@ -31,7 +66,7 @@ export default function AuraSelectPage() {
       title: 'Aura Updated!',
       description: `You are now feeling ${aura.name} ${aura.emoji}`,
     });
-    router.back(); // Or router.push('/')
+    router.back(); 
   };
 
   const handleClearAura = () => {
@@ -41,23 +76,17 @@ export default function AuraSelectPage() {
       title: 'Aura Cleared',
       description: 'Your aura has been reset.',
     });
-    router.back(); // Or router.push('/')
+    router.back(); 
   };
 
-  if (isLoading) {
+  if (isGuardLoading || isPageLoading) {
     return (
-      <div className="flex flex-col h-screen">
-        <PageHeader title="Select Your Aura" />
-        <main className="flex-grow p-4 overflow-auto">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {Array.from({ length: AURA_OPTIONS.length }).map((_, index) => (
-              <Card key={index} className="animate-pulse bg-muted h-32" />
-            ))}
-          </div>
-          <Button className="w-full mt-6 animate-pulse bg-muted h-10" disabled>
-            Clear Aura
-          </Button>
-        </main>
+      <div className="flex flex-col h-screen items-center justify-center bg-background">
+        <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p className="mt-4 text-muted-foreground">Loading Auras...</p>
       </div>
     );
   }
