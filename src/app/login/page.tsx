@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useState, type FormEvent, useEffect } from 'react';
+import { useState, type FormEvent, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import Logo from '@/components/shared/Logo'; // Import the Logo component
+import Logo from '@/components/shared/Logo';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
@@ -23,20 +23,53 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
-  const [userProfileLs, setUserProfileLs] = useLocalStorage('userProfile', { name: '', phone: '', email: '' });
+  const initialProfile = useMemo(() => ({ name: '', phone: '', email: '' }), []);
+  const [, setUserProfileLs] = useLocalStorage('userProfile', initialProfile);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-         getBharatConnectProfile(user.uid).then(profile => {
-           if (profile && profile.onboardingComplete) {
-             router.replace('/');
-           }
-         });
+      if (user && !isLoading) { // Ensure not to interfere if a login submission is in progress
+        getBharatConnectProfile(user.uid)
+          .then(bcProfile => {
+            if (bcProfile && bcProfile.onboardingComplete) {
+              setUserProfileLs({ name: bcProfile.name, phone: bcProfile.phone || '', email: bcProfile.email });
+              setOnboardingCompleteLs(true);
+              router.replace('/');
+              return null; // Stop further processing in this chain
+            }
+            // Not fully onboarded or no BC profile, proceed to fetch InstaBharat data for profile-setup
+            return getInstaBharatProfileData(user.uid).then(instaProfile => ({ bcProfile, instaProfile }));
+          })
+          .then(profiles => {
+            if (!profiles) return; // Already redirected or initial check failed gracefully
+
+            const { bcProfile, instaProfile } = profiles;
+            setUserProfileLs(prev => ({ ...prev, email: user.email || '', name: instaProfile?.name || bcProfile?.name || '' }));
+            setOnboardingCompleteLs(false);
+
+            const queryParams = new URLSearchParams();
+            if (user.email) queryParams.append('email', user.email);
+            
+            const namePrefill = instaProfile?.name || bcProfile?.name;
+            // Ensure photoURL is correctly sourced, prefer InstaBharat, then BC, then null
+            const photoPrefill = instaProfile?.photoURL || (bcProfile as BharatConnectProfile | null)?.photoURL;
+
+
+            if (namePrefill) queryParams.append('name_prefill', namePrefill);
+            if (photoPrefill) queryParams.append('photo_prefill', photoPrefill);
+            
+            router.replace(`/profile-setup?${queryParams.toString()}`);
+          })
+          .catch(err => {
+            console.error("Error during auth state check on login page:", err);
+            // If fetching profiles fails, user stays on login page.
+            // They can attempt to login manually.
+            setError("Could not verify your profile status. Please try logging in.");
+          });
       }
     });
     return () => unsubscribe();
-  }, [router]);
+  }, [router, isLoading, setUserProfileLs, setOnboardingCompleteLs]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -54,19 +87,31 @@ export default function LoginPage() {
       const user = userCredential.user;
 
       if (user) {
-        toast({
-          title: 'Login Successful!',
-          description: 'Welcome back to BharatConnect!',
-        });
-
-        const bcProfile = await getBharatConnectProfile(user.uid);
+        const bcProfile = await getBharatConnectProfile(user.uid)
+          .catch(fetchError => {
+            console.error("Failed to fetch BharatConnect profile during login:", fetchError);
+            toast({
+              variant: 'destructive',
+              title: 'Profile Check Failed',
+              description: 'Could not retrieve your profile information. Please try again.',
+            });
+            throw new Error("Could not retrieve your profile."); // Re-throw to be caught by outer try-catch
+          });
 
         if (bcProfile && bcProfile.onboardingComplete) {
           setUserProfileLs({ name: bcProfile.name, phone: bcProfile.phone || '', email: bcProfile.email });
           setOnboardingCompleteLs(true);
+          toast({
+            title: 'Login Successful!',
+            description: 'Welcome back to BharatConnect!',
+          });
           router.push('/');
         } else {
-          const instaProfile = await getInstaBharatProfileData(user.uid);
+          const instaProfile = await getInstaBharatProfileData(user.uid)
+            .catch(fetchError => {
+              console.warn("Failed to fetch InstaBharat profile during login (non-critical):", fetchError);
+              return null; // Proceed without prefill if InstaBharat fetch fails
+            });
           
           setUserProfileLs(prev => ({ ...prev, email: user.email || '', name: instaProfile?.name || bcProfile?.name || '' }));
           setOnboardingCompleteLs(false);
@@ -75,11 +120,15 @@ export default function LoginPage() {
           if (user.email) queryParams.append('email', user.email);
           
           const namePrefill = instaProfile?.name || bcProfile?.name;
-          const photoPrefill = instaProfile?.photoURL || bcProfile?.photoURL;
+          const photoPrefill = instaProfile?.photoURL || (bcProfile as BharatConnectProfile | null)?.photoURL;
 
           if (namePrefill) queryParams.append('name_prefill', namePrefill);
           if (photoPrefill) queryParams.append('photo_prefill', photoPrefill);
           
+          toast({
+            title: 'Login Successful!',
+            description: 'Please complete your BharatConnect profile.',
+          });
           router.push(`/profile-setup?${queryParams.toString()}`);
         }
       }
@@ -89,11 +138,14 @@ export default function LoginPage() {
       } else {
         setError(err.message || 'Failed to login. Please try again.');
       }
-      toast({
-        variant: 'destructive',
-        title: 'Login Failed',
-        description: err.message || 'Invalid credentials or an unexpected error occurred.',
-      });
+      // Toast for auth errors is already here, no need to duplicate if re-thrown from profile fetch
+      if (!toast.toasts.find(t => t.title === 'Profile Check Failed')) { // Avoid duplicate toasts
+          toast({
+            variant: 'destructive',
+            title: 'Login Failed',
+            description: err.message || 'Invalid credentials or an unexpected error occurred.',
+          });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -103,11 +155,10 @@ export default function LoginPage() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-6"> {/* Increased bottom margin */}
-            <Logo size="large" /> {/* Using the Logo component */}
+          <div className="flex justify-center mb-6">
+            <Logo size="large" />
           </div>
-          {/* Removed CardTitle as Logo serves this purpose */}
-          <CardDescription className="text-muted-foreground pt-2"> {/* Added top padding */}
+          <CardDescription className="text-muted-foreground pt-2">
             Sign in to continue to your BharatConnect account.
           </CardDescription>
         </CardHeader>
@@ -122,6 +173,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                aria-describedby="login-error"
               />
             </div>
             <div className="space-y-2">
@@ -133,9 +185,10 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                aria-describedby="login-error"
               />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p id="login-error" className="text-sm text-destructive">{error}</p>}
           </CardContent>
           <CardFooter className="flex-col space-y-3">
             <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isLoading}>

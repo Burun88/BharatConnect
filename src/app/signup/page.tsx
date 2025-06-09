@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, type FormEvent, useEffect } from 'react';
+import { useState, type FormEvent, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -23,23 +23,25 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // For redirect logic
-  const [userProfileLs, setUserProfileLs] = useLocalStorage('userProfile', { name: '', phone: '', email: '' });
+  const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
+  const initialProfile = useMemo(() => ({ name: '', phone: '', email: '' }), []);
+  const [userProfileLs, setUserProfileLs] = useLocalStorage('userProfile', initialProfile);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // If user is somehow already logged in when reaching signup, redirect to profile setup or home.
-        // This check might be more robust if we check a Firestore profile.
-        if(userProfileLs.name && userProfileLs.email) { // Basic check if profile seems partially set
+        // If user is somehow already logged in when reaching signup, check onboarding.
+        // This check should ideally use Firestore state, but LS is a quick check.
+        if(userProfileLs.name && userProfileLs.email && onboardingCompleteLs) { 
              router.replace('/');
-        } else {
+        } else if (userProfileLs.email) { // If email is set, assume they might be in profile setup
              router.replace('/profile-setup');
         }
+        // If no LS data but user exists, let them proceed with signup/login or stay here.
       }
     });
     return () => unsubscribe();
-  }, [router, userProfileLs]);
+  }, [router, userProfileLs, onboardingCompleteLs]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -69,17 +71,18 @@ export default function SignupPage() {
       if (user) {
         toast({
           title: 'Account Created!',
-          description: 'Welcome to BharatConnect!',
+          description: 'Welcome to BharatConnect! Please set up your profile.',
         });
 
-        // Fetch InstaBharat profile data
-        const instaProfile = await getInstaBharatProfileData(user.uid);
+        const instaProfile = await getInstaBharatProfileData(user.uid)
+          .catch(fetchError => {
+            console.warn("Failed to fetch InstaBharat profile during signup (non-critical):", fetchError);
+            return null; // Proceed without prefill if InstaBharat fetch fails
+          });
         
-        // Store email in localStorage userProfile for profile-setup prefill
         setUserProfileLs(prev => ({ ...prev, email: user.email || '' }));
-        setOnboardingCompleteLs(false); // Ensure onboarding is marked as not complete
+        setOnboardingCompleteLs(false);
 
-        // Navigate to profile setup, passing InstaBharat data if found
         const queryParams = new URLSearchParams();
         if (user.email) queryParams.append('email', user.email);
         if (instaProfile?.name) queryParams.append('name_prefill', instaProfile.name);
@@ -128,6 +131,7 @@ export default function SignupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                aria-describedby="signup-error"
               />
             </div>
             <div className="space-y-2">
@@ -139,6 +143,7 @@ export default function SignupPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                aria-describedby="signup-error"
               />
             </div>
             <div className="space-y-2">
@@ -150,9 +155,10 @@ export default function SignupPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                aria-describedby="signup-error"
               />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p id="signup-error" className="text-sm text-destructive">{error}</p>}
           </CardContent>
           <CardFooter className="flex-col space-y-3">
             <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isLoading}>
