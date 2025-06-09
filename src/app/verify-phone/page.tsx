@@ -10,6 +10,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { auth } from '@/lib/firebase'; // Import auth
+import { onAuthStateChanged } from 'firebase/auth'; // Import onAuthStateChanged
+
+// This page might be deprecated or used for a secondary phone verification if needed.
+// For now, it will redirect if user is logged in via email/password.
 
 export default function VerifyPhonePage() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -17,15 +22,27 @@ export default function VerifyPhonePage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const initialProfile = useMemo(() => ({ phone: '', name: '' }), []);
-  const [, setUserProfile] = useLocalStorage('userProfile', initialProfile);
-  const [onboardingComplete, ] = useLocalStorage('onboardingComplete', false);
+  const initialProfile = useMemo(() => ({ phone: '', name: '', email: '' }), []);
+  const [, setUserProfileLs] = useLocalStorage('userProfile', initialProfile);
+  const [onboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
 
   useEffect(() => {
-    if (onboardingComplete) {
-      router.replace('/');
-    }
-  }, [onboardingComplete, router]);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // If user is logged in (likely via email/pass), this flow is not primary.
+        // Redirect to home if onboarded, or profile-setup if not.
+        if (onboardingCompleteLs) {
+          router.replace('/');
+        } else {
+          // If user exists but onboarding not complete via LS,
+          // they should ideally go to profile-setup.
+          // The new flow handles this after login/signup.
+          router.replace('/profile-setup');
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [router, onboardingCompleteLs]);
 
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -36,12 +53,18 @@ export default function VerifyPhonePage() {
       return;
     }
     
-    setUserProfile(prev => ({ ...prev, phone: `+91${phoneNumber}` }));
+    // This logic would need to be integrated with Firebase Phone Auth if re-enabled
+    setUserProfileLs(prev => ({ ...prev, phone: `+91${phoneNumber}` }));
     toast({
-      title: 'OTP Sent',
-      description: `An OTP has been sent to +91${phoneNumber}. (Simulated)`,
+      title: 'OTP Sent (Simulated)',
+      description: `This flow is currently not primary. An OTP would be sent to +91${phoneNumber}.`,
     });
-    router.push('/verify-otp');
+    // router.push('/verify-otp'); // This would be the next step if phone auth was active
+    toast({
+        title: "Phone Auth Inactive",
+        description: "Phone authentication is not the primary flow. Please use email/password signup or login.",
+        variant: "default"
+    })
   };
 
   return (
@@ -52,10 +75,10 @@ export default function VerifyPhonePage() {
             <Phone className="w-16 h-16 text-gradient-primary-accent" />
           </div>
           <CardTitle className="text-3xl font-headline font-bold text-gradient-primary-accent">
-            Verify Your Phone
+            Verify Your Phone (Legacy)
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            We'll send you an OTP to confirm your number.
+            This phone verification flow is currently not the primary onboarding method. Please use Email/Password signup.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -73,20 +96,21 @@ export default function VerifyPhonePage() {
                   maxLength={10}
                   className="flex-1"
                   aria-describedby="phone-error"
+                  disabled // Disabled as it's not primary flow
                 />
               </div>
               {error && <p id="phone-error" className="text-sm text-destructive">{error}</p>}
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground  hover:opacity-90 transition-opacity">
-              Send OTP
+            <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground  hover:opacity-90 transition-opacity" disabled>
+              Send OTP (Disabled)
             </Button>
           </CardFooter>
         </form>
       </Card>
-       <Button variant="link" className="mt-4 text-sm text-muted-foreground" onClick={() => router.back()}>
-        Back
+       <Button variant="link" className="mt-4 text-sm text-muted-foreground" onClick={() => router.push('/welcome')}>
+        Back to Welcome
       </Button>
     </div>
   );

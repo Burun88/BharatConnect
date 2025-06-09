@@ -9,15 +9,17 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
  * - BharatConnectProfile: Type definition for a BharatConnect user profile.
  * - getInstaBharatProfileData: Fetches minimal data from an existing InstaBharat profile.
  * - getBharatConnectProfile: Fetches a BharatConnect profile.
- * - createBharatConnectProfile: Creates a new BharatConnect profile.
+ * - createOrUpdateBharatConnectProfile: Creates or updates a new BharatConnect profile.
  */
 
 export interface BharatConnectProfile {
   id: string; // Firebase UID
   name: string;
-  phone: string; // Phone number used for auth
+  email: string; // Email used for auth/profile
+  phone?: string; // Optional phone number
   photoURL?: string; // URL of the profile picture used in BharatConnect
   currentAuraId?: string | null;
+  onboardingComplete?: boolean; // To track if user has completed profile setup
   createdAt: any; // Firestore ServerTimestamp
   updatedAt: any; // Firestore ServerTimestamp
 }
@@ -30,20 +32,22 @@ interface InstaBharatRawProfile {
     avatar?: string;
     icon?: string;
   };
-  // Add other fields if needed, but keep it minimal for type safety
-  [key: string]: any; // Allow other fields
+  // Allow other fields from the provided structure
+  [key: string]: any;
 }
 
 /**
  * Fetches minimal profile data (name and photo URL) from an existing InstaBharat user profile.
  * Assumes InstaBharat profiles are in a collection named 'users'.
  * @param uid The Firebase User ID.
- * @returns An object with name and photoURL, or null if not found.
+ * @returns An object with name and photoURL, or null if not found or error.
  */
 export async function getInstaBharatProfileData(uid: string): Promise<{ name: string | null; photoURL: string | null } | null> {
   if (!uid) return null;
   try {
-    const userDocRef = doc(firestore, 'users', uid); // Assuming 'users' is the collection name for InstaBharat
+    // Assuming 'users' is the collection name for InstaBharat profiles.
+    // Please change 'users' if your collection name is different.
+    const userDocRef = doc(firestore, 'users', uid);
     const docSnap = await getDoc(userDocRef);
 
     if (docSnap.exists()) {
@@ -54,17 +58,18 @@ export async function getInstaBharatProfileData(uid: string): Promise<{ name: st
       if (data.profilePictureUrls?.main) {
         photoURL = data.profilePictureUrls.main;
       } else if (data.profilePicURL) {
+        // Fallback to top-level profilePicURL if map isn't present or main is missing
         photoURL = data.profilePicURL;
       }
       
       return { name, photoURL };
     } else {
-      console.log(`No InstaBharat profile found for UID: ${uid}`);
+      console.log(`No InstaBharat profile found for UID: ${uid} in 'users' collection.`);
       return null;
     }
   } catch (error) {
     console.error("Error fetching InstaBharat profile data:", error);
-    return null;
+    return null; // Return null on error to handle gracefully
   }
 }
 
@@ -92,16 +97,17 @@ export async function getBharatConnectProfile(uid: string): Promise<BharatConnec
 
 /**
  * Creates or updates a BharatConnect user profile in the 'bharatConnectProfiles' collection.
+ * Requires 'name' and 'email' for the profile. 'phone' is optional.
  * @param uid The Firebase User ID.
- * @param profileData Partial data for the BharatConnect profile. Name and Phone are required for creation.
+ * @param profileData Partial data for the BharatConnect profile. Name and Email are essential.
  */
 export async function createOrUpdateBharatConnectProfile(
   uid: string,
-  profileData: Partial<Omit<BharatConnectProfile, 'id' | 'createdAt' | 'updatedAt'>> & { name: string; phone: string }
+  profileData: Partial<Omit<BharatConnectProfile, 'id' | 'createdAt' | 'updatedAt'>> & { name: string; email: string; }
 ): Promise<void> {
   if (!uid) throw new Error("UID is required to create or update a profile.");
   if (!profileData.name) throw new Error("Name is required for the profile.");
-  if (!profileData.phone) throw new Error("Phone is required for the profile.");
+  if (!profileData.email) throw new Error("Email is required for the profile.");
 
   try {
     const profileDocRef = doc(firestore, 'bharatConnectProfiles', uid);
@@ -109,13 +115,20 @@ export async function createOrUpdateBharatConnectProfile(
 
     const dataToSet: Partial<BharatConnectProfile> = {
       ...profileData,
+      id: uid, // Ensure id is always set
       updatedAt: serverTimestamp(),
     };
 
     if (!existingProfileSnap.exists()) {
       dataToSet.createdAt = serverTimestamp();
-      dataToSet.id = uid; // Ensure id is set on creation
+      dataToSet.onboardingComplete = profileData.onboardingComplete || false; // Default to false if not provided
+    } else {
+      // Ensure onboardingComplete is explicitly carried over or set
+      dataToSet.onboardingComplete = profileData.onboardingComplete !== undefined 
+        ? profileData.onboardingComplete 
+        : existingProfileSnap.data()?.onboardingComplete || false;
     }
+
 
     await setDoc(profileDocRef, dataToSet, { merge: true });
     console.log(`BharatConnect profile for UID: ${uid} successfully written/merged.`);
