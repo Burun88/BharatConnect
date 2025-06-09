@@ -14,6 +14,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { auth } from '@/lib/firebase';
 import { createOrUpdateBharatConnectProfile } from '@/services/profileService';
 import type { User as AuthUser } from 'firebase/auth'; // Renamed to avoid conflict
+import Logo from '@/components/shared/Logo'; // Import Logo
 
 function ProfileSetupContent() {
   const router = useRouter();
@@ -144,13 +145,13 @@ function ProfileSetupContent() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center">
-           <div className="flex justify-center mb-4">
-             <UserCircle2 className="w-16 h-16 text-gradient-primary-accent" />
+           <div className="flex justify-center mb-6">
+             <Logo size="large" />
           </div>
           <CardTitle className="text-3xl font-headline font-bold text-gradient-primary-accent">
             Setup Your BharatConnect Profile
           </CardTitle>
-          <CardDescription className="text-muted-foreground">
+          <CardDescription className="text-muted-foreground pt-2">
             Let others know who you are. Your email: {currentUser?.email || email}
           </CardDescription>
         </CardHeader>
