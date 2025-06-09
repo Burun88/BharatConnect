@@ -5,13 +5,14 @@ import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 // import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 // import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
+// Configuration for the 'instabharat' Firebase project
 const firebaseConfig: FirebaseOptions = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: "AIzaSyDkIGQGl4YCxkiNQAv_p2jMQW4tevkIbqs",
+  authDomain: "instabharat.firebaseapp.com",
+  projectId: "instabharat",
+  storageBucket: "instabharat.firebasestorage.app",
+  messagingSenderId: "821735960861",
+  appId: "1:821735960861:web:4b19da159f891bc128f1f4"
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -30,3 +31,4 @@ const firestore = getFirestore(app);
 // }
 
 export { app, auth, firestore /*, functions, storage */ };
+
