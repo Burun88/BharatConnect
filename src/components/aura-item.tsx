@@ -5,7 +5,7 @@ import type { User } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Plus, UserCircle2 } from 'lucide-react'; // Added UserCircle2
+import { Plus, UserCircle2 } from 'lucide-react'; 
 import React from 'react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -45,7 +45,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
 
   const ItemContainer: React.FC<{ children: React.ReactNode; 'aria-label': string }> = ({ children, ...props }) => (
     <div
-      className="flex flex-col items-center space-y-2 text-center p-1 shrink-0 cursor-pointer" // Reduced space-y-3 to space-y-2
+      className="flex flex-col items-center space-y-2 text-center p-1 shrink-0 cursor-pointer" 
       onClick={handleItemClick}
       role="button"
       tabIndex={0}
@@ -112,19 +112,22 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
       {user.avatarUrl ? (
         <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
       ) : (
-        <AvatarFallback className={cn(aura?.gradient ? "bg-transparent" : "bg-card text-card-foreground", "flex items-center justify-center")}>
-           <UserCircle2 className="w-12 h-12" /> {/* Used UserCircle2 icon */}
+        <AvatarFallback className={cn(
+            aura?.gradient ? "bg-transparent" : "bg-muted text-muted-foreground", 
+            "flex items-center justify-center"
+        )}>
+           <UserCircle2 className="w-12 h-12" /> 
         </AvatarFallback>
       )}
     </Avatar>
   );
 
-  const otherUserAvatar = ( // Kept initials for other users as per typical chat app behavior
+  const otherUserAvatar = ( 
     <Avatar className={IMAGE_SIZE_CLASS}>
         {user.avatarUrl ? (
             <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
         ) : (
-            <AvatarFallback className={cn(aura?.gradient ? "bg-transparent" : "bg-card text-card-foreground")}>
+            <AvatarFallback className={cn(aura?.gradient ? "bg-transparent" : "bg-muted text-muted-foreground")}>
             {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)}
             </AvatarFallback>
         )}
@@ -142,8 +145,8 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
               {user.avatarUrl ? (
                 <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
               ) : (
-                <AvatarFallback className={cn("bg-card text-card-foreground", "flex items-center justify-center")}>
-                  <UserCircle2 className="w-12 h-12" /> {/* Used UserCircle2 icon */}
+                <AvatarFallback className={cn("bg-muted text-muted-foreground", "flex items-center justify-center")}>
+                  <UserCircle2 className="w-12 h-12" /> 
                 </AvatarFallback>
               )}
             </Avatar>
@@ -188,8 +191,8 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
             <Avatar className={IMAGE_SIZE_CLASS}>
               {user.avatarUrl ? (
                   <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
-              ) : ( // Kept initials for other users as per typical chat app behavior
-                  <AvatarFallback className="bg-card text-card-foreground">
+              ) : ( 
+                  <AvatarFallback className="bg-muted text-muted-foreground">
                   {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)}
                   </AvatarFallback>
               )}
@@ -200,7 +203,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
               "absolute left-1/2 -translate-x-1/2",
               smallCircleSize,
               emojiOverlapTopClass,
-              "invisible" // Keep this to maintain layout consistency for items without an emoji overlap
+              "invisible" 
             )}
           />
       </div>

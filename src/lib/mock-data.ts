@@ -5,7 +5,7 @@ import { AURA_OPTIONS } from '@/types';
 export const mockCurrentUser: User = {
   id: 'currentUser',
   name: 'You',
-  avatarUrl: 'https://placehold.co/100x100.png', // Changed from picsum.photos
+  avatarUrl: undefined, // Ensures AvatarFallback is used
   currentAuraId: null,
   hasViewedStatus: true, 
 };
@@ -22,7 +22,7 @@ export const mockUsers: User[] = [
   {
     id: 'user2',
     name: 'Rahul Kumar',
-    avatarUrl: 'https://picsum.photos/seed/user2/100/100', // Changed from placehold.co
+    avatarUrl: 'https://picsum.photos/seed/user2/100/100', 
     currentAuraId: 'focused',
     status: 'Last seen yesterday at 10:30 PM',
     hasViewedStatus: true,
@@ -30,7 +30,7 @@ export const mockUsers: User[] = [
   {
     id: 'user3',
     name: 'Anjali Singh',
-    avatarUrl: 'https://picsum.photos/seed/user3/100/100', // Changed from placehold.co
+    avatarUrl: 'https://picsum.photos/seed/user3/100/100', 
     currentAuraId: null,
     status: 'Typing...',
     hasViewedStatus: false,
@@ -38,7 +38,7 @@ export const mockUsers: User[] = [
   {
     id: 'user4',
     name: 'Vikram Patel',
-    avatarUrl: 'https://picsum.photos/seed/user4/100/100', // Changed from placehold.co
+    avatarUrl: 'https://picsum.photos/seed/user4/100/100', 
     currentAuraId: 'chill',
     status: 'Feeling Chill 😎',
     hasViewedStatus: true,
@@ -46,7 +46,7 @@ export const mockUsers: User[] = [
   {
     id: 'user5',
     name: 'Deepika Iyer',
-    avatarUrl: 'https://picsum.photos/seed/user5/100/100', // Changed from placehold.co
+    avatarUrl: 'https://picsum.photos/seed/user5/100/100', 
     currentAuraId: 'energetic',
     status: 'Ready to go!',
     hasViewedStatus: false,
@@ -54,7 +54,7 @@ export const mockUsers: User[] = [
   {
     id: 'user6',
     name: 'Arjun Reddy',
-    avatarUrl: 'https://picsum.photos/seed/user6/100/100', // Changed from placehold.co
+    avatarUrl: 'https://picsum.photos/seed/user6/100/100', 
     currentAuraId: null,
     status: 'Away',
     hasViewedStatus: false,
@@ -62,7 +62,7 @@ export const mockUsers: User[] = [
   {
     id: 'user7',
     name: 'Sneha Kapoor',
-    avatarUrl: 'https://picsum.photos/seed/user7/100/100', // Changed from placehold.co
+    avatarUrl: 'https://picsum.photos/seed/user7/100/100', 
     currentAuraId: 'playful',
     status: 'Feeling playful! 🎉',
     hasViewedStatus: true,
@@ -205,4 +205,3 @@ export const mockStatusUpdates: StatusUpdate[] = [
   { id: 'status4', userId: 'user2', timestamp: Date.now() - 1000 * 60 * 60 * 24, text: 'Enjoying the long weekend! ☀️', viewedByCurrentUser: true }, 
   { id: 'status5', userId: 'user4', timestamp: Date.now() - 1000 * 60 * 60 * 28, imageUrl: 'https://picsum.photos/seed/statusUser4/300/500', viewedByCurrentUser: true },
 ];
-
