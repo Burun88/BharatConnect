@@ -192,7 +192,7 @@ function ProfileSetupContent() {
                 <Input
                   id="phone"
                   type="tel"
-                  placeholder="9876543210"
+                  placeholder="98xxxxxx00"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   maxLength={10}
