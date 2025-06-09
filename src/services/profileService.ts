@@ -45,13 +45,14 @@ interface InstaBharatRawProfile {
 export async function getInstaBharatProfileData(uid: string): Promise<{ name: string | null; photoURL: string | null } | null> {
   if (!uid) return null;
   try {
-    // Assuming 'users' is the collection name for InstaBharat profiles.
-    // Please change 'users' if your collection name is different.
+    // IMPORTANT: If your InstaBharat profiles are NOT in a collection named 'users',
+    // you MUST change 'users' below to your actual collection name.
     const userDocRef = doc(firestore, 'users', uid);
     const docSnap = await getDoc(userDocRef);
 
     if (docSnap.exists()) {
       const data = docSnap.data() as InstaBharatRawProfile;
+      console.log(`Fetched InstaBharat raw data for UID ${uid}:`, JSON.stringify(data, null, 2)); // Added log
       const name = data.fullName || null;
       let photoURL = null;
 
@@ -62,6 +63,7 @@ export async function getInstaBharatProfileData(uid: string): Promise<{ name: st
         photoURL = data.profilePicURL;
       }
       
+      console.log(`Extracted for prefill - Name: ${name}, PhotoURL: ${photoURL}`);
       return { name, photoURL };
     } else {
       console.log(`No InstaBharat profile found for UID: ${uid} in 'users' collection. Proceeding without prefill.`);
@@ -129,11 +131,11 @@ export async function createOrUpdateBharatConnectProfile(
         : existingProfileSnap.data()?.onboardingComplete || false;
     }
     
-    console.log('Attempting to set Firestore document with data:', JSON.stringify(dataToSet, null, 2));
+    console.log('Attempting to set BharatConnect Firestore document with data:', JSON.stringify(dataToSet, null, 2));
 
     await setDoc(profileDocRef, dataToSet, { merge: true });
     console.log(`BharatConnect profile for UID: ${uid} successfully written/merged.`);
-  } catch (error) {
+  } catch (error)_
     console.error("Error writing BharatConnect profile:", error);
     throw error; // Re-throw to allow caller to handle
   }
