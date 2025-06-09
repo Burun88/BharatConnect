@@ -64,7 +64,7 @@ export async function getInstaBharatProfileData(uid: string): Promise<{ name: st
       
       return { name, photoURL };
     } else {
-      console.log(`No InstaBharat profile found for UID: ${uid} in 'users' collection.`);
+      console.log(`No InstaBharat profile found for UID: ${uid} in 'users' collection. Proceeding without prefill.`);
       return null;
     }
   } catch (error) {
@@ -97,7 +97,7 @@ export async function getBharatConnectProfile(uid: string): Promise<BharatConnec
 
 /**
  * Creates or updates a BharatConnect user profile in the 'bharatConnectProfiles' collection.
- * Requires 'name' and 'email' for the profile. 'phone' is optional.
+ * Requires 'name' and 'email' for the profile.
  * @param uid The Firebase User ID.
  * @param profileData Partial data for the BharatConnect profile. Name and Email are essential.
  */
@@ -128,7 +128,6 @@ export async function createOrUpdateBharatConnectProfile(
         ? profileData.onboardingComplete 
         : existingProfileSnap.data()?.onboardingComplete || false;
     }
-
 
     await setDoc(profileDocRef, dataToSet, { merge: true });
     console.log(`BharatConnect profile for UID: ${uid} successfully written/merged.`);
