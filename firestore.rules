@@ -2,78 +2,223 @@
 rules_version = '2';
 
 // Helper function to check if a map contains only specific allowed keys.
-// Not used in the simplified rules below but can be useful for more complex validation.
-// function hasOnlyAllowedKeys(map, allowedKeys) {
-//   return map.keys().removeAll(allowedKeys).size() == 0;
-// }
+function hasOnlyAllowedKeys(map, allowedKeys) {
+  return map.keys().removeAll(allowedKeys).size() == 0;
+}
+
+// Helper function to check if all affected keys are a subset of allowed keys.
+function affectedKeysAreSubset(request, resource, allowedKeys) {
+  return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
+}
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // InstaBharat Users collection (typically /users/{userId})
-    // These are the rules for YOUR EXISTING InstaBharat app.
-    // BharatConnect only needs to READ the current user's own document from here.
-    // Replace this placeholder with your actual, working InstaBharat rules for the /users collection.
+    // InstaBharat: Users Collection (Copied from user's provided rules)
     match /users/{userId} {
-      // For BharatConnect to read the current user's InstaBharat profile:
-      allow read: if request.auth != null && request.auth.uid == userId;
-      
-      // IMPORTANT: BharatConnect should NOT write to /users/{userId}.
-      // InstaBharat app manages its own writes to this collection.
-      // So, no 'allow write', 'allow create', or 'allow update' here
-      // intended for BharatConnect's direct use.
-      // Your full InstaBharat rules for create/update/delete by InstaBharat app itself go here.
-      // Example (very basic, replace with your actual InstaBharat rules):
-      // allow write: if request.auth != null && request.auth.uid == userId; // If InstaBharat app allows user to write their own doc.
-    }
+      allow read: if true; // Public read for user profiles (BharatConnect needs this to fetch for prefill)
+                           // OR use: request.auth != null; if you want only authenticated users to read
 
-    // BharatConnect User Shadow Profiles - minimal identity copy
-    // Collection: /bharatConnectUserShadows/{userId}
-    match /bharatConnectUserShadows/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      
-      // Allow create and update (merge:true) if it's the user's own document
-      // and specific fields are being set/updated.
-      allow write: if request.auth != null && request.auth.uid == userId &&
-                      request.resource.data.uid == userId &&
-                      request.resource.data.updatedAt == request.time &&
-                      // Validate keys being written. Can be specific for create vs update if needed.
-                      request.resource.data.keys().hasAll(['uid', 'name', 'profileImageUrl', 'username', 'updatedAt']) &&
-                      request.resource.data.keys().size() == 5; // Exact number of keys
-    }
-
-    // BharatConnect Full User Data
-    // Collection: /bharatConnectUsers/{userId}
-    match /bharatConnectUsers/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      
+      // Scenario 1: User creating their own profile document (e.g., during signup)
       allow create: if request.auth != null && request.auth.uid == userId &&
-                       request.resource.data.id == userId &&
-                       request.resource.data.email == request.auth.token.email && // Verify email against auth token
-                       request.resource.data.onboardingComplete == true &&
-                       request.resource.data.createdAt == request.time &&
-                       request.resource.data.updatedAt == request.time &&
-                       // Ensure only allowed fields are present on create
-                       request.resource.data.keys().hasOnly([
-                         'id', 'name', 'email', 'username', 'phone', 'photoURL',
-                         'bio', 'currentAuraId', 'onboardingComplete',
-                         'createdAt', 'updatedAt'
+                       request.resource.data.email == request.auth.token.email &&
+                       request.resource.data.username_lowercase == request.resource.data.username.toLowerCase() &&
+                       (!('fullName' in request.resource.data) || request.resource.data.fullName_lowercase == request.resource.data.fullName.toLowerCase()) &&
+                       request.resource.data.createdAt_ms == request.time.toMillis() &&
+                       request.resource.data.updatedAt_ms == request.time.toMillis() &&
+                       request.resource.data.postsCount == 0 &&
+                       request.resource.data.followersCount == 0 &&
+                       request.resource.data.followingCount == 0 &&
+                       request.resource.data.likedPostsCount == 0 && // Initialize likedPostsCount
+                       request.resource.data.hasActiveStory == false &&
+                       hasOnlyAllowedKeys(request.resource.data, [
+                         'email', 'username', 'username_lowercase', 'fullName', 'fullName_lowercase',
+                         'bio', 'website', 'facebookLink', 'instagramLink', 'interests',
+                         'createdAt_ms', 'updatedAt_ms', 'postsCount', 'followersCount', 'followingCount', 'likedPostsCount',
+                         'hasActiveStory', 'location', 'pronouns', 'gender',
+                         'profilePicURL', 'profilePictureUrls', 'profilePictureStatus', 'profilePicError', 'profilePicLastUpdated_ms'
                        ]);
-                       
+
+      // Scenario 2: User updating their own profile (general edit OR specific counter updates)
       allow update: if request.auth != null && request.auth.uid == userId &&
-                       request.resource.data.id == userId && // ID cannot change
-                       request.resource.data.email == resource.data.email && // Email cannot be changed via this update
-                       request.resource.data.username == resource.data.username && // Username cannot be changed via this update
-                       request.resource.data.createdAt == resource.data.createdAt && // createdAt cannot change
-                       request.resource.data.onboardingComplete == resource.data.onboardingComplete && // onboardingComplete state should be managed carefully
-                       request.resource.data.updatedAt == request.time &&
-                       // Allow only specific fields to be updated after creation
-                       request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                         'name', 'phone', 'photoURL', 'bio', 'currentAuraId', 'updatedAt'
-                         // 'onboardingComplete' could be part of a different update rule if needed
+                      (
+                        // SCENARIO_PROFILE_EDIT: General profile information update
+                        (
+                          request.resource.data.username == resource.data.username &&
+                          request.resource.data.username_lowercase == resource.data.username_lowercase &&
+                          request.resource.data.email == resource.data.email &&
+                          // Ensure counters are not changed through this general update path
+                          request.resource.data.postsCount == resource.data.postsCount &&
+                          request.resource.data.followersCount == resource.data.followersCount &&
+                          request.resource.data.followingCount == resource.data.followingCount &&
+                          request.resource.data.likedPostsCount == resource.data.likedPostsCount &&
+                          request.resource.data.createdAt_ms == resource.data.createdAt_ms &&
+                          request.resource.data.updatedAt_ms == request.time.toMillis() &&
+                          // Allow only designated profile fields to be part of this general update
+                          // Ensure that only the allowed keys are being modified or are present in the diff
+                          request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                            'fullName', 'fullName_lowercase', 'bio', 'website', 'facebookLink', 'instagramLink', 'interests',
+                            'location', 'pronouns', 'gender', 'hasActiveStory', 'updatedAt_ms',
+                            'profilePicURL', 'profilePictureUrls', 'profilePictureStatus', 'profilePicError', 'profilePicLastUpdated_ms'
+                          ]) &&
+                           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['postsCount', 'followersCount', 'followingCount', 'likedPostsCount', 'username', 'username_lowercase', 'email', 'createdAt_ms'])
+                        ) ||
+                        // SCENARIO_USER_LIKES: User liking/unliking a post (updating likedPostsCount on their own user doc)
+                        (
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedPostsCount', 'updatedAt_ms']) &&
+                          (request.resource.data.likedPostsCount == resource.data.likedPostsCount + 1 ||
+                           request.resource.data.likedPostsCount == resource.data.likedPostsCount - 1) &&
+                          request.resource.data.updatedAt_ms == request.time.toMillis()
+                        ) ||
+                        // SCENARIO_USER_FOLLOW_UNFOLLOW: User updating their own following/follower counts (e.g., when they follow/unfollow someone)
+                        (
+                          ( (request.resource.data.followersCount == resource.data.followersCount + 1 || request.resource.data.followersCount == resource.data.followersCount - 1) ||
+                            (request.resource.data.followingCount == resource.data.followingCount + 1 || request.resource.data.followingCount == resource.data.followingCount - 1)
+                          ) &&
+                          request.resource.data.updatedAt_ms == request.time.toMillis() &&
+                          // Ensure that in this specific operation, only these counts and the timestamp are affected.
+                           request.resource.data.diff(resource.data).affectedKeys().hasAny(['followersCount', 'followingCount', 'updatedAt_ms']) &&
+                           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['email', 'username', 'postsCount', 'likedPostsCount', 'bio' /* etc. */])
+                        )
+                      );
+
+      // Subcollections for followers/following
+      match /followers/{followerId} {
+        allow read: if true;
+        allow create: if request.auth != null && request.auth.uid == followerId &&
+                         request.resource.data.userId == followerId &&
+                         request.resource.data.followedAt == request.time;
+        allow delete: if request.auth != null && request.auth.uid == followerId;
+      }
+      match /following/{followedUserId} {
+        allow read: if true;
+        allow create: if request.auth != null && request.auth.uid == userId &&
+                         request.resource.data.userId == followedUserId &&
+                         request.resource.data.followedAt == request.time;
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // InstaBharat: Posts Collection (Copied from user's provided rules)
+    match /posts/{postId} {
+      allow read: if true; // Public read for posts
+
+      // User can create their own post with validated data
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId &&
+                       request.resource.data.likesCount == 0 &&
+                       request.resource.data.commentsCount == 0 &&
+                       request.resource.data.createdAt == request.time &&
+                       request.resource.data.updatedAt == request.time && // Set updatedAt at creation
+                       request.resource.data.user.username is string &&
+                       request.resource.data.mediaUrl is string &&
+                       request.resource.data.storagePath is string &&
+                       request.resource.data.contentType is string &&
+                       request.resource.data.caption is string &&
+                       request.resource.data.mediaProcessingStatus == 'pending' &&
+                       hasOnlyAllowedKeys(request.resource.data, [
+                         'userId', 'user', 'caption', 'mediaUrl', 'storagePath', 'contentType',
+                         'aspectRatio', 'mediaProcessingStatus', 'likesCount', 'commentsCount', 'createdAt', 'updatedAt'
                        ]);
-      // Delete is typically handled via Admin SDK or Cloud Functions for user data.
-      // allow delete: if request.auth != null && request.auth.uid == userId; // If direct deletion is allowed
+
+
+      // Allow updates under specific scenarios
+      allow update: if request.auth != null &&
+                      (
+                        // Scenario 1: Owner updating their post (e.g., caption)
+                        (
+                          resource.data.userId == request.auth.uid && // Is the owner
+                          request.resource.data.userId == resource.data.userId && // userId cannot change
+                          request.resource.data.createdAt == resource.data.createdAt && // createdAt cannot change
+                          affectedKeysAreSubset(request, resource, ['caption', 'updatedAt']) && // Only caption and updatedAt
+                          request.resource.data.updatedAt == request.time
+                        ) ||
+                        // Scenario 2: Any authenticated user liking/unliking (updating likesCount)
+                        (
+                          affectedKeysAreSubset(request, resource, ['likesCount', 'updatedAt']) &&
+                          (request.resource.data.likesCount == resource.data.likesCount + 1 ||
+                           request.resource.data.likesCount == resource.data.likesCount - 1) &&
+                          request.resource.data.updatedAt == request.time
+                        ) ||
+                        // Scenario 3: Cloud Function (or admin) updating media processing status & URLs
+                        (
+                          // This is a simplified check. In a real app, you'd check for an admin role or use service account.
+                          // For now, allowing if specific media processing fields are updated.
+                          // Ensure this is tightened if functions are not authenticated as admin/service account.
+                          affectedKeysAreSubset(request, resource, [
+                            'feedImageUrl', 'thumbnailUrl', 'videoPosterUrl',
+                            'mediaProcessingStatus', 'mediaProcessingError', 'processedAt', 'updatedAt', 'aspectRatio'
+                          ]) &&
+                          request.resource.data.updatedAt == request.time
+                        )
+                      );
+
+      // User can delete their own post
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+
+      // Comments Subcollection
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if request.auth != null &&
+                         request.resource.data.userId == request.auth.uid &&
+                         request.resource.data.createdAt == request.time;
+        allow update: if request.auth != null && request.auth.uid == resource.data.userId &&
+                         request.resource.data.userId == resource.data.userId &&
+                         request.resource.data.createdAt == resource.data.createdAt &&
+                         affectedKeysAreSubset(request, resource, ['text', 'updatedAt']) &&
+                         request.resource.data.updatedAt == request.time;
+        allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      }
+
+      // Likes Subcollection
+      match /likes/{likeUserId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null && request.auth.uid == likeUserId &&
+                         request.resource.data.userId == request.auth.uid &&
+                         request.resource.data.createdAt == request.time;
+        allow delete: if request.auth != null && request.auth.uid == likeUserId;
+      }
+    }
+
+    // BharatConnect User Shadow Profiles Collection
+    match /bharatConnectUserShadows/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId; // Only user can read their own shadow profile
+      allow write: if request.auth != null && request.auth.uid == userId; // User can create/update their own shadow. More specific create/update can be added.
+      // No delete rule for now
+    }
+
+    // BharatConnect Full User Profiles Collection
+    match /bharatConnectUsers/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId; // Only user can read their own full profile
+
+      // User creating their own BharatConnect profile
+      allow create: if request.auth != null &&
+                       request.auth.uid == userId &&
+                       request.resource.data.id == userId && // Ensure 'id' field matches the document ID (which is UID)
+                       request.resource.data.email == request.auth.token.email && // Email must match authenticated user's email
+                       request.resource.data.name is string && // Name must be provided
+                       request.resource.data.onboardingComplete == true &&
+                       request.resource.data.createdAt == request.time && // Use server timestamp for creation
+                       request.resource.data.updatedAt == request.time && // Use server timestamp for initial update
+                       // Optionally check for allowed keys during creation if strictness is needed
+                       hasOnlyAllowedKeys(request.resource.data, [
+                         'id', 'name', 'email', 'username', 'phone', 'photoURL', 'bio',
+                         'currentAuraId', 'onboardingComplete', 'createdAt', 'updatedAt'
+                       ]);
+
+      // User updating their own BharatConnect profile
+      allow update: if request.auth != null &&
+                       request.auth.uid == userId &&
+                       request.resource.data.id == userId && // ID should not change
+                       request.resource.data.email == resource.data.email && // Email should not change
+                       request.resource.data.username == resource.data.username && // InstaBharat username, if set, should not change
+                       request.resource.data.createdAt == resource.data.createdAt && // createdAt should not change
+                       request.resource.data.updatedAt == request.time && // updatedAt must be server timestamp
+                       request.resource.data.onboardingComplete == true && // Should remain true
+                       // Allow updates to specific, mutable fields
+                       affectedKeysAreSubset(request, resource, [
+                         'name', 'phone', 'photoURL', 'bio', 'currentAuraId', 'updatedAt'
+                       ]);
+      // No delete rule for now, can be added if needed
     }
   }
 }
