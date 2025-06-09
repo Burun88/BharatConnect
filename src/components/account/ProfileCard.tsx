@@ -66,7 +66,7 @@ export default function ProfileCard() {
               width={100}
               height={100}
               className="rounded-full object-cover border-2 border-background"
-              data-ai-hint="person avatar"
+              data-ai-hint="ai avatar"
             />
           </div>
           <Button
