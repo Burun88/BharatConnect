@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from '@/components/ui/card';
-import { UserCircle2, Camera, Phone } from 'lucide-react';
+import { UserCircle2, Camera, Phone, User } from 'lucide-react'; // Added User icon
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { auth } from '@/lib/firebase';
 import { createOrUpdateBharatConnectProfile } from '@/services/profileService';
 import type { User as AuthUser } from 'firebase/auth'; // Renamed to avoid conflict
-import Logo from '@/components/shared/Logo'; // Import Logo
+import Logo from '@/components/shared/Logo';
 
 function ProfileSetupContent() {
   const router = useRouter();
@@ -23,9 +23,10 @@ function ProfileSetupContent() {
 
   // State for form fields
   const [name, setName] = useState('');
+  const [username, setUsername] = useState(''); // State for username
   const [phoneNumber, setPhoneNumber] = useState('');
   const [profilePicPreview, setProfilePicPreview] = useState<string | null>(null);
-  const [profilePicFile, setProfilePicFile] = useState<File | null>(null); // To upload if necessary
+  const [profilePicFile, setProfilePicFile] = useState<File | null>(null);
 
   // User and error states
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(auth.currentUser);
@@ -43,23 +44,25 @@ function ProfileSetupContent() {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         setCurrentUser(user);
-        setEmail(user.email || ''); // Set email from auth
+        setEmail(user.email || ''); 
       } else {
-        router.replace('/login'); // If no user, redirect to login
+        router.replace('/login'); 
       }
     });
     return () => unsubscribe();
   }, [router]);
 
   useEffect(() => {
-    // Pre-fill from query parameters (e.g., from InstaBharat)
+    // Pre-fill from query parameters
     const namePrefill = searchParams.get('name_prefill');
     const photoPrefill = searchParams.get('photo_prefill');
     const emailPrefill = searchParams.get('email');
+    const usernamePrefill = searchParams.get('username_prefill'); // Get username
 
     if (namePrefill) setName(namePrefill);
-    if (photoPrefill) setProfilePicPreview(photoPrefill); // This might be a URL
-    if (emailPrefill && !auth.currentUser?.email) setEmail(emailPrefill); // If auth email not yet set
+    if (photoPrefill) setProfilePicPreview(photoPrefill);
+    if (emailPrefill && !auth.currentUser?.email) setEmail(emailPrefill);
+    if (usernamePrefill) setUsername(usernamePrefill); // Set username state
 
   }, [searchParams]);
 
@@ -67,7 +70,7 @@ function ProfileSetupContent() {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setProfilePicFile(file); // Store the file itself
+      setProfilePicFile(file); 
       const reader = new FileReader();
       reader.onloadend = () => {
         setProfilePicPreview(reader.result as string);
@@ -97,15 +100,14 @@ function ProfileSetupContent() {
     setIsLoading(true);
 
     try {
-      // TODO: If profilePicFile exists, upload it to Firebase Storage and get URL
-      // For now, we'll use profilePicPreview if it's a URL (from InstaBharat) or null
-      let finalPhotoURL = profilePicPreview; // Assuming it could be an existing URL
+      let finalPhotoURL = profilePicPreview; 
+      // TODO: Add profilePicFile upload logic if needed
       // if (profilePicFile) { /* ... upload logic ... */ finalPhotoURL = uploadedUrl; }
 
 
       await createOrUpdateBharatConnectProfile(currentUser.uid, {
         name: name.trim(),
-        email: currentUser.email || email, // Ensure email is from auth user
+        email: currentUser.email || email, 
         phone: phoneNumber.trim() || undefined,
         photoURL: finalPhotoURL || undefined,
         onboardingComplete: true,
@@ -132,7 +134,7 @@ function ProfileSetupContent() {
     }
   };
   
-  if (!currentUser && !searchParams.get('email')) { // Wait for auth state or email from query
+  if (!currentUser && !searchParams.get('email')) { 
     return (
          <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
             <p>Loading user information...</p>
@@ -148,6 +150,9 @@ function ProfileSetupContent() {
            <div className="flex justify-center mb-6">
              <Logo size="large" />
           </div>
+          {/* <CardTitle className="text-3xl font-headline font-bold text-gradient-bharatconnect">
+            Setup Your BharatConnect Profile
+          </CardTitle> */}
           <CardDescription className="text-muted-foreground pt-2">
             Let others know who you are. Your email: {currentUser?.email || email}
           </CardDescription>
@@ -170,6 +175,17 @@ function ProfileSetupContent() {
               <Input id="profile-pic-upload" type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
               <p className="text-xs text-muted-foreground">Tap to upload a profile picture</p>
             </div>
+
+            {username && (
+              <div className="space-y-2">
+                <Label htmlFor="username-display">Username</Label>
+                <div className="flex items-center space-x-2 p-2.5 rounded-md border bg-muted/30 text-muted-foreground">
+                  <User className="w-4 h-4" />
+                  <span id="username-display" className="flex-1 text-sm">{username}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Your username from InstaBharat (view-only).</p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>

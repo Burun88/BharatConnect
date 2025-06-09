@@ -51,12 +51,13 @@ export default function LoginPage() {
             if (user.email) queryParams.append('email', user.email);
             
             const namePrefill = instaProfile?.name || bcProfile?.name;
-            // Ensure photoURL is correctly sourced, prefer InstaBharat, then BC, then null
             const photoPrefill = instaProfile?.photoURL || (bcProfile as BharatConnectProfile | null)?.photoURL;
+            const usernamePrefill = instaProfile?.username;
 
 
             if (namePrefill) queryParams.append('name_prefill', namePrefill);
             if (photoPrefill) queryParams.append('photo_prefill', photoPrefill);
+            if (usernamePrefill) queryParams.append('username_prefill', usernamePrefill);
             
             router.replace(`/profile-setup?${queryParams.toString()}`);
           })
@@ -121,9 +122,11 @@ export default function LoginPage() {
           
           const namePrefill = instaProfile?.name || bcProfile?.name;
           const photoPrefill = instaProfile?.photoURL || (bcProfile as BharatConnectProfile | null)?.photoURL;
+          const usernamePrefill = instaProfile?.username;
 
           if (namePrefill) queryParams.append('name_prefill', namePrefill);
           if (photoPrefill) queryParams.append('photo_prefill', photoPrefill);
+          if (usernamePrefill) queryParams.append('username_prefill', usernamePrefill);
           
           toast({
             title: 'Login Successful!',

@@ -26,6 +26,7 @@ export interface BharatConnectProfile {
 
 interface InstaBharatRawProfile {
   fullName?: string;
+  username?: string; // Added username
   profilePicURL?: string;
   profilePictureUrls?: {
     main?: string;
@@ -37,12 +38,12 @@ interface InstaBharatRawProfile {
 }
 
 /**
- * Fetches minimal profile data (name and photo URL) from an existing InstaBharat user profile.
+ * Fetches minimal profile data (name, photo URL, username) from an existing InstaBharat user profile.
  * Assumes InstaBharat profiles are in a collection named 'users'.
  * @param uid The Firebase User ID.
- * @returns An object with name and photoURL, or null if not found or error.
+ * @returns An object with name, photoURL, and username, or null if not found or error.
  */
-export async function getInstaBharatProfileData(uid: string): Promise<{ name: string | null; photoURL: string | null } | null> {
+export async function getInstaBharatProfileData(uid: string): Promise<{ name: string | null; photoURL: string | null; username: string | null } | null> {
   if (!uid) return null;
   try {
     // IMPORTANT: If your InstaBharat profiles are NOT in a collection named 'users',
@@ -54,6 +55,7 @@ export async function getInstaBharatProfileData(uid: string): Promise<{ name: st
       const data = docSnap.data() as InstaBharatRawProfile;
       console.log(`Fetched InstaBharat raw data for UID ${uid}:`, JSON.stringify(data, null, 2));
       const name = data.fullName || null;
+      const username = data.username || null; // Extract username
       let photoURL = null;
 
       if (data.profilePictureUrls?.main) {
@@ -63,8 +65,8 @@ export async function getInstaBharatProfileData(uid: string): Promise<{ name: st
         photoURL = data.profilePicURL;
       }
       
-      console.log(`Extracted for prefill - Name: ${name}, PhotoURL: ${photoURL}`);
-      return { name, photoURL };
+      console.log(`Extracted for prefill - Name: ${name}, PhotoURL: ${photoURL}, Username: ${username}`);
+      return { name, photoURL, username };
     } else {
       console.log(`No InstaBharat profile found for UID: ${uid} in 'users' collection. Proceeding without prefill.`);
       return null;
@@ -132,7 +134,6 @@ export async function createOrUpdateBharatConnectProfile(
     }
     
     console.log('Attempting to set BharatConnect Firestore document with data:', JSON.stringify(dataToSet, null, 2));
-
     await setDoc(profileDocRef, dataToSet, { merge: true });
     console.log(`BharatConnect profile for UID: ${uid} successfully written/merged.`);
   } catch (error) {

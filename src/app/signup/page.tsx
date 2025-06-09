@@ -87,6 +87,7 @@ export default function SignupPage() {
         if (user.email) queryParams.append('email', user.email);
         if (instaProfile?.name) queryParams.append('name_prefill', instaProfile.name);
         if (instaProfile?.photoURL) queryParams.append('photo_prefill', instaProfile.photoURL);
+        if (instaProfile?.username) queryParams.append('username_prefill', instaProfile.username);
         
         router.push(`/profile-setup?${queryParams.toString()}`);
       }
