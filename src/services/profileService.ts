@@ -128,6 +128,8 @@ export async function createOrUpdateBharatConnectProfile(
         ? profileData.onboardingComplete 
         : existingProfileSnap.data()?.onboardingComplete || false;
     }
+    
+    console.log('Attempting to set Firestore document with data:', JSON.stringify(dataToSet, null, 2));
 
     await setDoc(profileDocRef, dataToSet, { merge: true });
     console.log(`BharatConnect profile for UID: ${uid} successfully written/merged.`);

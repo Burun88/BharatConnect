@@ -142,7 +142,7 @@ function ProfileSetupContent() {
 
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
+    <div className="flex flex-col items-center bg-background p-4 min-h-screen overflow-y-auto py-8">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center">
            <div className="flex justify-center mb-6">
@@ -201,7 +201,7 @@ function ProfileSetupContent() {
                 />
               </div>
             </div>
-            {error && <p id="profile-error" className="text-sm text-destructive">{error}</p>}
+            {error && <p id="profile-error" className="text-sm text-destructive text-center">{error}</p>}
           </CardContent>
           <CardFooter className="flex-col space-y-2">
             <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isLoading}>
