@@ -116,7 +116,7 @@ const AuraItemComponent = ({ user, isCurrentUser = false, onClick }: AuraItemPro
             aura?.gradient ? "bg-transparent" : "bg-muted", 
             "flex items-center justify-center"
         )}>
-           <UserCircle2 className={cn("w-12 h-12", aura?.gradient ? "text-card-foreground" : "text-muted-foreground")} /> 
+           <UserCircle2 className={cn("w-12 h-12", "text-muted-foreground")} /> 
         </AvatarFallback>
       )}
     </Avatar>
