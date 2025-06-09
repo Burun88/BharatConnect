@@ -51,11 +51,9 @@ function ProfileSetupContent() {
         setAuthEmail(user.email || '');
         console.log("[ProfileSetupPage] Auth user found:", user.uid, user.email);
 
-        // Check for temp InstaBharat data after auth user is confirmed
         if (tempInstaBharatProfileData && tempInstaBharatProfileData.uid === user.uid) {
           setShowInstaBharatPrompt(true);
         } else {
-          // No temp data or UID mismatch, clear it and proceed to load page
           setTempInstaBharatProfileData(null);
           setIsPageLoading(false);
         }
@@ -72,15 +70,14 @@ function ProfileSetupContent() {
       console.log("[ProfileSetupPage] User chose to use InstaBharat data:", tempInstaBharatProfileData);
       setBcName(tempInstaBharatProfileData.name || '');
       setBcProfilePicPreview(tempInstaBharatProfileData.profileImageUrl || null);
-      setInstaUsername(tempInstaBharatProfileData.username || ''); // Set instaUsername if imported
+      setInstaUsername(tempInstaBharatProfileData.username || '');
       toast({ title: "InstaBharat details applied!", description: "You can still make changes before saving." });
     } else {
       console.log("[ProfileSetupPage] User chose NOT to use InstaBharat data or no data found.");
-      // Form remains blank or with existing typed data
     }
-    setTempInstaBharatProfileData(null); // Clear temp data from localStorage
+    setTempInstaBharatProfileData(null);
     setShowInstaBharatPrompt(false);
-    setIsPageLoading(false); // Allow page content to render
+    setIsPageLoading(false);
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -122,7 +119,7 @@ function ProfileSetupContent() {
       await createOrUpdateUserFullProfile(authUser.uid, {
         name: bcName.trim(),
         email: authEmail,
-        username: instaUsername || undefined, // Save copied InstaBharat username only if it was set (imported)
+        username: instaUsername || undefined,
         phone: bcPhoneNumber.trim() || undefined,
         photoURL: bcProfilePicPreview || undefined,
         bio: bcBio.trim() || undefined,
@@ -134,7 +131,7 @@ function ProfileSetupContent() {
         phone: bcPhoneNumber.trim(),
         email: authEmail,
         photoURL: bcProfilePicPreview || '',
-        username: instaUsername || '' // Save to LS as well
+        username: instaUsername || ''
       });
       setOnboardingCompleteLs(true);
 
@@ -157,7 +154,15 @@ function ProfileSetupContent() {
     }
   };
 
-  if (isPageLoading && !showInstaBharatPrompt) { // Show main loader if page isn't ready and prompt isn't up
+  const handleLogoutAndStartOver = () => {
+    setError(''); // Clear any existing form validation errors
+    auth.signOut().then(() => {
+      setTempInstaBharatProfileData(null); // Also clear temp data
+      router.push('/login');
+    });
+  };
+
+  if (isPageLoading && !showInstaBharatPrompt) { 
     return (
       <div className="flex flex-col items-center justify-center flex-grow min-h-0 bg-background p-4 hide-scrollbar overflow-y-auto">
         <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -171,7 +176,15 @@ function ProfileSetupContent() {
 
   return (
     <>
-      <AlertDialog open={showInstaBharatPrompt} onOpenChange={setShowInstaBharatPrompt}>
+      <AlertDialog open={showInstaBharatPrompt} onOpenChange={(open) => {
+        if (!open && tempInstaBharatProfileData) { 
+          // If dialog is closed without making a choice (e.g. clicking outside)
+          // and data was present, treat as "No" to prevent being stuck.
+          handleInstaPromptResponse(false);
+        } else {
+          setShowInstaBharatPrompt(open);
+        }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>InstaBharat Profile Found!</AlertDialogTitle>
@@ -188,9 +201,9 @@ function ProfileSetupContent() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {!showInstaBharatPrompt && ( // Only render the card content if the prompt is not active
+      {!showInstaBharatPrompt && ( 
         <div className="flex flex-col items-center bg-background p-4 flex-grow min-h-0 hide-scrollbar overflow-y-auto">
-          <Card className="w-full max-w-md shadow-2xl my-auto"> {/* Changed my-8 to my-auto for better centering with flex-grow */}
+          <Card className="w-full max-w-md shadow-2xl my-auto"> 
             <CardHeader className="text-center">
               <div className="flex justify-center mb-6">
                 <Logo size="large" />
@@ -226,7 +239,7 @@ function ProfileSetupContent() {
                   </div>
                 </div>
 
-                {instaUsername && ( // Only show if InstaBharat username was imported
+                {instaUsername && ( 
                   <div className="space-y-1">
                     <Label htmlFor="username-display">InstaBharat Username</Label>
                     <div className="flex items-center space-x-2 p-2.5 rounded-md border bg-muted/30 text-muted-foreground">
@@ -281,7 +294,7 @@ function ProfileSetupContent() {
                 <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isLoading || showInstaBharatPrompt}>
                   {isLoading ? 'Saving...' : 'Save Profile & Continue'}
                 </Button>
-                <Button variant="link" className="mt-2 text-sm text-muted-foreground" onClick={() => auth.signOut().then(() => router.push('/login'))} disabled={showInstaBharatPrompt}>
+                <Button variant="link" className="mt-2 text-sm text-muted-foreground" onClick={handleLogoutAndStartOver} disabled={showInstaBharatPrompt}>
                   Logout and start over
                 </Button>
               </CardFooter>
@@ -295,7 +308,7 @@ function ProfileSetupContent() {
 
 export default function ProfileSetupPage() {
   return (
-    <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background"> {/* Ensure full height flex container for ProfileSetupContent */}
+    <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background"> 
       <Suspense fallback={
         <div className="flex flex-col items-center justify-center flex-grow min-h-0 bg-background p-4 hide-scrollbar overflow-y-auto">
           <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -310,3 +323,4 @@ export default function ProfileSetupPage() {
     </div>
   )
 }
+
