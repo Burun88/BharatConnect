@@ -34,16 +34,9 @@ export default function ChatItem({ chat }: ChatItemProps) {
            {chat.avatarUrl && (
               <AvatarImage src={chat.avatarUrl} alt={chat.name} data-ai-hint="person avatar" />
            )}
-          <AvatarFallback
-            className={cn(
-              contactAura?.gradient ? (contactAura.gradient.includes('bg-gradient') ? '' : 'bg-muted text-muted-foreground') : 'bg-muted text-muted-foreground',
-              contactAura?.gradient
-            )}
-            style={contactAura?.gradient && contactAura.gradient.includes('bg-gradient') ? { backgroundImage: contactAura.gradient.replace('bg-gradient-to-r ', 'linear-gradient(to right, ').replace(/from-(\w+)-(\d+)/g, 'var(--color-$1-$2)').replace(/via-(\w+)-(\d+)/g, ', var(--color-$1-$2)').replace(/to-(\w+)-(\d+)/g, ', var(--color-$1-$2)')+ ')' } : {}}
-          >
-            {!chat.avatarUrl && (!contactAura || !contactAura.gradient) ? (
-              <UserCircle2 className="w-8 h-8 text-muted-foreground" />
-            ) : contactAura?.emoji /* Show emoji if aura gradient and no image */ }
+          <AvatarFallback className="bg-muted text-muted-foreground">
+            {/* Always show UserCircle2 if no avatarUrl, regardless of aura */}
+            <UserCircle2 className="w-8 h-8 text-muted-foreground" />
           </AvatarFallback>
         </Avatar>
         {contactAura && (
@@ -76,3 +69,4 @@ export default function ChatItem({ chat }: ChatItemProps) {
     </Link>
   );
 }
+
