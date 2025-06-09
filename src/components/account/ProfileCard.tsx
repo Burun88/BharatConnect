@@ -2,12 +2,12 @@
 "use client";
 
 import { useState } from 'react';
-import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserCircle2, Edit3, Save, X, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -59,16 +59,12 @@ export default function ProfileCard() {
     <Card className="rounded-2xl shadow-md bg-card">
       <CardHeader className="items-center text-center">
         <div className="relative">
-          <div className="p-0.5 bg-gradient-to-r from-accent to-primary rounded-full">
-            <Image
-              src={profilePicPreview || "https://placehold.co/100x100.png"}
-              alt="Profile Picture"
-              width={100}
-              height={100}
-              className="rounded-full object-cover border-2 border-background"
-              data-ai-hint="ai avatar"
-            />
-          </div>
+          <Avatar className="w-[100px] h-[100px]">
+            <AvatarImage src={profilePicPreview || undefined} alt="Profile Picture" data-ai-hint="ai avatar" />
+            <AvatarFallback className="bg-muted">
+              <UserCircle2 className="w-16 h-16 text-muted-foreground" />
+            </AvatarFallback>
+          </Avatar>
           <Button
             variant="outline"
             size="icon"
