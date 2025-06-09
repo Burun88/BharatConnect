@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader } from '@/components/ui/card';
 import { UserCircle2, Camera, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
@@ -148,9 +148,6 @@ function ProfileSetupContent() {
            <div className="flex justify-center mb-6">
              <Logo size="large" />
           </div>
-          <CardTitle className="text-3xl font-headline font-bold text-gradient-bharatconnect">
-            Setup Your BharatConnect Profile
-          </CardTitle>
           <CardDescription className="text-muted-foreground pt-2">
             Let others know who you are. Your email: {currentUser?.email || email}
           </CardDescription>
