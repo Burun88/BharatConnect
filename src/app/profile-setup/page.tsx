@@ -148,7 +148,7 @@ function ProfileSetupContent() {
            <div className="flex justify-center mb-6">
              <Logo size="large" />
           </div>
-          <CardTitle className="text-3xl font-headline font-bold text-gradient-primary-accent">
+          <CardTitle className="text-3xl font-headline font-bold text-gradient-bharatconnect">
             Setup Your BharatConnect Profile
           </CardTitle>
           <CardDescription className="text-muted-foreground pt-2">
