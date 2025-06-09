@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogIn } from 'lucide-react';
+import Logo from '@/components/shared/Logo'; // Import the Logo component
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
@@ -28,8 +28,6 @@ export default function LoginPage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // If user is already logged in and profile seems set, redirect.
-        // This logic needs to be robust with Firestore profile check.
          getBharatConnectProfile(user.uid).then(profile => {
            if (profile && profile.onboardingComplete) {
              router.replace('/');
@@ -61,16 +59,13 @@ export default function LoginPage() {
           description: 'Welcome back to BharatConnect!',
         });
 
-        // Check for existing BharatConnect profile
         const bcProfile = await getBharatConnectProfile(user.uid);
 
         if (bcProfile && bcProfile.onboardingComplete) {
-          // User has a complete BharatConnect profile, update localStorage and redirect to home
           setUserProfileLs({ name: bcProfile.name, phone: bcProfile.phone || '', email: bcProfile.email });
           setOnboardingCompleteLs(true);
           router.push('/');
         } else {
-          // No complete BharatConnect profile, fetch InstaBharat data and go to profile setup
           const instaProfile = await getInstaBharatProfileData(user.uid);
           
           setUserProfileLs(prev => ({ ...prev, email: user.email || '', name: instaProfile?.name || bcProfile?.name || '' }));
@@ -79,7 +74,6 @@ export default function LoginPage() {
           const queryParams = new URLSearchParams();
           if (user.email) queryParams.append('email', user.email);
           
-          // Prefer InstaBharat name/photo if available, fallback to incomplete BC profile
           const namePrefill = instaProfile?.name || bcProfile?.name;
           const photoPrefill = instaProfile?.photoURL || bcProfile?.photoURL;
 
@@ -109,14 +103,12 @@ export default function LoginPage() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <LogIn className="w-16 h-16 text-gradient-primary-accent" />
+          <div className="flex justify-center mb-6"> {/* Increased bottom margin */}
+            <Logo size="large" /> {/* Using the Logo component */}
           </div>
-          <CardTitle className="text-3xl font-headline font-bold text-gradient-primary-accent">
-            Login to BharatConnect
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Welcome back!
+          {/* Removed CardTitle as Logo serves this purpose */}
+          <CardDescription className="text-muted-foreground pt-2"> {/* Added top padding */}
+            Sign in to continue to your BharatConnect account.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
