@@ -69,43 +69,39 @@ export async function getInstaBharatIdentity(uid: string): Promise<InstaBharatId
     console.error("[profileService] getInstaBharatIdentity: UID is missing.");
     return null;
   }
-  console.log(`[profileService] getInstaBharatIdentity: Fetching InstaBharat profile data for UID: ${uid} from 'users' collection.`);
+  // If bharatconnect-i8510 does not have a /users collection, this will return null, which is fine.
+  // The profile-setup page will then skip the import prompt.
+  console.log(`[profileService] getInstaBharatIdentity: Attempting to fetch profile data for UID: ${uid} from '/users' collection (simulated InstaBharat structure).`);
   try {
-    const userDocRef = doc(firestore, 'users', uid); // Reading from 'users' collection as per user's Firestore structure
+    const userDocRef = doc(firestore, 'users', uid); 
     const docSnap = await getDoc(userDocRef);
 
     if (docSnap.exists()) {
       const data = docSnap.data() as InstaBharatRawProfile;
-      console.log(`[profileService] getInstaBharatIdentity: Raw InstaBharat data for UID ${uid}:`, JSON.stringify(data, null, 2).substring(0, 500) + "...");
+      console.log(`[profileService] getInstaBharatIdentity: Raw data from '/users/${uid}':`, JSON.stringify(data, null, 2).substring(0, 500) + "...");
 
       let name: string | null = null;
       if (data.fullName) name = data.fullName;
       else if (data.name) name = data.name;
-      console.log(`[profileService] getInstaBharatIdentity: Checking for name - data.fullName: '${data.fullName}', data.name: '${data.name}'. Selected: '${name}'`);
-
+      
       let username: string | null = null;
       if (data.username) username = data.username;
-      console.log(`[profileService] getInstaBharatIdentity: Checking for username - data.username: '${data.username}'. Selected: '${username}'`);
       
       let profileImageUrl: string | null = null;
       if (data.profilePicURL) profileImageUrl = data.profilePicURL;
       else if (data.profilePictureUrls?.main) profileImageUrl = data.profilePictureUrls.main;
-      else if (data.profilePictureUrls?.avatar) profileImageUrl = data.profilePictureUrls.avatar; // Added avatar as fallback
-      console.log(`[profileService] getInstaBharatIdentity: Checking for profile image - data.profilePicURL: '${data.profilePicURL}', data.profilePictureUrls?.main: '${data.profilePictureUrls?.main}'. Selected: '${profileImageUrl}'`);
+      else if (data.profilePictureUrls?.avatar) profileImageUrl = data.profilePictureUrls.avatar;
 
       const identity: InstaBharatIdentity = { uid, name, profileImageUrl, username };
       console.log(`[profileService] getInstaBharatIdentity: Extracted for UID ${uid} - Name: '${identity.name}', ProfileImageURL: '${identity.profileImageUrl}', Username: '${identity.username}'`);
       return identity;
 
     } else {
-      console.log(`[profileService] getInstaBharatIdentity: No InstaBharat profile found in 'users' collection for UID: ${uid}.`);
+      console.log(`[profileService] getInstaBharatIdentity: No profile found in '/users' collection for UID: ${uid}. This is expected if bharatconnect-i8510 doesn't use this structure.`);
       return null;
     }
   } catch (error: any) {
-    console.error(`[profileService] getInstaBharatIdentity: Error fetching InstaBharat profile for UID ${uid}. Firestore permissions might be an issue if auth isn't working.`, error.message, error.code);
-    if (error.code === 'permission-denied') {
-        console.error("[profileService] getInstaBharatIdentity: FIRESTORE PERMISSION DENIED. This usually means request.auth is null or rules are not met. Check Firebase Auth initialization and API key errors.");
-    }
+    console.error(`[profileService] getInstaBharatIdentity: Error fetching from '/users/${uid}'. Firestore permissions might be an issue or collection doesn't exist.`, error.message, error.code);
     return null;
   }
 }
@@ -129,7 +125,7 @@ export async function createOrUpdateShadowProfile(identity: InstaBharatIdentity)
       updatedAt: serverTimestamp(),
     };
     await setDoc(shadowDocRef, shadowData, { merge: true });
-    console.log(`[profileService] createOrUpdateShadowProfile: Shadow profile for UID ${identity.uid} written/merged successfully. Data:`, shadowData);
+    console.log(`[profileService] createOrUpdateShadowProfile: Shadow profile for UID ${identity.uid} written/merged successfully to '/bharatConnectUserShadows'. Data:`, shadowData);
     return shadowData;
   } catch (error) {
     console.error(`[profileService] createOrUpdateShadowProfile: Error writing shadow profile for UID ${identity.uid}:`, error);
@@ -175,10 +171,15 @@ export async function createOrUpdateUserFullProfile(
     const existingProfileSnap = await getDoc(profileDocRef);
 
     const dataToSet: Partial<BharatConnectUser> = {
-      ...profileData, // Includes name, phone, photoURL, bio, username (copied), currentAuraId
-      id: uid,
+      id: uid, // Ensure ID is explicitly set
       email: profileData.email,
-      onboardingComplete: true, // Explicitly set to true on full profile creation/update
+      name: profileData.name,
+      phone: profileData.phone || undefined,
+      photoURL: profileData.photoURL || undefined,
+      bio: profileData.bio || undefined,
+      username: profileData.username || undefined, // Will be undefined if not imported
+      currentAuraId: profileData.currentAuraId || null,
+      onboardingComplete: true,
       updatedAt: serverTimestamp(),
     };
 
@@ -186,12 +187,13 @@ export async function createOrUpdateUserFullProfile(
       dataToSet.createdAt = serverTimestamp();
     }
     
-    console.log('[profileService] createOrUpdateUserFullProfile: Attempting to set BharatConnectUsers document with data:', JSON.stringify(dataToSet, null, 2));
+    console.log('[profileService] createOrUpdateUserFullProfile: Attempting to set/merge document in /bharatConnectUsers with data for UID:', uid, JSON.stringify(dataToSet, null, 2));
     await setDoc(profileDocRef, dataToSet, { merge: true });
-    console.log(`[profileService] createOrUpdateUserFullProfile: Full profile for UID: ${uid} successfully written/merged to 'bharatConnectUsers'.`);
+    console.log(`[profileService] createOrUpdateUserFullProfile: Full profile for UID: ${uid} successfully written/merged to '/bharatConnectUsers'.`);
+
   } catch (error) {
-    console.error("[profileService] createOrUpdateUserFullProfile: Error writing full profile:", error);
-    throw error;
+    console.error(`[profileService] createOrUpdateUserFullProfile: Error writing full profile for UID ${uid}:`, error);
+    throw error; // Re-throw the error so the calling page can handle it
   }
 }
 
@@ -209,10 +211,11 @@ export async function getUserFullProfile(uid: string): Promise<BharatConnectUser
     if (docSnap.exists()) {
       return docSnap.data() as BharatConnectUser;
     } else {
+      console.log(`[profileService] getUserFullProfile: No profile found in '/bharatConnectUsers' for UID: ${uid}.`);
       return null;
     }
   } catch (error) {
-    console.error("[profileService] getUserFullProfile: Error fetching full profile:", error);
+    console.error(`[profileService] getUserFullProfile: Error fetching full profile for UID ${uid}:`, error);
     return null;
   }
 }
