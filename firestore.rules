@@ -1,32 +1,42 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // BharatConnect User Profiles
     match /bharatConnectUsers/{userId} {
-      // Authenticated users can read their own profile
       allow read: if request.auth != null && request.auth.uid == userId;
 
-      // WARNING: TEMPORARILY INSECURE RULE FOR DIAGNOSTICS
-      // Original: allow create: if request.auth != null && request.auth.uid == userId && ...validations... ;
-      allow create: if true; // ANYONE CAN CREATE. REVERT THIS IMMEDIATELY AFTER TESTING.
-
-      // Authenticated users can update their own profile, with field restrictions
-      allow update: if request.auth != null && request.auth.uid == userId
-                    && request.resource.data.id == userId // Cannot change the ID field
-                    && request.resource.data.email == resource.data.email // Cannot change email
-                    && request.resource.data.createdAt == resource.data.createdAt // Cannot change createdAt
-                    && request.resource.data.name is string && request.resource.data.name.size() > 0
+      allow create: if request.auth != null && request.auth.uid == userId
+                    // Document ID must match the user's UID
+                    && request.resource.data.id == userId
+                    // Name must be a non-empty string
+                    && request.resource.data.displayName is string && request.resource.data.displayName.size() > 0
+                    // Email in the document must match the authenticated user's token email
+                    && request.resource.data.email == request.auth.token.email
+                    // Ensure onboardingComplete is true when profile is created this way
                     && request.resource.data.onboardingComplete == true
+                    // Timestamps should be set by the server
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.updatedAt == request.time;
+
+      allow update: if request.auth != null && request.auth.uid == userId
+                    // Prevent changing immutable fields
+                    && request.resource.data.id == resource.data.id
+                    && request.resource.data.email == resource.data.email
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    // Name must be a non-empty string if provided
+                    && (request.resource.data.displayName == null || (request.resource.data.displayName is string && request.resource.data.displayName.size() > 0))
+                     // Ensure onboardingComplete is true
+                    && request.resource.data.onboardingComplete == true
+                    // Update timestamp should be set by the server
                     && request.resource.data.updatedAt == request.time;
       
-      allow delete: if false; // No one can delete user profiles directly
+      allow delete: if false; // Generally, users should not delete their own core profile doc directly
     }
 
-    // Add other rules for other collections if needed
-    // Example:
-    // match /chats/{chatId} {
-    //   allow read, write: if request.auth != null && request.auth.uid in resource.data.participants;
-    // }
+    // Default deny all other collections/paths if not explicitly defined
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
