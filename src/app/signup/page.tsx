@@ -25,7 +25,6 @@ export default function SignupPage() {
   const { toast } = useToast();
 
   const [, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  // const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // Replaced by userProfileLs.onboardingComplete
   
   const [userProfileGlobal] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
 
@@ -79,9 +78,8 @@ export default function SignupPage() {
       setUserProfileLs({ 
         uid: user.uid, 
         email: user.email,
-        onboardingComplete: false, // Explicitly set onboarding to false initially
+        onboardingComplete: false, 
       });
-      // setOnboardingCompleteLs(false); // No longer needed
       
       console.log(`[Signup Page] Redirecting to profile-setup for UID: ${user.uid}.`);
       router.push('/profile-setup'); 
@@ -100,7 +98,15 @@ export default function SignupPage() {
               </span>
             ),
         });
-      } else {
+      } else if (err.code === 'auth/network-request-failed') {
+        setError('Network error. Please ensure Firebase emulators are running or check your internet connection.');
+        toast({
+            variant: 'destructive',
+            title: 'Network Error',
+            description: 'Could not connect to Firebase. If developing locally, please ensure emulators are running.',
+        });
+      }
+       else {
         setError(err.message || 'Failed to create account. Please try again.');
         toast({
             variant: 'destructive',
