@@ -8,7 +8,7 @@ import { firestore } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp, getDoc, updateDoc, type Timestamp } from 'firebase/firestore';
 
 export interface BharatConnectFirestoreUser {
-  uid: string; // UID from Firebase Auth, also the document ID
+  id: string; // Document ID (user's auth UID) is also stored as a field named 'id'
   email: string;
   displayName: string;
   photoURL?: string | null;
@@ -23,7 +23,7 @@ export interface BharatConnectFirestoreUser {
 }
 
 export async function createOrUpdateUserFullProfile(
-  uid: string,
+  uid: string, // This is the auth UID, and will be the document ID
   profileData: {
     email: string;
     displayName: string;
@@ -44,18 +44,17 @@ export async function createOrUpdateUserFullProfile(
     throw new Error("Firestore is not initialized. Profile cannot be saved.");
   }
 
-  const userDocRef = doc(firestore, 'users', uid);
+  // Use 'bharatConnectUsers' collection as per the new rules
+  const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
 
-  const dataToWrite = {
-    uid: uid, // Storing UID within the document itself
+  const dataToWrite: Omit<BharatConnectFirestoreUser, 'createdAt' | 'updatedAt'> = {
+    id: uid, // Storing UID as 'id' field to match rule: request.resource.data.id == userId
     email: profileData.email,
     displayName: profileData.displayName,
     photoURL: profileData.photoURL || null,
     phoneNumber: profileData.phoneNumber || null,
     bio: profileData.bio || null,
-    onboardingComplete: profileData.onboardingComplete,
-    // languagePreference: 'en', // Default if not provided
-    // status: 'Online', // Default if not provided
+    onboardingComplete: profileData.onboardingComplete, // This should be true as per rule
   };
 
   try {
@@ -68,15 +67,21 @@ export async function createOrUpdateUserFullProfile(
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      console.log(`[SVC_PROF] User profile for ${uid} CREATED in Firestore.`);
+      console.log(`[SVC_PROF] User profile for ${uid} CREATED in Firestore collection 'bharatConnectUsers'.`);
     } else {
       // Document exists, update it, ensuring updatedAt is fresh
+      // Fields that should not change on update (like id, email, createdAt) are checked by rules
       await updateDoc(userDocRef, {
-        ...dataToWrite, // This will update all fields provided in dataToWrite
+        // Only update fields that are allowed to change
+        displayName: dataToWrite.displayName,
+        photoURL: dataToWrite.photoURL,
+        phoneNumber: dataToWrite.phoneNumber,
+        bio: dataToWrite.bio,
+        onboardingComplete: dataToWrite.onboardingComplete, // Rule enforces this must be true
+        // Other fields like languagePreference, status, currentAuraId could be updated here if needed
         updatedAt: serverTimestamp(),
-        // Note: createdAt is not touched here to preserve original creation time
       });
-      console.log(`[SVC_PROF] User profile for ${uid} UPDATED in Firestore.`);
+      console.log(`[SVC_PROF] User profile for ${uid} UPDATED in Firestore collection 'bharatConnectUsers'.`);
     }
   } catch (error)
 {
@@ -99,17 +104,18 @@ export async function getUserFullProfile(
   if (!uid) return null;
 
   try {
-    const userDocRef = doc(firestore, 'users', uid);
+    // Use 'bharatConnectUsers' collection
+    const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
     const docSnap = await getDoc(userDocRef);
     if (docSnap.exists()) {
-      console.log(`[SVC_PROF] Profile found for ${uid}.`);
+      console.log(`[SVC_PROF] Profile found for ${uid} in 'bharatConnectUsers'.`);
       return docSnap.data() as BharatConnectFirestoreUser;
     } else {
-      console.log(`[SVC_PROF] No profile found for ${uid}.`);
+      console.log(`[SVC_PROF] No profile found for ${uid} in 'bharatConnectUsers'.`);
       return null;
     }
   } catch (error) {
-    console.error(`[SVC_PROF] Error fetching profile for ${uid}:`, error);
+    console.error(`[SVC_PROF] Error fetching profile for ${uid} from 'bharatConnectUsers':`, error);
     return null;
   }
 }
