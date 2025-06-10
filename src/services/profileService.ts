@@ -2,40 +2,19 @@
 'use server';
 
 import { firestore } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
- * @fileOverview Service functions for managing user profiles.
- * - InstaBharatIdentity: Minimal identity data from InstaBharat.
- * - BharatConnectUserShadow: Lightweight shadow profile for BharatConnect.
+ * @fileOverview Service functions for managing BharatConnect user profiles.
  * - BharatConnectUser: Full user profile for BharatConnect.
- * - getInstaBharatIdentity: Fetches identity from InstaBharat's '/users' collection.
- * - createOrUpdateShadowProfile: Manages the shadow profile in '/bharatConnectUserShadows'.
- * - getShadowProfile: Fetches a shadow profile.
  * - createOrUpdateUserFullProfile: Manages the full profile in '/bharatConnectUsers'.
  * - getUserFullProfile: Fetches a full BharatConnect profile.
  */
-
-export interface InstaBharatIdentity {
-  uid: string;
-  name: string | null;
-  profileImageUrl: string | null;
-  username: string | null;
-}
-
-export interface BharatConnectUserShadow {
-  uid: string;
-  name: string | null;
-  profileImageUrl: string | null;
-  username: string | null;
-  updatedAt: any; // Firestore ServerTimestamp
-}
 
 export interface BharatConnectUser {
   id: string; // Firebase UID
   name: string; // Name chosen/set in BharatConnect
   email: string;
-  username?: string | null; // Copied from InstaBharat, not editable in BC
   phone?: string;
   photoURL?: string | null; // Profile picture URL used in BharatConnect
   bio?: string;
@@ -43,114 +22,6 @@ export interface BharatConnectUser {
   onboardingComplete: boolean;
   createdAt: any; // Firestore ServerTimestamp
   updatedAt: any; // Firestore ServerTimestamp
-}
-
-interface InstaBharatRawProfile {
-  fullName?: string;
-  name?: string; // Fallback if fullName doesn't exist
-  username?: string;
-  profilePicURL?: string;
-  profilePictureUrls?: {
-    main?: string;
-    avatar?: string;
-    icon?: string;
-  };
-  [key: string]: any;
-}
-
-/**
- * Fetches minimal identity data (name, photo URL, username) from an existing InstaBharat user profile.
- * Assumes InstaBharat profiles are in a collection named 'users'.
- * @param uid The Firebase User ID.
- * @returns An InstaBharatIdentity object, or null if not found or error.
- */
-export async function getInstaBharatIdentity(uid: string): Promise<InstaBharatIdentity | null> {
-  if (!uid) {
-    console.error("[profileService] getInstaBharatIdentity: UID is missing.");
-    return null;
-  }
-  // If bharatconnect-i8510 does not have a /users collection, this will return null, which is fine.
-  // The profile-setup page will then skip the import prompt.
-  console.log(`[profileService] getInstaBharatIdentity: Attempting to fetch profile data for UID: ${uid} from '/users' collection (simulated InstaBharat structure).`);
-  try {
-    const userDocRef = doc(firestore, 'users', uid); 
-    const docSnap = await getDoc(userDocRef);
-
-    if (docSnap.exists()) {
-      const data = docSnap.data() as InstaBharatRawProfile;
-      console.log(`[profileService] getInstaBharatIdentity: Raw data from '/users/${uid}':`, JSON.stringify(data, null, 2).substring(0, 500) + "...");
-
-      let name: string | null = null;
-      if (data.fullName) name = data.fullName;
-      else if (data.name) name = data.name;
-      
-      let username: string | null = null;
-      if (data.username) username = data.username;
-      
-      let profileImageUrl: string | null = null;
-      if (data.profilePicURL) profileImageUrl = data.profilePicURL;
-      else if (data.profilePictureUrls?.main) profileImageUrl = data.profilePictureUrls.main;
-      else if (data.profilePictureUrls?.avatar) profileImageUrl = data.profilePictureUrls.avatar;
-
-      const identity: InstaBharatIdentity = { uid, name, profileImageUrl, username };
-      console.log(`[profileService] getInstaBharatIdentity: Extracted for UID ${uid} - Name: '${identity.name}', ProfileImageURL: '${identity.profileImageUrl}', Username: '${identity.username}'`);
-      return identity;
-
-    } else {
-      console.log(`[profileService] getInstaBharatIdentity: No profile found in '/users' collection for UID: ${uid}. This is expected if bharatconnect-i8510 doesn't use this structure.`);
-      return null;
-    }
-  } catch (error: any) {
-    console.error(`[profileService] getInstaBharatIdentity: Error fetching from '/users/${uid}'. Firestore permissions might be an issue or collection doesn't exist.`, error.message, error.code);
-    return null;
-  }
-}
-
-/**
- * Creates or updates a BharatConnect shadow profile in '/bharatConnectUserShadows/{uid}'.
- * @param identity The InstaBharatIdentity data.
- */
-export async function createOrUpdateShadowProfile(identity: InstaBharatIdentity): Promise<BharatConnectUserShadow | null> {
-  if (!identity || !identity.uid) {
-    console.error("[profileService] createOrUpdateShadowProfile: UID is missing from identity data.");
-    return null;
-  }
-  try {
-    const shadowDocRef = doc(firestore, 'bharatConnectUserShadows', identity.uid);
-    const shadowData: BharatConnectUserShadow = {
-      uid: identity.uid,
-      name: identity.name || null,
-      profileImageUrl: identity.profileImageUrl || null,
-      username: identity.username || null,
-      updatedAt: serverTimestamp(),
-    };
-    await setDoc(shadowDocRef, shadowData, { merge: true });
-    console.log(`[profileService] createOrUpdateShadowProfile: Shadow profile for UID ${identity.uid} written/merged successfully to '/bharatConnectUserShadows'. Data:`, shadowData);
-    return shadowData;
-  } catch (error) {
-    console.error(`[profileService] createOrUpdateShadowProfile: Error writing shadow profile for UID ${identity.uid}:`, error);
-    return null;
-  }
-}
-
-/**
- * Fetches a BharatConnect shadow profile.
- * @param uid The Firebase User ID.
- * @returns The BharatConnectUserShadow object, or null.
- */
-export async function getShadowProfile(uid: string): Promise<BharatConnectUserShadow | null> {
-  if (!uid) return null;
-  try {
-    const shadowDocRef = doc(firestore, 'bharatConnectUserShadows', uid);
-    const docSnap = await getDoc(shadowDocRef);
-    if (docSnap.exists()) {
-      return docSnap.data() as BharatConnectUserShadow;
-    }
-    return null;
-  } catch (error) {
-    console.error(`[profileService] getShadowProfile: Error fetching shadow profile for UID ${uid}:`, error);
-    return null;
-  }
 }
 
 /**
@@ -177,9 +48,8 @@ export async function createOrUpdateUserFullProfile(
       phone: profileData.phone || undefined,
       photoURL: profileData.photoURL || undefined,
       bio: profileData.bio || undefined,
-      username: profileData.username || undefined, // Will be undefined if not imported
       currentAuraId: profileData.currentAuraId || null,
-      onboardingComplete: true,
+      onboardingComplete: true, // Will always be true when this function is called successfully
       updatedAt: serverTimestamp(),
     };
 

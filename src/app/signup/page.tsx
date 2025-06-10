@@ -12,8 +12,8 @@ import { UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
-import { getInstaBharatIdentity, type InstaBharatIdentity } from '@/services/profileService';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+// Removed getInstaBharatIdentity and InstaBharatIdentity type
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -24,19 +24,16 @@ export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [onboardingCompleteLs, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
-  const initialProfile = useMemo(() => ({ name: '', phone: '', email: '', photoURL: '', username: '' }), []);
+  const initialProfile = useMemo(() => ({ name: '', phone: '', email: '', photoURL: '', username: '' }), []); // username can be kept or removed, it won't be auto-filled
   const [userProfileLs, setUserProfileLs] = useLocalStorage('userProfile', initialProfile);
-  const [, setTempInstaBharatProfileData] = useLocalStorage<InstaBharatIdentity | null>('tempInstaBharatProfileData', null);
+  // Removed setTempInstaBharatProfileData
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // If user is somehow already logged in when reaching signup
         if(userProfileLs.name && userProfileLs.email && onboardingCompleteLs) { 
              router.replace('/');
         } else {
-            // If not fully onboarded but user exists, they might be mid-setup
-            // or an edge case. Redirecting to profile-setup is safest.
              router.replace('/profile-setup');
         }
       }
@@ -77,29 +74,19 @@ export default function SignupPage() {
         return;
       }
       
-      console.log(`[Signup Page] handleSubmit: Account created for UID: ${user.uid}. Fetching InstaBharat identity.`);
+      console.log(`[Signup Page] handleSubmit: Account created for UID: ${user.uid}. Proceeding to profile setup.`);
       toast({
         title: 'Account Created!',
-        description: 'Fetching any existing details to help you get started...',
+        description: 'Please set up your BharatConnect profile.',
       });
-
-      const instaProfile = await getInstaBharatIdentity(user.uid);
-      console.log(`[Signup Page] InstaBharat Identity for UID ${user.uid}:`, instaProfile);
-      
-      if (instaProfile) {
-        setTempInstaBharatProfileData(instaProfile);
-      } else {
-        setTempInstaBharatProfileData(null);
-      }
       
       setUserProfileLs(prev => ({ 
-        ...prev, 
+        ...initialProfile, // Reset to initialProfile to ensure no stale data like username persists
         email: user.email || '',
-        // Don't prefill name/photoURL/username in main userProfileLs yet, profile-setup will handle it
       }));
-      setOnboardingCompleteLs(false);
+      setOnboardingCompleteLs(false); // Ensure onboarding is marked as incomplete
       
-      console.log(`[Signup Page] Redirecting to profile-setup for UID: ${user.uid}. Temp InstaBharat data (if any) stored in localStorage.`);
+      console.log(`[Signup Page] Redirecting to profile-setup for UID: ${user.uid}.`);
       router.push('/profile-setup');
 
     } catch (err: any) {

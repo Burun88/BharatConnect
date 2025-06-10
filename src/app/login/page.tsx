@@ -12,7 +12,7 @@ import Logo from '@/components/shared/Logo';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
-import { getUserFullProfile, getInstaBharatIdentity, type BharatConnectUser, type InstaBharatIdentity } from '@/services/profileService';
+import { getUserFullProfile } from '@/services/profileService'; // Removed InstaBharatIdentity and getInstaBharatIdentity
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 export default function LoginPage() {
@@ -25,19 +25,18 @@ export default function LoginPage() {
   const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
   const initialProfile = useMemo(() => ({ name: '', phone: '', email: '', photoURL: '', username: '' }), []);
   const [, setUserProfileLs] = useLocalStorage('userProfile', initialProfile);
-  const [, setTempInstaBharatProfileData] = useLocalStorage<InstaBharatIdentity | null>('tempInstaBharatProfileData', null);
-
+  // Removed tempInstaBharatProfileData
 
   const handleUserSession = async (user: import('firebase/auth').User | null) => {
-    if (isLoading) return; // Don't interfere if a login submission is in progress
+    if (isLoading) return; 
     if (!user || !user.uid) {
       console.log("[Login Page] onAuthStateChanged: No user or UID detected.");
-      setIsLoading(false); // Ensure loading is false if no user
+      setIsLoading(false); 
       return;
     }
 
     console.log(`[Login Page] onAuthStateChanged/handleSubmit: User detected (UID: ${user.uid}). Checking profile status.`);
-    setIsLoading(true); // Set loading true while checking profile
+    setIsLoading(true); 
 
     try {
       const bcProfile = await getUserFullProfile(user.uid);
@@ -45,28 +44,17 @@ export default function LoginPage() {
 
       if (bcProfile && bcProfile.onboardingComplete) {
         console.log(`[Login Page] BharatConnect profile found and onboarding complete for UID: ${user.uid}. Redirecting to home.`);
-        setUserProfileLs({ name: bcProfile.name, phone: bcProfile.phone || '', email: bcProfile.email, photoURL: bcProfile.photoURL || '', username: bcProfile.username || '' });
+        setUserProfileLs({ name: bcProfile.name, phone: bcProfile.phone || '', email: bcProfile.email, photoURL: bcProfile.photoURL || '', username: '' }); // username cleared
         setOnboardingCompleteLs(true);
-        setTempInstaBharatProfileData(null); // Clear temp data
         router.replace('/');
       } else {
-        console.log(`[Login Page] BharatConnect profile not found or onboarding incomplete for UID: ${user.uid}. Fetching InstaBharat identity.`);
-        const instaProfile = await getInstaBharatIdentity(user.uid);
-        console.log(`[Login Page] InstaBharat Identity for UID ${user.uid}:`, instaProfile);
-
-        if (instaProfile) {
-          setTempInstaBharatProfileData(instaProfile);
-        } else {
-          setTempInstaBharatProfileData(null);
-        }
+        console.log(`[Login Page] BharatConnect profile not found or onboarding incomplete for UID: ${user.uid}.`);
         
-        // Store minimal info for profile setup page even if no InstaBharat profile, email is key
         setUserProfileLs(prev => ({
-          ...prev,
-          email: user.email || '', // Ensure email is from auth
-          name: bcProfile?.name || '', // Use existing BC name if any
-          photoURL: bcProfile?.photoURL || '', // Use existing BC photo if any
-          username: bcProfile?.username || '', // Use existing BC username if any
+          ...initialProfile, // Reset to ensure clean state
+          email: user.email || '', 
+          name: bcProfile?.name || '', 
+          photoURL: bcProfile?.photoURL || '',
         }));
         setOnboardingCompleteLs(false);
         
@@ -74,7 +62,7 @@ export default function LoginPage() {
           title: 'Login Successful!',
           description: 'Please complete or verify your BharatConnect profile.',
         });
-        console.log(`[Login Page] Redirecting to profile-setup for UID: ${user.uid}. Temp InstaBharat data (if any) stored in localStorage.`);
+        console.log(`[Login Page] Redirecting to profile-setup for UID: ${user.uid}.`);
         router.replace('/profile-setup');
       }
     } catch (err: any) {
@@ -92,7 +80,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user && !isLoading) { // Ensure not to interfere if a login submission is in progress and UID exists
+      if (user && !isLoading) { 
         handleUserSession(user);
       } else if (!user && !isLoading) {
         console.log("[Login Page] onAuthStateChanged: No user detected, not currently logging in.");
@@ -100,7 +88,7 @@ export default function LoginPage() {
     });
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // isLoading removed to prevent re-triggering on its change
+  }, []); 
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -115,7 +103,7 @@ export default function LoginPage() {
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // onAuthStateChanged will handle the rest via handleUserSession
+      // onAuthStateChanged will handle the rest via handleUserSession if successful
     } catch (err: any) {
       console.error("[Login Page] handleSubmit: Login error:", err);
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
@@ -128,9 +116,8 @@ export default function LoginPage() {
         title: 'Login Failed',
         description: err.message || 'Invalid credentials or an unexpected error occurred.',
       });
-      setIsLoading(false); // Explicitly set loading false on error
+      setIsLoading(false); 
     }
-    // setIsLoading(false) is now handled by handleUserSession or the catch block
   };
 
   return (

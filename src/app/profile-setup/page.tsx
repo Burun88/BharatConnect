@@ -9,15 +9,15 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from '@/components/ui/card';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { UserCircle2, Camera, Phone, User as UserIcon, Mail } from 'lucide-react';
+// AlertDialog components removed as they are no longer needed
+import { UserCircle2, Camera, Mail } from 'lucide-react'; // UserIcon removed, Phone icon can be added back if desired
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { auth } from '@/lib/firebase';
-import { createOrUpdateUserFullProfile, type InstaBharatIdentity } from '@/services/profileService';
+import { createOrUpdateUserFullProfile } from '@/services/profileService';
 import type { User as AuthUser } from 'firebase/auth';
 import Logo from '@/components/shared/Logo';
-import { cn } from '@/lib/utils';
+// cn utility is not used here currently, can be removed if not added later
 
 function ProfileSetupContent() {
   const router = useRouter();
@@ -27,22 +27,21 @@ function ProfileSetupContent() {
   const [bcPhoneNumber, setBcPhoneNumber] = useState('');
   const [bcBio, setBcBio] = useState('');
   const [bcProfilePicPreview, setBcProfilePicPreview] = useState<string | null>(null);
-  const [bcProfilePicFile, setBcProfilePicFile] = useState<File | null>(null);
+  const [bcProfilePicFile, setBcProfilePicFile] = useState<File | null>(null); // Retained for potential future direct upload
 
   const [authUser, setAuthUser] = useState<AuthUser | null>(auth.currentUser);
   const [authEmail, setAuthEmail] = useState('');
-  const [instaUsername, setInstaUsername] = useState(''); // Store InstaBharat username if imported
+  // instaUsername and related states removed
 
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(true);
 
   const initialProfileLs = useMemo(() => ({ name: '', phone: '', email: '', photoURL: '', username: '' }), []);
-  const [, setUserProfileLs] = useLocalStorage('userProfile', initialProfileLs);
+  const [userProfileLs, setUserProfileLs] = useLocalStorage('userProfile', initialProfileLs);
   const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
-  const [tempInstaBharatProfileData, setTempInstaBharatProfileData] = useLocalStorage<InstaBharatIdentity | null>('tempInstaBharatProfileData', null);
-
-  const [showInstaBharatPrompt, setShowInstaBharatPrompt] = useState(false);
+  // tempInstaBharatProfileData and related states/effects removed
+  // showInstaBharatPrompt and related states/effects removed
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -50,40 +49,25 @@ function ProfileSetupContent() {
         setAuthUser(user);
         setAuthEmail(user.email || '');
         console.log("[ProfileSetupPage] Auth user found:", user.uid, user.email);
-
-        if (tempInstaBharatProfileData && tempInstaBharatProfileData.uid === user.uid) {
-          setShowInstaBharatPrompt(true);
-        } else {
-          setTempInstaBharatProfileData(null);
-          setIsPageLoading(false);
+        // Populate email from localStorage if authUser.email is somehow null but LS has it
+        // This case might happen if userProfileLs was set before auth state fully propagated
+        if (!user.email && userProfileLs.email) {
+            setAuthEmail(userProfileLs.email);
         }
+        setIsPageLoading(false); // No more dialog, so set loading to false
       } else {
         console.warn("[ProfileSetupPage] No auth user found, redirecting to login.");
         router.replace('/login');
       }
     });
     return () => unsubscribe();
-  }, [router, tempInstaBharatProfileData, setTempInstaBharatProfileData]);
+  }, [router, userProfileLs.email]); // Added userProfileLs.email to dependencies
 
-  const handleInstaPromptResponse = (useInstaData: boolean) => {
-    if (useInstaData && tempInstaBharatProfileData) {
-      console.log("[ProfileSetupPage] User chose to use InstaBharat data:", tempInstaBharatProfileData);
-      setBcName(tempInstaBharatProfileData.name || '');
-      setBcProfilePicPreview(tempInstaBharatProfileData.profileImageUrl || null);
-      setInstaUsername(tempInstaBharatProfileData.username || '');
-      toast({ title: "InstaBharat details applied!", description: "You can still make changes before saving." });
-    } else {
-      console.log("[ProfileSetupPage] User chose NOT to use InstaBharat data or no data found.");
-    }
-    setTempInstaBharatProfileData(null);
-    setShowInstaBharatPrompt(false);
-    setIsPageLoading(false);
-  };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setBcProfilePicFile(file);
+      setBcProfilePicFile(file); // Store the file if direct upload is implemented later
       const reader = new FileReader();
       reader.onloadend = () => {
         setBcProfilePicPreview(reader.result as string);
@@ -108,30 +92,32 @@ function ProfileSetupContent() {
       setError('Please enter your name for BharatConnect.');
       return;
     }
-    if (bcPhoneNumber && !/^\d{10}$/.test(bcPhoneNumber)) {
-      setError('Please enter a valid 10-digit phone number.');
+    if (bcPhoneNumber && !/^\d{10}$/.test(bcPhoneNumber)) { // Basic 10-digit validation
+      setError('Please enter a valid 10-digit phone number (optional).');
       return;
     }
 
     setIsLoading(true);
 
     try {
+      // The photoURL sent here will be the base64 data URI.
+      // A real implementation would upload bcProfilePicFile to Firebase Storage
+      // and then save the download URL. For now, base64 is fine for mock.
       await createOrUpdateUserFullProfile(authUser.uid, {
         name: bcName.trim(),
-        email: authEmail,
-        username: instaUsername || undefined,
+        email: authEmail, // Ensure email is from authUser or reliable source
         phone: bcPhoneNumber.trim() || undefined,
-        photoURL: bcProfilePicPreview || undefined,
+        photoURL: bcProfilePicPreview || undefined, // This would be a storage URL in prod
         bio: bcBio.trim() || undefined,
         onboardingComplete: true,
       });
 
-      setUserProfileLs({
+      setUserProfileLs({ // Update localStorage with the new profile
         name: bcName.trim(),
         phone: bcPhoneNumber.trim(),
         email: authEmail,
-        photoURL: bcProfilePicPreview || '',
-        username: instaUsername || ''
+        photoURL: bcProfilePicPreview || '', // Store preview URL or empty
+        username: '' // Username is no longer part of this flow
       });
       setOnboardingCompleteLs(true);
 
@@ -155,14 +141,15 @@ function ProfileSetupContent() {
   };
 
   const handleLogoutAndStartOver = () => {
-    setError(''); // Clear any existing form validation errors
+    setError(''); 
     auth.signOut().then(() => {
-      setTempInstaBharatProfileData(null); // Also clear temp data
+      setUserProfileLs(initialProfileLs); // Clear user profile from LS
+      setOnboardingCompleteLs(false);   // Reset onboarding status
       router.push('/login');
     });
   };
 
-  if (isPageLoading && !showInstaBharatPrompt) { 
+  if (isPageLoading) { 
     return (
       <div className="flex flex-col items-center justify-center flex-grow min-h-0 bg-background p-4 hide-scrollbar overflow-y-auto">
         <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -175,134 +162,94 @@ function ProfileSetupContent() {
   }
 
   return (
-    <>
-      <AlertDialog open={showInstaBharatPrompt} onOpenChange={(open) => {
-        if (!open && tempInstaBharatProfileData) { 
-          // If dialog is closed without making a choice (e.g. clicking outside)
-          // and data was present, treat as "No" to prevent being stuck.
-          handleInstaPromptResponse(false);
-        } else {
-          setShowInstaBharatPrompt(open);
-        }
-      }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>InstaBharat Profile Found!</AlertDialogTitle>
-            <AlertDialogDescription>
-              We found an existing InstaBharat profile for you ({tempInstaBharatProfileData?.name || 'User'}).
-              Would you like to use these details (name, photo, username) to get started with BharatConnect?
-              You can edit them before saving.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => handleInstaPromptResponse(false)}>No, Start Fresh</AlertDialogCancel>
-            <AlertDialogAction onClick={() => handleInstaPromptResponse(true)}>Yes, Use Details</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+    <div className="flex flex-col items-center bg-background p-4 flex-grow min-h-0 hide-scrollbar overflow-y-auto">
+      <Card className="w-full max-w-md shadow-2xl my-auto"> 
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-6">
+            <Logo size="large" />
+          </div>
+          <CardDescription className="text-muted-foreground pt-2">
+            Setup your BharatConnect Profile
+          </CardDescription>
+        </CardHeader>
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-6">
+            <div className="flex flex-col items-center space-y-2">
+              <Label htmlFor="profile-pic-upload" className="cursor-pointer">
+                <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center relative overflow-hidden border-2 border-dashed border-border hover:border-primary transition-colors">
+                  {bcProfilePicPreview ? (
+                    <Image src={bcProfilePicPreview} alt="Profile preview" layout="fill" objectFit="cover" data-ai-hint="person portrait"/>
+                  ) : (
+                    <UserCircle2 className="w-16 h-16 text-muted-foreground" />
+                  )}
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <Camera className="w-8 h-8 text-white" />
+                  </div>
+                </div>
+              </Label>
+              <Input id="profile-pic-upload" type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+              <p className="text-xs text-muted-foreground">Tap to upload your BharatConnect picture</p>
+            </div>
 
-      {!showInstaBharatPrompt && ( 
-        <div className="flex flex-col items-center bg-background p-4 flex-grow min-h-0 hide-scrollbar overflow-y-auto">
-          <Card className="w-full max-w-md shadow-2xl my-auto"> 
-            <CardHeader className="text-center">
-              <div className="flex justify-center mb-6">
-                <Logo size="large" />
+            <div className="space-y-1">
+              <Label htmlFor="auth-email-display">Email</Label>
+              <div className="flex items-center space-x-2 p-2.5 rounded-md border bg-muted/30 text-muted-foreground">
+                <Mail className="w-4 h-4" />
+                <span id="auth-email-display" className="flex-1 text-sm">{authEmail || 'Loading email...'}</span>
               </div>
-              <CardDescription className="text-muted-foreground pt-2">
-                Setup your BharatConnect Profile
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={handleSubmit}>
-              <CardContent className="space-y-6">
-                <div className="flex flex-col items-center space-y-2">
-                  <Label htmlFor="profile-pic-upload" className="cursor-pointer">
-                    <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center relative overflow-hidden border-2 border-dashed border-border hover:border-primary transition-colors">
-                      {bcProfilePicPreview ? (
-                        <Image src={bcProfilePicPreview} alt="Profile preview" layout="fill" objectFit="cover" data-ai-hint="person portrait"/>
-                      ) : (
-                        <UserCircle2 className="w-16 h-16 text-muted-foreground" />
-                      )}
-                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                        <Camera className="w-8 h-8 text-white" />
-                      </div>
-                    </div>
-                  </Label>
-                  <Input id="profile-pic-upload" type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-                  <p className="text-xs text-muted-foreground">Tap to upload your BharatConnect picture</p>
-                </div>
+            </div>
 
-                <div className="space-y-1">
-                  <Label htmlFor="auth-email-display">Email</Label>
-                  <div className="flex items-center space-x-2 p-2.5 rounded-md border bg-muted/30 text-muted-foreground">
-                    <Mail className="w-4 h-4" />
-                    <span id="auth-email-display" className="flex-1 text-sm">{authEmail || 'Loading email...'}</span>
-                  </div>
-                </div>
+            <div className="space-y-1">
+              <Label htmlFor="bcName">Your Name for BharatConnect</Label>
+              <Input
+                id="bcName"
+                type="text"
+                placeholder="Your Name"
+                value={bcName}
+                onChange={(e) => setBcName(e.target.value)}
+                required
+              />
+            </div>
 
-                {instaUsername && ( 
-                  <div className="space-y-1">
-                    <Label htmlFor="username-display">InstaBharat Username</Label>
-                    <div className="flex items-center space-x-2 p-2.5 rounded-md border bg-muted/30 text-muted-foreground">
-                      <UserIcon className="w-4 h-4" />
-                      <span id="username-display" className="flex-1 text-sm">{instaUsername}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">This username is from your InstaBharat profile (view-only).</p>
-                  </div>
-                )}
+            <div className="space-y-1">
+              <Label htmlFor="bcBio">Bio (Optional)</Label>
+              <Textarea
+                id="bcBio"
+                placeholder="Tell us about yourself..."
+                value={bcBio}
+                onChange={(e) => setBcBio(e.target.value)}
+                rows={3}
+              />
+            </div>
 
-                <div className="space-y-1">
-                  <Label htmlFor="bcName">Your Name for BharatConnect</Label>
-                  <Input
-                    id="bcName"
-                    type="text"
-                    placeholder="Your Name"
-                    value={bcName}
-                    onChange={(e) => setBcName(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="bcBio">Bio (Optional)</Label>
-                  <Textarea
-                    id="bcBio"
-                    placeholder="Tell us about yourself..."
-                    value={bcBio}
-                    onChange={(e) => setBcBio(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="bcPhone">Phone Number (Optional)</Label>
-                  <div className="flex items-center space-x-2">
-                    <span className="p-2.5 rounded-l-md border border-r-0 bg-muted text-muted-foreground text-sm">+91</span>
-                    <Input
-                      id="bcPhone"
-                      type="tel"
-                      placeholder="98xxxxxx00"
-                      value={bcPhoneNumber}
-                      onChange={(e) => setBcPhoneNumber(e.target.value)}
-                      maxLength={10}
-                      className="flex-1 rounded-l-none"
-                    />
-                  </div>
-                </div>
-                {error && <p id="profile-error" className="text-sm text-destructive text-center">{error}</p>}
-              </CardContent>
-              <CardFooter className="flex-col space-y-2">
-                <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isLoading || showInstaBharatPrompt}>
-                  {isLoading ? 'Saving...' : 'Save Profile & Continue'}
-                </Button>
-                <Button variant="link" className="mt-2 text-sm text-muted-foreground" onClick={handleLogoutAndStartOver} disabled={showInstaBharatPrompt}>
-                  Logout and start over
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </div>
-      )}
-    </>
+            <div className="space-y-1">
+              <Label htmlFor="bcPhone">Phone Number (Optional)</Label>
+              <div className="flex items-center space-x-2">
+                <span className="p-2.5 rounded-l-md border border-r-0 bg-muted text-muted-foreground text-sm">+91</span>
+                <Input
+                  id="bcPhone"
+                  type="tel"
+                  placeholder="98xxxxxx00"
+                  value={bcPhoneNumber}
+                  onChange={(e) => setBcPhoneNumber(e.target.value)}
+                  maxLength={10}
+                  className="flex-1 rounded-l-none"
+                />
+              </div>
+            </div>
+            {error && <p id="profile-error" className="text-sm text-destructive text-center">{error}</p>}
+          </CardContent>
+          <CardFooter className="flex-col space-y-2">
+            <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isLoading}>
+              {isLoading ? 'Saving...' : 'Save Profile & Continue'}
+            </Button>
+            <Button variant="link" className="mt-2 text-sm text-muted-foreground" onClick={handleLogoutAndStartOver}>
+              Logout and start over
+            </Button>
+          </CardFooter>
+        </form>
+      </Card>
+    </div>
   );
 }
 
@@ -323,4 +270,3 @@ export default function ProfileSetupPage() {
     </div>
   )
 }
-
