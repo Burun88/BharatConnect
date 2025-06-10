@@ -11,49 +11,61 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Logo from '@/components/shared/Logo';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import type { LocalUserProfile, BharatConnectFirestoreUser } from '@/types'; // Assuming BharatConnectFirestoreUser might still be used for structure by LocalUserProfile
+import type { LocalUserProfile } from '@/types';
+import { auth, signInUser, resetUserPassword } from '@/lib/firebase'; // Ensure signInUser and resetUserPassword are imported
 
 export default function LoginPageHub() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Renamed from isLoading to avoid conflict
   const router = useRouter();
   const { toast } = useToast();
 
   const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
+  const [isLoadingPage, setIsLoadingPage] = useState(true); // New loading state for initial auth check
   
   useEffect(() => {
-    // Simplified: If user profile exists and onboarding is complete, redirect.
-    // This no longer checks live auth state.
-    if (userProfileLs?.uid && userProfileLs?.onboardingComplete) {
-      console.log(`[Login Hub] User ${userProfileLs.uid} from LS appears onboarded. Redirecting to /`);
-      router.replace('/');
+    if (userProfileLs) { // If userProfileLs is not null, we have info (or observer confirmed no session)
+      if (userProfileLs.uid && userProfileLs.onboardingComplete) {
+        console.log(`[Login Hub] User ${userProfileLs.uid} from LS is onboarded. Redirecting to /`);
+        router.replace('/');
+        return; 
+      } else if (userProfileLs.uid && !userProfileLs.onboardingComplete) {
+        console.log(`[Login Hub] User ${userProfileLs.uid} from LS is logged in but NOT onboarded. Redirecting to /profile-setup`);
+        router.replace('/profile-setup');
+        return;
+      }
+      // If userProfileLs has no uid, or other conditions not met, we show login page
+      setIsLoadingPage(false);
+    } else {
+      // userProfileLs is null (initial load, or genuinely logged out)
+      // FirebaseAuthObserver will update it if a session exists.
+      // For now, assume we might show login page, unless observer updates and triggers redirect.
+      // If observer confirms no user, isLoadingPage will be set to false.
+      // If observer finds a user, this effect re-runs, and redirection should happen.
+      // We set isLoadingPage to false to allow login form if no immediate redirection occurs.
+      setIsLoadingPage(false); 
     }
-  }, [router, userProfileLs]);
+  }, [userProfileLs, router]);
 
-  const handleLoginSuccess = (userId: string, profileEmail: string, profileData?: Partial<BharatConnectFirestoreUser>) => {
+  const handleLoginSuccess = (userId: string, profileEmail: string, profileData?: Partial<LocalUserProfile>) => {
     const onboardingComplete = !!profileData?.onboardingComplete;
+    // Update local storage with comprehensive user data
+    setUserProfileLs({ 
+      uid: userId,
+      email: profileEmail,
+      displayName: profileData?.displayName || profileEmail.split('@')[0] || 'User', // Sensible default for displayName
+      photoURL: profileData?.photoURL || null,
+      phoneNumber: profileData?.phoneNumber || null,
+      onboardingComplete: onboardingComplete,
+    });
+
     if (onboardingComplete) {
-      console.log(`[Login Hub] Mock login success for ${userId}. Redirecting to home.`);
-      setUserProfileLs({ 
-        uid: userId,
-        email: profileEmail,
-        displayName: profileData?.displayName,
-        photoURL: profileData?.photoURL,
-        phoneNumber: profileData?.phoneNumber,
-        onboardingComplete: true,
-      });
+      console.log(`[Login Hub] Login success for ${userId}. Redirecting to home.`);
       router.replace('/');
     } else {
-      console.log(`[Login Hub] Mock login success for ${userId}, but onboarding incomplete. Redirecting to profile-setup.`);
-      setUserProfileLs({ 
-        uid: userId,
-        email: profileEmail,
-        displayName: profileData?.displayName || undefined, 
-        photoURL: profileData?.photoURL || undefined,
-        onboardingComplete: false, 
-      });
+      console.log(`[Login Hub] Login success for ${userId}, but onboarding incomplete. Redirecting to profile-setup.`);
       router.replace('/profile-setup');
     }
   };
@@ -61,49 +73,109 @@ export default function LoginPageHub() {
   const handleContinue = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     if (!email.trim()) {
       setError('Please enter your email address.');
-      setIsLoading(false);
+      setIsSubmitting(false);
       return;
     }
      if (!password.trim() && email.trim()) { 
          setError('Please enter your password to log in.');
-         setIsLoading(false);
+         setIsSubmitting(false);
          return;
     }
 
-    console.log("[Login Hub] Attempting login (Firebase removed, this is a mock action).");
-    // Mocking login success for demonstration as Firebase is removed
-    // In a real scenario, this would call an auth provider.
-    setTimeout(() => {
-      // Simulate fetching a profile or proceeding based on email/pass.
-      // For now, let's assume login is successful and user needs onboarding.
-      const mockUserId = `user_${Date.now()}`;
-      handleLoginSuccess(mockUserId, email, { onboardingComplete: false, displayName: "Demo User" });
-      setIsLoading(false);
+    try {
+      const userCredential = await signInUser(auth, email, password);
+      console.log("[Login Hub] Firebase SignIn Success:", userCredential.user.uid);
+      // FirebaseAuthObserver will handle setting LocalStorage for basic uid/email.
+      // We can assume onboarding is NOT complete yet for a direct login,
+      // unless we fetch a full profile from Firestore here (which is not part of current auth-only setup).
+      // For now, redirect to profile-setup; observer will set basic LS, profile-setup will complete it.
+      // Or, better: let observer handle LS, and profile-setup reads it.
+      // For login, we assume if successful, onboarding status depends on what's ALREADY in LS (set by observer)
+      // or we fetch it. Simplest is to rely on observer to set basic LS.
+      // The redirection useEffect should then pick up changes.
+      
+      // We don't call handleLoginSuccess directly anymore like this if observer is primary LS setter.
+      // Instead, observer updates LS, and the useEffect for redirection handles it.
+      // Toasting success can be done here.
       toast({
-        title: 'Login Attempted (Mock)',
-        description: 'Firebase is removed. Simulating login process.',
+        title: 'Login Successful!',
+        description: `Welcome back, ${userCredential.user.email}!`,
       });
-    }, 1000);
+      // Redirection is handled by the useEffect hook listening to userProfileLs changes.
+
+    } catch (err: any) {
+      console.error("[Login Hub] Firebase SignIn Error:", err);
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        setError('Incorrect email or password. New user? Please sign up.');
+        toast({
+            variant: 'destructive',
+            title: 'Login Failed',
+            description: 'Incorrect email or password. New user? Please sign up.',
+        });
+      } else if (err.code === 'auth/invalid-email') {
+        console.warn(`[Login Hub] Handled login error - Code: ${err.code}. Message: Invalid email format supplied by user.`);
+        setError('Invalid email format. Please check your email address.');
+        toast({ variant: 'destructive', title: 'Invalid Email', description: 'Please enter a valid email address.' });
+      } else if (err.code === 'auth/network-request-failed') {
+        setError('Network error. Please check your connection and try again.');
+        toast({ variant: 'destructive', title: 'Network Error', description: 'Could not connect to authentication service. Please check your internet connection.' });
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+        toast({ variant: 'destructive', title: 'Login Error', description: err.message || 'An unexpected error occurred.' });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   const handleGoogleSignIn = () => {
-    console.log("Google Sign-In clicked - Firebase removed");
-    toast({ title: "Coming Soon!", description: "Google Sign-In will be available soon (Firebase removed)." });
+    console.log("Google Sign-In clicked - Firebase removed"); // This message is from when Firebase was removed.
+    toast({ title: "Coming Soon!", description: "Google Sign-In will be available soon." });
   };
 
-  const handleForgotPassword = () => {
-    console.log("Forgot Password clicked - Firebase removed");
+  const handleForgotPassword = async () => {
     if (!email.trim()) {
-      toast({ title: "Email Required", description: "Please enter your email address to reset password.", variant: "default" });
+      setError('Please enter your email address to reset your password.');
+      toast({ title: "Email Required", description: "Enter your email to reset password.", variant: "default" });
       return;
     }
-    toast({ title: "Password Reset (Mock)", description: `If ${email} were registered, a reset link would be sent.` });
+    setError('');
+    setIsSubmitting(true);
+    try {
+      await resetUserPassword(email);
+      toast({ title: "Password Reset Email Sent", description: `If an account exists for ${email}, a password reset link has been sent.` });
+    } catch (err: any) {
+      console.error("Error sending password reset email:", err);
+      if (err.code === 'auth/invalid-email') {
+        setError('Invalid email format. Please check your email address.');
+        toast({ variant: 'destructive', title: 'Invalid Email', description: 'The email address is not valid.' });
+      } else if (err.code === 'auth/user-not-found') {
+         setError('No user found with this email address.');
+         toast({ variant: 'destructive', title: 'User Not Found', description: 'No account found with this email.' });
+      } else {
+        setError('Failed to send password reset email. Please try again.');
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not send password reset email.' });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
+  if (isLoadingPage) {
+    return (
+      <div className="flex flex-col h-screen bg-background items-center justify-center">
+        <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p className="mt-4 text-muted-foreground">Checking authentication...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
@@ -160,14 +232,14 @@ export default function LoginPageHub() {
               />
             </div>
             {error && <p id="login-error" className="text-sm text-destructive text-center">{error}</p>}
-            <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isLoading}>
-              {isLoading ? 'Processing...' : 'Continue'}
+            <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isSubmitting}>
+              {isSubmitting ? 'Processing...' : 'Continue'}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="flex-col items-center space-y-3">
-          <Button variant="link" size="sm" onClick={handleForgotPassword} className="text-xs text-muted-foreground hover:text-primary" disabled>
-            Forgot Password? (Coming Soon)
+          <Button variant="link" size="sm" onClick={handleForgotPassword} className="text-xs text-muted-foreground hover:text-primary">
+            Forgot Password?
           </Button>
           <p className="text-sm text-muted-foreground">
             Don't have an account?{' '}
