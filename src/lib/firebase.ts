@@ -12,7 +12,10 @@ import {
   sendPasswordResetEmail as fbSendPasswordResetEmail,
   type User as FirebaseUser
 } from 'firebase/auth';
-// import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'; // Firestore not re-integrated yet
+import { 
+  getFirestore, 
+  // connectFirestoreEmulator // Keep emulators commented out for now
+} from 'firebase/firestore';
 
 // Your web app's Firebase configuration from user
 const firebaseConfig: FirebaseOptions = {
@@ -33,7 +36,7 @@ if (!getApps().length) {
 }
 
 const auth = getAuth(app);
-// const firestore = getFirestore(app); // Firestore not re-integrated yet
+const firestore = getFirestore(app); // Initialize Firestore
 
 // --- Emulator Connection (Comment out for production/live connection) ---
 // const EMULATORS_STARTED = 'EMULATORS_STARTED';
@@ -48,9 +51,9 @@ const auth = getAuth(app);
 //           "Connecting to: Auth (127.0.0.1:9199), Firestore (127.0.0.1:8180)."
 //         );
 //         connectAuthEmulator(auth, "http://127.0.0.1:9199", { disableWarnings: true });
-//         // connectFirestoreEmulator(firestore, "127.0.0.1", 8180);
+//         connectFirestoreEmulator(firestore, "127.0.0.1", 8180);
 //         console.log("[Firebase Lib] Connected to Auth Emulator on 127.0.0.1:9199");
-//         // console.log("[Firebase Lib] Connected to Firestore Emulator on 127.0.0.1:8180");
+//         console.log("[Firebase Lib] Connected to Firestore Emulator on 127.0.0.1:8180");
 //       } catch (error) {
 //         console.error("[Firebase Lib] Error connecting to emulators:", error);
 //       }
@@ -70,4 +73,4 @@ export const signOutUser = () => fbSignOut(auth);
 export const onAuthUserChanged = fbOnAuthStateChanged;
 export const resetUserPassword = (email: string) => fbSendPasswordResetEmail(auth, email);
 
-export { app, auth, type FirebaseUser }; // Export firestore later
+export { app, auth, firestore, type FirebaseUser }; // Export firestore
