@@ -1,0 +1,20 @@
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Profile pictures:
+    // Allow authenticated users to read and write files in a folder matching their userId.
+    // Example path: profilePictures/{userId}/profileImage.jpg
+    match /profilePictures/{userId}/{allPaths=**} {
+      allow read: if request.auth != null; // Or, to be stricter: request.auth.uid == userId
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // You can add other rules for different paths here.
+    // For example, if you had shared chat media:
+    // match /chatMedia/{chatId}/{allPaths=**} {
+    //   allow read, write: if request.auth != null; // Add more specific logic based on chat membership
+    // }
+  }
+}
