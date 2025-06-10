@@ -1,8 +1,9 @@
 
 'use server';
 
-import { auth, firestore } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { app, firestore } from '@/lib/firebase'; // app is needed to re-get auth
+import { getAuth as getClientAuth } from 'firebase/auth'; // Client SDK for use in server action
+import { doc, getDoc, setDoc, serverTimestamp,FieldValue } from 'firebase/firestore';
 
 /**
  * @fileOverview Service functions for managing BharatConnect user profiles.
@@ -13,15 +14,15 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 export interface BharatConnectUser {
   id: string; // Firebase UID
-  name: string; 
+  name: string;
   email: string;
   phone?: string;
   photoURL?: string | null;
   bio?: string;
   currentAuraId?: string | null;
   onboardingComplete: boolean;
-  createdAt: any; 
-  updatedAt: any; 
+  createdAt: FieldValue; // Use FieldValue for serverTimestamp
+  updatedAt: FieldValue; // Use FieldValue for serverTimestamp
 }
 
 /**
@@ -31,12 +32,15 @@ export interface BharatConnectUser {
  */
 export async function createOrUpdateUserFullProfile(
   uid: string,
-  profileData: Omit<BharatConnectUser, 'id' | 'createdAt' | 'updatedAt'>
+  profileData: Omit<BharatConnectUser, 'id' | 'createdAt' | 'updatedAt' | 'email'> & { email: string } // email is now explicitly part of input for clarity
 ): Promise<void> {
   console.log(`[SVC_PROF] createOrUpdateUserFullProfile invoked for UID: ${uid}`);
-  // console.log(`[SVC_PROF] Received profileData (full): ${JSON.stringify(profileData, null, 2)}`);
-  // Only log essential parts to avoid overly verbose logs unless deep debugging data content
   console.log(`[SVC_PROF] Received profileData (essentials): name=${profileData.name}, email=${profileData.email}, onboardingComplete=${profileData.onboardingComplete}`);
+
+  const authInstanceInAction = getClientAuth(app); // Re-get auth instance
+  const currentUserInAction = authInstanceInAction.currentUser;
+  // This console.log is CRUCIAL for debugging. Check server-side (App Hosting/Cloud Run) logs.
+  console.log(`[SVC_PROF] Auth state in server action (re-fetched) - currentUserInAction?.uid: ${currentUserInAction?.uid}`);
 
 
   if (!uid) {
@@ -56,31 +60,30 @@ export async function createOrUpdateUserFullProfile(
     const profileDocRef = doc(firestore, 'bharatConnectUsers', uid);
     const existingProfileSnap = await getDoc(profileDocRef);
 
-    const dataToSet: Partial<BharatConnectUser> & { updatedAt: any, id: string, email: string, name: string, onboardingComplete: boolean } = {
+    // Ensure all fields potentially being undefined are handled gracefully.
+    const dataToSet: Partial<Omit<BharatConnectUser, 'createdAt' | 'updatedAt'>> & { updatedAt: FieldValue, id: string, email: string, name: string, onboardingComplete: boolean } = {
       id: uid,
       name: profileData.name,
-      email: profileData.email, // Ensure email is part of the data being set
-      phone: profileData.phone || undefined,
-      photoURL: profileData.photoURL || undefined,
+      email: profileData.email,
+      phone: profileData.phone || undefined, // Use undefined if not provided
+      photoURL: profileData.photoURL || null, // Use null if not provided
       bio: profileData.bio || undefined,
       currentAuraId: profileData.currentAuraId || null,
-      onboardingComplete: profileData.onboardingComplete, // This should be true
+      onboardingComplete: profileData.onboardingComplete,
       updatedAt: serverTimestamp(),
     };
 
     if (!existingProfileSnap.exists()) {
-      (dataToSet as BharatConnectUser).createdAt = serverTimestamp();
+      // Only add createdAt if the document is new
+      (dataToSet as Partial<BharatConnectUser>).createdAt = serverTimestamp();
       console.log(`[SVC_PROF] Profile for UID: ${uid} does not exist. Will create with createdAt timestamp.`);
     } else {
       console.log(`[SVC_PROF] Profile for UID: ${uid} exists. Will merge/update.`);
     }
     
-    // Log auth state as seen by the server action
-    const currentUserInAction = auth.currentUser; 
-    console.log(`[SVC_PROF] Auth state in server action - currentUserInAction?.uid: ${currentUserInAction?.uid}`);
     console.log(`[SVC_PROF] Path for Firestore write: bharatConnectUsers/${uid}`);
-    console.log(`[SVC_PROF] Data to be set/merged: ${JSON.stringify(dataToSet, (key, value) => typeof value === 'undefined' ? null : value, 2)}`);
-
+    // Log safely, converting undefined to null for JSON.stringify if needed
+    console.log(`[SVC_PROF] Data to be set/merged: ${JSON.stringify(dataToSet, (key, value) => (value === undefined ? null : value), 2)}`);
 
     await setDoc(profileDocRef, dataToSet, { merge: true });
     console.log(`[SVC_PROF] Full profile for UID: ${uid} successfully written/merged to '/bharatConnectUsers'.`);
@@ -89,17 +92,17 @@ export async function createOrUpdateUserFullProfile(
     console.error(`[SVC_PROF] Error writing full profile for UID ${uid}. Raw error:`, error);
     
     let firebaseErrorCode = null;
-    if (typeof error.code === 'string' && error.code.startsWith('permission-denied')) { // More specific check for Firestore codes
-        firebaseErrorCode = error.code;
-    } else if (typeof error.code === 'string') { // General Firebase error codes
+    // Check if the error object has a 'code' property (common in Firebase errors)
+    if (error && typeof error.code === 'string') {
         firebaseErrorCode = error.code;
     }
     if (firebaseErrorCode) {
       console.error(`[SVC_PROF] Firebase error code: ${firebaseErrorCode}`);
     }
 
-    const currentUserInActionOnError = auth.currentUser; // Check auth state again on error
-    console.error(`[SVC_PROF] Auth state during error - currentUserInActionOnError?.uid: ${currentUserInActionOnError?.uid}`);
+    const authInstanceOnError = getClientAuth(app); // Re-get auth instance
+    const currentUserInActionOnError = authInstanceOnError.currentUser;
+    console.error(`[SVC_PROF] Auth state during error (re-fetched) - currentUserInActionOnError?.uid: ${currentUserInActionOnError?.uid}`);
     
     let detailedErrorMessage = `Failed to save profile. Original error: ${error.message || 'An unknown server error occurred.'}`;
     if (firebaseErrorCode) {
@@ -124,6 +127,7 @@ export async function getUserFullProfile(uid: string): Promise<BharatConnectUser
     const docSnap = await getDoc(profileDocRef);
 
     if (docSnap.exists()) {
+      // Timestamps will be Firebase Timestamp objects, ensure client handles them or convert here if necessary
       return docSnap.data() as BharatConnectUser;
     } else {
       console.log(`[SVC_PROF] getUserFullProfile: No profile found in '/bharatConnectUsers' for UID: ${uid}.`);
@@ -133,6 +137,6 @@ export async function getUserFullProfile(uid: string): Promise<BharatConnectUser
     console.error(`[SVC_PROF] getUserFullProfile: Error fetching full profile for UID ${uid}:`, error);
     if (error.code) console.error(`[SVC_PROF] Firebase error code: ${error.code}`);
     if (error.message) console.error(`[SVC_PROF] Firebase error message: ${error.message}`);
-    return null;
+    return null; // Or rethrow, depending on desired error handling
   }
 }
