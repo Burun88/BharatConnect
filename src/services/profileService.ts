@@ -1,7 +1,7 @@
 
 'use server';
 
-import { auth, firestore } from '@/lib/firebase'; // Ensure auth is imported
+import { auth, firestore } from '@/lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
@@ -13,15 +13,15 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 export interface BharatConnectUser {
   id: string; // Firebase UID
-  name: string; // Name chosen/set in BharatConnect
+  name: string; 
   email: string;
   phone?: string;
-  photoURL?: string | null; // Profile picture URL used in BharatConnect
+  photoURL?: string | null;
   bio?: string;
   currentAuraId?: string | null;
   onboardingComplete: boolean;
-  createdAt: any; // Firestore ServerTimestamp
-  updatedAt: any; // Firestore ServerTimestamp
+  createdAt: any; 
+  updatedAt: any; 
 }
 
 /**
@@ -31,10 +31,13 @@ export interface BharatConnectUser {
  */
 export async function createOrUpdateUserFullProfile(
   uid: string,
-  profileData: Omit<BharatConnectUser, 'id' | 'createdAt' | 'updatedAt'> // Email is part of this
+  profileData: Omit<BharatConnectUser, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<void> {
   console.log(`[SVC_PROF] createOrUpdateUserFullProfile invoked for UID: ${uid}`);
-  console.log(`[SVC_PROF] Received profileData: ${JSON.stringify(profileData, null, 2)}`);
+  // console.log(`[SVC_PROF] Received profileData (full): ${JSON.stringify(profileData, null, 2)}`);
+  // Only log essential parts to avoid overly verbose logs unless deep debugging data content
+  console.log(`[SVC_PROF] Received profileData (essentials): name=${profileData.name}, email=${profileData.email}, onboardingComplete=${profileData.onboardingComplete}`);
+
 
   if (!uid) {
     console.error("[SVC_PROF] createOrUpdateUserFullProfile: UID is required.");
@@ -53,45 +56,56 @@ export async function createOrUpdateUserFullProfile(
     const profileDocRef = doc(firestore, 'bharatConnectUsers', uid);
     const existingProfileSnap = await getDoc(profileDocRef);
 
-    const dataToSet: Partial<BharatConnectUser> = {
+    const dataToSet: Partial<BharatConnectUser> & { updatedAt: any, id: string, email: string, name: string, onboardingComplete: boolean } = {
       id: uid,
       name: profileData.name,
-      email: profileData.email,
+      email: profileData.email, // Ensure email is part of the data being set
       phone: profileData.phone || undefined,
       photoURL: profileData.photoURL || undefined,
       bio: profileData.bio || undefined,
       currentAuraId: profileData.currentAuraId || null,
-      onboardingComplete: true, // Should always be true by this point in the flow
+      onboardingComplete: profileData.onboardingComplete, // This should be true
       updatedAt: serverTimestamp(),
     };
 
     if (!existingProfileSnap.exists()) {
-      dataToSet.createdAt = serverTimestamp();
+      (dataToSet as BharatConnectUser).createdAt = serverTimestamp();
       console.log(`[SVC_PROF] Profile for UID: ${uid} does not exist. Will create with createdAt timestamp.`);
     } else {
       console.log(`[SVC_PROF] Profile for UID: ${uid} exists. Will merge/update.`);
     }
     
     // Log auth state as seen by the server action
-    const currentUserInAction = auth.currentUser; // Get current user from imported auth instance
+    const currentUserInAction = auth.currentUser; 
     console.log(`[SVC_PROF] Auth state in server action - currentUserInAction?.uid: ${currentUserInAction?.uid}`);
     console.log(`[SVC_PROF] Path for Firestore write: bharatConnectUsers/${uid}`);
-    console.log(`[SVC_PROF] Data to be set/merged: ${JSON.stringify(dataToSet, null, 2)}`);
+    console.log(`[SVC_PROF] Data to be set/merged: ${JSON.stringify(dataToSet, (key, value) => typeof value === 'undefined' ? null : value, 2)}`);
+
 
     await setDoc(profileDocRef, dataToSet, { merge: true });
     console.log(`[SVC_PROF] Full profile for UID: ${uid} successfully written/merged to '/bharatConnectUsers'.`);
 
   } catch (error: any) {
     console.error(`[SVC_PROF] Error writing full profile for UID ${uid}. Raw error:`, error);
-    // It's helpful to log the structured error if possible
-    if (error.code) console.error(`[SVC_PROF] Firebase error code: ${error.code}`);
-    if (error.message) console.error(`[SVC_PROF] Firebase error message: ${error.message}`);
     
-    // Log the auth state again in case of error to see if it changed or was different
-    const currentUserInActionOnError = auth.currentUser;
+    let firebaseErrorCode = null;
+    if (typeof error.code === 'string' && error.code.startsWith('permission-denied')) { // More specific check for Firestore codes
+        firebaseErrorCode = error.code;
+    } else if (typeof error.code === 'string') { // General Firebase error codes
+        firebaseErrorCode = error.code;
+    }
+    if (firebaseErrorCode) {
+      console.error(`[SVC_PROF] Firebase error code: ${firebaseErrorCode}`);
+    }
+
+    const currentUserInActionOnError = auth.currentUser; // Check auth state again on error
     console.error(`[SVC_PROF] Auth state during error - currentUserInActionOnError?.uid: ${currentUserInActionOnError?.uid}`);
     
-    throw new Error(`Failed to save profile: ${error.message || 'An unknown server error occurred.'}`);
+    let detailedErrorMessage = `Failed to save profile. Original error: ${error.message || 'An unknown server error occurred.'}`;
+    if (firebaseErrorCode) {
+        detailedErrorMessage += ` (Code: ${firebaseErrorCode})`;
+    }
+    throw new Error(detailedErrorMessage);
   }
 }
 
@@ -110,7 +124,6 @@ export async function getUserFullProfile(uid: string): Promise<BharatConnectUser
     const docSnap = await getDoc(profileDocRef);
 
     if (docSnap.exists()) {
-      // console.log(`[SVC_PROF] getUserFullProfile: Profile found for UID: ${uid}.`);
       return docSnap.data() as BharatConnectUser;
     } else {
       console.log(`[SVC_PROF] getUserFullProfile: No profile found in '/bharatConnectUsers' for UID: ${uid}.`);
@@ -120,6 +133,6 @@ export async function getUserFullProfile(uid: string): Promise<BharatConnectUser
     console.error(`[SVC_PROF] getUserFullProfile: Error fetching full profile for UID ${uid}:`, error);
     if (error.code) console.error(`[SVC_PROF] Firebase error code: ${error.code}`);
     if (error.message) console.error(`[SVC_PROF] Firebase error message: ${error.message}`);
-    return null; // Or rethrow if you want the caller to handle it more explicitly
+    return null;
   }
 }
