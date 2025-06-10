@@ -23,13 +23,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // Removed Firebase Storage pattern:
-      // {
-      //   protocol: 'https',
-      //   hostname: 'storage.googleapis.com',
-      //   port: '',
-      //   pathname: '/**', 
-      // },
+      {
+        protocol: 'https',
+        hostname: 'storage.googleapis.com', // Added for Firebase Storage
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };

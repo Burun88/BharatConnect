@@ -15,6 +15,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { LocalUserProfile } from '@/types';
 import type { BharatConnectFirestoreUser } from '@/services/profileService';
 import { createOrUpdateUserFullProfile } from '@/services/profileService';
+import { uploadProfileImage } from '@/services/storageService'; // Import upload service
 
 interface ProfileCardProps {
   initialProfileData: BharatConnectFirestoreUser | null;
@@ -27,17 +28,15 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
 
   const [isEditing, setIsEditing] = useState(false);
   
-  // State for form fields, initialized from props or defaults
   const [name, setName] = useState('');
-  const [email, setEmail] = useState(''); // Email is not editable by user directly
+  const [email, setEmail] = useState(''); 
   const [bio, setBio] = useState('');
   const [profilePicPreview, setProfilePicPreview] = useState<string | null>(null);
-  const [profilePicFile, setProfilePicFile] = useState<File | null>(null); // For new image upload
+  const [profilePicFile, setProfilePicFile] = useState<File | null>(null); 
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Temporary state for edits
   const [tempName, setTempName] = useState('');
   const [tempBio, setTempBio] = useState('');
-  // Temp email is not needed as it's not editable
   const [tempProfilePicPreview, setTempProfilePicPreview] = useState<string | null>(null);
 
 
@@ -48,15 +47,12 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
       setBio(initialProfileData.bio || '');
       setProfilePicPreview(initialProfileData.photoURL || null);
 
-      // Initialize temp states when initial data loads or editing is cancelled
       if (!isEditing) {
         setTempName(initialProfileData.displayName || '');
         setTempBio(initialProfileData.bio || '');
         setTempProfilePicPreview(initialProfileData.photoURL || null);
       }
     } else {
-      // Fallback if no initial profile (e.g., Firestore fetch failed)
-      // Could also pull from local storage as a secondary fallback if needed
       setName('User');
       setEmail('Email not available');
       setBio('Bio not available');
@@ -66,13 +62,11 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
 
   const handleEditToggle = () => {
     if (isEditing) {
-      // If cancelling, reset temp values to current persistent values
       setTempName(name);
       setTempBio(bio);
       setTempProfilePicPreview(profilePicPreview);
-      setProfilePicFile(null); // Clear any staged file
+      setProfilePicFile(null); 
     } else {
-      // If starting to edit, copy current values to temp values
       setTempName(name);
       setTempBio(bio);
       setTempProfilePicPreview(profilePicPreview);
@@ -89,38 +83,42 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
         toast({ variant: 'destructive', title: "Validation Error", description: "Name cannot be empty."});
         return;
     }
+    setIsLoading(true);
+    
+    let finalPhotoURL = profilePicPreview; // Start with current (possibly old or from Firestore)
 
-    // In a real app, if profilePicFile exists, upload it to Firebase Storage first,
-    // then get the downloadURL to save in Firestore.
-    // For now, we'll use tempProfilePicPreview (which could be a data URI from new upload, or existing URL).
-    let finalPhotoURL = tempProfilePicPreview;
-    if (profilePicFile) {
-      // This is where you'd normally call an upload service.
-      // For this example, we assume tempProfilePicPreview already holds the data URI from handleFileChange.
-      console.warn("[ProfileCard] New profile picture file selected. Using its data URI for Firestore. Cloud upload not implemented in this component directly.");
+    if (profilePicFile) { // If a new file was staged
+      try {
+        console.log(`[ProfileCard] Uploading new profile picture for UID: ${authUid}`);
+        finalPhotoURL = await uploadProfileImage(authUid, profilePicFile, "profileImage");
+        toast({ title: "Profile picture uploaded!" });
+      } catch (uploadError: any) {
+        console.error("[ProfileCard] Error uploading profile picture:", uploadError);
+        toast({ variant: 'destructive', title: 'Upload Error', description: uploadError.message || 'Could not upload image.' });
+        setIsLoading(false);
+        return;
+      }
     }
     
     const profileDataToSave = {
-      email: email, // Email is not editable by user, but must be passed
+      email: email, 
       displayName: tempName.trim(),
       photoURL: finalPhotoURL,
-      phoneNumber: initialProfileData?.phoneNumber || null, // Assuming phone isn't edited here
+      phoneNumber: initialProfileData?.phoneNumber || null, 
       bio: tempBio.trim() || null,
-      onboardingComplete: true, // Must be true
+      onboardingComplete: true, 
     };
 
     try {
       await createOrUpdateUserFullProfile(authUid, profileDataToSave);
 
-      // Update persistent local state
       setName(tempName.trim());
       setBio(tempBio.trim() || '');
-      setProfilePicPreview(finalPhotoURL);
-      setProfilePicFile(null); // Clear staged file
+      setProfilePicPreview(finalPhotoURL); 
+      setProfilePicFile(null); 
 
-      // Update LocalStorage for immediate app-wide consistency
       setUserProfileLs(prev => {
-        if (!prev || prev.uid !== authUid) return prev; // Should not happen if authUid is correct
+        if (!prev || prev.uid !== authUid) return prev; 
         return {
           ...prev,
           displayName: tempName.trim(),
@@ -135,25 +133,26 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
     } catch (error: any) {
       console.error("Error saving profile:", error);
       toast({ variant: 'destructive', title: "Save Failed", description: error.message || "Could not save profile to server." });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleCancel = () => {
-    // Reset temp values from persistent state
     setTempName(name);
     setTempBio(bio);
     setTempProfilePicPreview(profilePicPreview);
-    setProfilePicFile(null); // Clear any new file selection
+    setProfilePicFile(null); 
     setIsEditing(false);
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setProfilePicFile(file); // Stage the file
+      setProfilePicFile(file); 
       const reader = new FileReader();
       reader.onloadend = () => {
-        setTempProfilePicPreview(reader.result as string); // Update temp preview for editing UI
+        setTempProfilePicPreview(reader.result as string); 
       };
       reader.readAsDataURL(file);
       toast({ title: "Profile picture selected", description: "Save to apply changes." });
@@ -169,7 +168,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
           <div className="p-1 rounded-full bg-gradient-to-br from-primary to-accent">
             <Avatar className="w-[100px] h-[100px] border-2 border-background">
               {displayAvatarSrc ? (
-                 <AvatarImage src={displayAvatarSrc} alt="Profile Picture" data-ai-hint="person avatar" />
+                 <AvatarImage src={displayAvatarSrc} alt="Profile Picture" key={displayAvatarSrc} data-ai-hint="person avatar"/>
               ) : (
                 <AvatarFallback className="bg-muted">
                   <UserCircle2 className="w-16 h-16 text-muted-foreground" />
@@ -188,7 +187,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
               <Camera className="w-4 h-4" />
             </Button>
           )}
-          <Input id="profile-pic-upload-account" type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={!isEditing} />
+          <Input id="profile-pic-upload-account" type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={!isEditing || isLoading} />
         </div>
         <CardTitle className="mt-4 text-xl">{isEditing ? tempName : name}</CardTitle>
       </CardHeader>
@@ -201,9 +200,10 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
               value={tempName}
               onChange={(e) => setTempName(e.target.value)}
               className="mt-1 bg-input"
+              disabled={isLoading}
             />
           ) : (
-            <p className="mt-1 text-foreground min-h-[2.5rem] flex items-center px-3 py-2 rounded-md border border-transparent"> {/* Match input height */}
+            <p className="mt-1 text-foreground min-h-[2.5rem] flex items-center px-3 py-2 rounded-md border border-transparent"> 
               {name || <span className="text-muted-foreground italic">Not set</span>}
             </p>
           )}
@@ -225,9 +225,10 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
               rows={3}
               className="mt-1 bg-input"
               placeholder="Tell us about yourself..."
+              disabled={isLoading}
             />
           ) : (
-             <p className="mt-1 text-foreground whitespace-pre-line min-h-[5rem] px-3 py-2 rounded-md border border-transparent"> {/* Match textarea min-height */}
+             <p className="mt-1 text-foreground whitespace-pre-line min-h-[5rem] px-3 py-2 rounded-md border border-transparent"> 
               {bio || <span className="text-muted-foreground italic">No bio set.</span>}
             </p>
           )}
@@ -236,11 +237,11 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
       <CardFooter className="flex justify-end gap-2">
         {isEditing ? (
           <>
-            <Button variant="ghost" onClick={handleCancel}>
+            <Button variant="ghost" onClick={handleCancel} disabled={isLoading}>
               <X className="mr-1 w-4 h-4" /> Cancel
             </Button>
-            <Button onClick={handleSave} className="bg-gradient-to-r from-accent to-primary text-primary-foreground hover:opacity-90 transition-opacity">
-              <Save className="mr-1 w-4 h-4" /> Save
+            <Button onClick={handleSave} className="bg-gradient-to-r from-accent to-primary text-primary-foreground hover:opacity-90 transition-opacity" disabled={isLoading}>
+              {isLoading ? <><svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Saving...</> : <><Save className="mr-1 w-4 h-4" /> Save</>}
             </Button>
           </>
         ) : (

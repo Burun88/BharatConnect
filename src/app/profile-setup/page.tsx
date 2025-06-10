@@ -16,6 +16,7 @@ import Logo from '@/components/shared/Logo';
 import type { LocalUserProfile } from '@/types';
 import { auth, signOutUser as fbSignOutUser } from '@/lib/firebase'; 
 import { createOrUpdateUserFullProfile } from '@/services/profileService';
+import { uploadProfileImage } from '@/services/storageService';
 
 function ProfileSetupContent() {
   const router = useRouter();
@@ -87,51 +88,58 @@ function ProfileSetupContent() {
       setProfilePicFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
-        setProfilePicPreview(reader.result as string);
+        setProfilePicPreview(reader.result as string); // Show local preview
       };
       reader.readAsDataURL(file);
-      toast({ title: "Profile picture selected" });
+      toast({ title: "Profile picture selected. Save to upload." });
     }
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
-
-    console.log("[ProfileSetupPage] handleSubmit triggered.");
-    console.log(`[ProfileSetupPage] Current state: authUid=${authUid}, authEmail=${authEmail}`);
+    setIsLoading(true);
 
     if (!authUid || !authEmail) {
       setError('User authentication information is missing. Please try logging in again.');
       toast({ title: "User Info Error", description: "UID or Email missing. Please login.", variant: "destructive" });
+      setIsLoading(false);
       router.push('/login');
       return;
     }
 
     if (!displayName.trim()) {
       setError('Please enter your display name.');
+      setIsLoading(false);
       return;
     }
     if (phoneNumber && !/^\+?\d{10,15}$/.test(phoneNumber.replace(/\s+/g, ''))) {
       setError('Please enter a valid phone number (e.g., 10 digits or international format like +919876543210).');
+      setIsLoading(false);
       return;
     }
+    
+    let finalPhotoURL = userProfileLs?.photoURL || null; // Start with existing URL or null
 
-    setIsLoading(true);
-
-    let finalPhotoURL = profilePicPreview;
-    // In a real app, you'd upload profilePicFile to Firebase Storage here
-    // and get back a URL to store in finalPhotoURL.
-    // For now, we are directly saving the data URI if a new pic is chosen,
-    // or the existing URL if no new pic is chosen.
     if (profilePicFile) {
-        console.warn("[ProfileSetupPage] New profile picture file selected. Using data URI for Firestore. Cloud upload not implemented.");
+      try {
+        console.log(`[ProfileSetupPage] Uploading new profile picture for UID: ${authUid}`);
+        // Use a consistent file name, e.g., "profileImage" (extension will be handled by upload service)
+        finalPhotoURL = await uploadProfileImage(authUid, profilePicFile, "profileImage");
+        toast({ title: "Profile picture uploaded!" });
+      } catch (uploadError: any) {
+        console.error("[ProfileSetupPage] Error uploading profile picture:", uploadError);
+        setError('Failed to upload profile picture. Please try again.');
+        toast({ variant: 'destructive', title: 'Upload Error', description: uploadError.message || 'Could not upload image.' });
+        setIsLoading(false);
+        return;
+      }
     }
     
     const profileDataToSave = {
       email: authEmail,
       displayName: displayName.trim(),
-      photoURL: finalPhotoURL, // This could be a data URI
+      photoURL: finalPhotoURL,
       phoneNumber: phoneNumber.trim() || null,
       bio: bio.trim() || null,
       onboardingComplete: true,
