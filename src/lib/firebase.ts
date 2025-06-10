@@ -14,14 +14,14 @@ import {
 import { 
   getFirestore, 
 } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage'; // Added for Firebase Storage
+import { getStorage } from 'firebase/storage'; // Ensure getStorage is imported
 
-// Your web app's Firebase configuration from user
+// Your web app's Firebase configuration
 const firebaseConfig: FirebaseOptions = {
   apiKey: "AIzaSyCmVRTIvMTgZ_IBhzlc-Ml0yt106l0EyOk",
   authDomain: "bharatconnect-i8510.firebaseapp.com",
   projectId: "bharatconnect-i8510",
-  storageBucket: "bharatconnect-i8510.firebasestorage.app", // Corrected bucket name
+  storageBucket: "bharatconnect-i8510.firebasestorage.app",
   messagingSenderId: "1011856991455",
   appId: "1:1011856991455:web:b8611aad228c31ccbf756a"
 };
@@ -46,4 +46,3 @@ export const onAuthUserChanged = fbOnAuthStateChanged;
 export const resetUserPassword = (email: string) => fbSendPasswordResetEmail(auth, email);
 
 export { app, auth, firestore, storage, type FirebaseUser }; // Export storage
-
