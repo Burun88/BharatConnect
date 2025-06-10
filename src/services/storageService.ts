@@ -10,6 +10,8 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
  * @returns A promise that resolves with the public download URL of the uploaded image.
  */
 export async function uploadProfileImage(formData: FormData): Promise<string> {
+  console.log('[StorageService] uploadProfileImage server action STARTED.'); // <<< --- ADDED THIS LINE
+
   const file = formData.get('profileImageFile') as File | null;
   const uid = formData.get('uid') as string | null;
   const baseFileName = 'profileImage'; // Consistent base name for the profile image
