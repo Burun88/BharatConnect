@@ -17,30 +17,25 @@ import type { LocalUserProfile } from '@/types';
 export default function WelcomePage() {
   const [agreed, setAgreed] = useState(false);
   const router = useRouter();
-  const [onboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
+  // const [onboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // Replaced by userProfileLs.onboardingComplete
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const initialProfile = {} as LocalUserProfile; // Ensure it matches type
-  const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', initialProfile);
+  const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
 
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // If user is logged in and onboarding was completed (from localStorage)
-        if (userProfileLs?.uid === user.uid && onboardingCompleteLs) {
+        if (userProfileLs?.uid === user.uid && userProfileLs?.onboardingComplete) {
           router.replace('/');
         } else {
-          // User is logged in but onboarding not marked complete in LS for this user,
-          // or LS profile doesn't match current auth user.
-          // Allow page to render if onboarding not complete for THIS user.
            setCheckingAuth(false);
         }
       } else {
-        setCheckingAuth(false); // No user, allow page to render
+        setCheckingAuth(false); 
       }
     });
     return () => unsubscribe();
-  }, [router, onboardingCompleteLs, userProfileLs]);
+  }, [router, userProfileLs]);
 
   const handleAgreeChange = (checked: boolean | 'indeterminate') => {
     setAgreed(checked === true);
@@ -74,9 +69,7 @@ export default function WelcomePage() {
     );
   }
 
-  // This check might be redundant if onAuthStateChanged covers it, but ensures
-  // if user lands here while authenticated and onboarded (e.g. via back button), they are redirected.
-  if (auth.currentUser && userProfileLs?.uid === auth.currentUser.uid && onboardingCompleteLs) {
+  if (auth.currentUser && userProfileLs?.uid === auth.currentUser.uid && userProfileLs?.onboardingComplete) {
      router.replace('/');
      return null;
   }
@@ -117,16 +110,15 @@ export default function WelcomePage() {
               </Label>
             </div>
           </div>
-        </CellContent>
+        </CardContent>
         <CardFooter className="flex-col space-y-2">
           <Button
             disabled={!agreed}
             className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity"
-            onClick={() => agreed && router.push('/login')} // Changed from /signup to /login (the new hub)
+            onClick={() => agreed && router.push('/login')} 
           >
             Agree and Continue
           </Button>
-          {/* The "Already have an account? Login" might be redundant if this button now goes to the login/signup hub */}
         </CardFooter>
       </Card>
       <p className="mt-8 text-xs text-muted-foreground">

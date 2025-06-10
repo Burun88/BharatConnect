@@ -22,9 +22,8 @@ function ProfileSetupContent() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const initialProfileLs = {} as LocalUserProfile;
-  const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', initialProfileLs);
-  const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
+  const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
+  // const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // Replaced by userProfileLs.onboardingComplete
 
   const [displayName, setDisplayName] = useState(userProfileLs?.displayName || '');
   const [phoneNumber, setPhoneNumber] = useState(userProfileLs?.phoneNumber || '');
@@ -44,30 +43,46 @@ function ProfileSetupContent() {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         setAuthUser(user);
-        if (!authUid) setAuthUid(user.uid); // Prefer LS uid if exists from signup step
-        if (!authEmail && user.email) setAuthEmail(user.email); // Prefer LS email
+        const currentUid = userProfileLs?.uid || user.uid;
+        const currentEmail = userProfileLs?.email || user.email || '';
         
-        console.log("[ProfileSetupPage] Auth user/LS data processed:", { uid: authUid || user.uid, email: authEmail || user.email });
+        setAuthUid(currentUid);
+        setAuthEmail(currentEmail);
+        
+        console.log("[ProfileSetupPage] Auth user/LS data processed:", { uid: currentUid, email: currentEmail });
 
-        // Pre-fill name from localStorage if available (e.g., from Google Sign-In via Login Hub)
         if (userProfileLs?.displayName && !displayName) setDisplayName(userProfileLs.displayName);
         if (userProfileLs?.photoURL && !profilePicPreview) setProfilePicPreview(userProfileLs.photoURL);
+        if (userProfileLs?.phoneNumber && !phoneNumber) setPhoneNumber(userProfileLs.phoneNumber);
+
+
+        // If onboarding is already complete for this user, redirect them.
+        if (userProfileLs?.uid === user.uid && userProfileLs?.onboardingComplete) {
+          console.log("[ProfileSetupPage] User already onboarded. Redirecting to home.");
+          router.replace('/');
+          return;
+        }
         
         setIsPageLoading(false);
       } else {
-        // If no auth user and no UID from LS (meaning didn't come from signup)
-        if (!authUid) {
+        // If no auth user and no UID from LS (meaning didn't come from signup/login hub)
+        if (!userProfileLs?.uid) {
           console.warn("[ProfileSetupPage] No auth user & no UID from LS, redirecting to login.");
           router.replace('/login');
         } else {
-          // Has UID/Email from LS (came from signup), but auth state might be initializing.
-          // This state is fine as long as authUid and authEmail are set.
+          // Has UID/Email from LS (came from signup/login hub), but auth state might be initializing.
+          // This state is fine as long as authUid and authEmail are set from LS.
+          setAuthUid(userProfileLs.uid);
+          setAuthEmail(userProfileLs.email || '');
+          if (userProfileLs.displayName && !displayName) setDisplayName(userProfileLs.displayName);
+          if (userProfileLs.photoURL && !profilePicPreview) setProfilePicPreview(userProfileLs.photoURL);
+          if (userProfileLs.phoneNumber && !phoneNumber) setPhoneNumber(userProfileLs.phoneNumber);
           setIsPageLoading(false); 
         }
       }
     });
     return () => unsubscribe();
-  }, [router, userProfileLs, authUid, authEmail, displayName, profilePicPreview]);
+  }, [router, userProfileLs, displayName, profilePicPreview, phoneNumber]);
 
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -107,29 +122,23 @@ function ProfileSetupContent() {
     setIsLoading(true);
 
     try {
-      // TODO: If profilePicFile exists, upload it to Firebase Storage first,
-      // then get the downloadURL to store in Firestore.
-      // For now, we'll use the preview (data URL or existing URL) directly if no new file.
-      // This part needs actual Firebase Storage integration later.
       let finalPhotoURL = profilePicPreview;
       if (profilePicFile) {
-        // Placeholder: In a real app, upload profilePicFile to Firebase Storage
-        // and get the download URL.
-        // finalPhotoURL = await uploadProfilePic(authUid, profilePicFile);
         console.warn("Profile picture file selected, but upload to Firebase Storage not implemented yet. Using preview URL if available.");
         toast({ title: "Note", description: "Profile picture upload to cloud storage is a TODO."});
       }
 
-
-      await createOrUpdateUserFullProfile(authUid, {
+      const profileToSave = {
+        email: authEmail,
         displayName: displayName.trim(),
-        email: authEmail, 
-        photoURL: finalPhotoURL, 
+        photoURL: finalPhotoURL,
         phoneNumber: phoneNumber.trim() || null,
         bio: bio.trim() || undefined,
-        onboardingComplete: true,
-        // status and languagePreference will use defaults in service or be undefined
-      });
+        onboardingComplete: true, // Mark onboarding as complete
+        currentAuraId: userProfileLs?.currentAuraId || null, // Persist aura if set
+      };
+
+      await createOrUpdateUserFullProfile(authUid, profileToSave);
 
       const updatedProfileForLs: LocalUserProfile = { 
         uid: authUid,
@@ -137,9 +146,11 @@ function ProfileSetupContent() {
         displayName: displayName.trim(),
         photoURL: finalPhotoURL, 
         phoneNumber: phoneNumber.trim() || null,
+        onboardingComplete: true,
+        currentAuraId: userProfileLs?.currentAuraId || null,
       };
       setUserProfileLs(updatedProfileForLs);
-      setOnboardingCompleteLs(true);
+      // setOnboardingCompleteLs(true); // No longer needed, part of userProfileLs
 
       toast({
         title: `Welcome, ${displayName.trim()}!`,
@@ -149,10 +160,15 @@ function ProfileSetupContent() {
 
     } catch (err: any) {
       console.error("[ProfileSetupPage] Error saving profile:", err);
-      setError(err.message || 'Failed to save profile. Please try again.');
+      const firebaseErrorCode = err.code || null;
+      let detailedErrorMessage = `Failed to save profile. Original error: ${err.message || 'An unknown server error occurred.'}`;
+      if (firebaseErrorCode) {
+          detailedErrorMessage += ` (Code: ${firebaseErrorCode})`;
+      }
+      setError(detailedErrorMessage);
       toast({
         title: 'Profile Save Failed',
-        description: err.message || 'An unexpected error occurred.',
+        description: detailedErrorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -164,8 +180,8 @@ function ProfileSetupContent() {
     setError(''); 
     auth.signOut().then(() => {
       setUserProfileLs(null); 
-      setOnboardingCompleteLs(false);   
-      router.push('/login'); // Go to the new login hub
+      // setOnboardingCompleteLs(false); // No longer needed
+      router.push('/login'); 
     }).catch(error => {
       console.error("Error signing out: ", error);
       toast({title: "Logout Error", description: "Could not sign out.", variant: "destructive"});

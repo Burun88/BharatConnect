@@ -13,10 +13,8 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { auth } from '@/lib/firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 import type { LocalUserProfile } from '@/types';
+import { createOrUpdateUserFullProfile } from '@/services/profileService';
 
-// This page is part of the NEW optional phone verification flow.
-// It should be triggered from a "Add Phone Number" screen.
-// For now, it's a standalone placeholder and might redirect if user is already past this.
 
 export default function VerifyPhonePage() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -24,49 +22,69 @@ export default function VerifyPhonePage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const initialProfile = {} as LocalUserProfile;
-  const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', initialProfile);
-  const [onboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
+  const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
+  // const [onboardingCompleteLs, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // Replaced
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        if (onboardingCompleteLs && userProfileLs?.uid === user.uid) {
-          // If fully onboarded, no need to be here.
+        if (userProfileLs?.onboardingComplete && userProfileLs?.uid === user.uid) {
           router.replace('/');
         } else if (!userProfileLs?.uid || userProfileLs.uid !== user.uid) {
-          // If LS doesn't match current user, or no UID in LS, they shouldn't be here without context
-           console.warn("[VerifyPhonePage] Mismatch between auth user and LS profile or no LS UID. Redirecting to login.");
-           // router.replace('/login'); // Or perhaps profile-setup if basic auth done.
+           console.warn("[VerifyPhonePage] Mismatch between auth user and LS profile or no LS UID. Redirecting.");
         }
-        // If onboarding not complete, but UID matches, allow them to stay for phone verification.
       } else {
-        // No auth user, definitely shouldn't be here.
         router.replace('/login');
       }
     });
     return () => unsubscribe();
-  }, [router, onboardingCompleteLs, userProfileLs]);
+  }, [router, userProfileLs]);
 
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
-    // Basic 10-digit validation for India, can be expanded.
     if (!/^\d{10}$/.test(phoneNumber)) {
       setError('Please enter a valid 10-digit phone number.');
       return;
     }
     
-    // Store phone number in LS temporarily for OTP step
-    setUserProfileLs(prev => ({ ...prev!, phoneNumber: `+91${phoneNumber}` })); // Assumes +91 for India
+    setUserProfileLs(prev => ({ ...prev!, phoneNumber: `+91${phoneNumber}` })); 
     
     toast({
       title: 'OTP Sent (Simulated)',
       description: `An OTP has been sent to +91${phoneNumber}. Please enter it on the next screen.`,
     });
-    router.push('/verify-otp'); // Proceed to OTP verification
+    router.push('/verify-otp'); 
   };
+
+  const handleSkip = async () => {
+    toast({ title: "Skipped", description: "Phone verification skipped."});
+    if (userProfileLs?.uid && userProfileLs?.email && userProfileLs?.displayName) {
+      try {
+        await createOrUpdateUserFullProfile(userProfileLs.uid, {
+          email: userProfileLs.email,
+          displayName: userProfileLs.displayName,
+          photoURL: userProfileLs.photoURL,
+          phoneNumber: null, // Explicitly null as it's skipped
+          bio: (userProfileLs as any).bio, 
+          onboardingComplete: true, // Onboarding is complete
+          currentAuraId: userProfileLs.currentAuraId,
+        });
+        setUserProfileLs(prev => ({ ...prev!, onboardingComplete: true, phoneNumber: null }));
+        // setOnboardingCompleteLs(true); // No longer needed
+        router.push('/');
+      } catch (saveError: any) {
+         console.error("Error saving profile after skipping phone verification:", saveError);
+         setError("Failed to save profile. Please try again or contact support.");
+         toast({variant: "destructive", title: "Profile Save Failed", description: saveError.message});
+      }
+    } else {
+      console.warn("[VerifyPhonePage] Critical profile info missing when skipping. Redirecting to profile setup.");
+      router.push('/profile-setup'); 
+    }
+  };
+
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
@@ -79,7 +97,7 @@ export default function VerifyPhonePage() {
             Verify Your Phone Number
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            Adding your phone helps secure your account and find friends.
+            Adding your phone helps secure your account and find friends. (Optional)
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -106,24 +124,7 @@ export default function VerifyPhonePage() {
             <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground  hover:opacity-90 transition-opacity">
               Send OTP
             </Button>
-            <Button type="button" variant="link" onClick={() => {
-              // This "Skip" should lead to the next step after phone verification (e.g., Permissions, then Firestore save)
-              // For now, if skipping, we might assume profile setup (name/pic) was done, and save with null phone.
-              // This needs to integrate with the overall onboarding state.
-              toast({ title: "Skipped", description: "Phone verification skipped."});
-              // Potentially redirect to permissions page or directly save profile if that's the flow.
-              // router.push('/permissions-setup'); // Example next step
-              // For now, if skipping here means end of onboarding (if profile-setup was previous step):
-              if (userProfileLs?.uid && userProfileLs?.email && userProfileLs?.displayName) {
-                // Call createOrUpdateUserFullProfile with null phone and onboardingComplete: true
-                // This logic would ideally be on a dedicated "phone setup" screen
-                // For now, just go to home as if onboarding complete.
-                setOnboardingCompleteLs(true); // Mark as complete even if phone skipped
-                router.push('/');
-              } else {
-                router.push('/profile-setup'); // Fallback if essential profile info missing
-              }
-            }} className="text-muted-foreground">
+            <Button type="button" variant="link" onClick={handleSkip} className="text-muted-foreground">
               Skip for Now
             </Button>
           </CardFooter>

@@ -24,24 +24,22 @@ export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const initialProfile = {} as LocalUserProfile;
-  const [, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', initialProfile);
-  const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
-  const [onboardingCompleteGlobal] = useLocalStorage('onboardingComplete', false); // Read global, don't set
+  const [, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
+  // const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // Replaced by userProfileLs.onboardingComplete
+  
   const [userProfileGlobal] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
 
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // If user is somehow already logged in and fully onboarded, redirect from signup
-        if (userProfileGlobal?.uid === user.uid && onboardingCompleteGlobal) {
+        if (userProfileGlobal?.uid === user.uid && userProfileGlobal?.onboardingComplete) {
              router.replace('/');
         }
       }
     });
     return () => unsubscribe();
-  }, [router, onboardingCompleteGlobal, userProfileGlobal]);
+  }, [router, userProfileGlobal]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -78,15 +76,15 @@ export default function SignupPage() {
       
       console.log(`[Signup Page] handleSubmit: Firebase Auth account created for UID: ${user.uid}. Email: ${user.email}. Proceeding to profile setup.`);
       
-      // Store minimal info needed for profile setup
       setUserProfileLs({ 
         uid: user.uid, 
         email: user.email,
+        onboardingComplete: false, // Explicitly set onboarding to false initially
       });
-      setOnboardingCompleteLs(false); 
+      // setOnboardingCompleteLs(false); // No longer needed
       
       console.log(`[Signup Page] Redirecting to profile-setup for UID: ${user.uid}.`);
-      router.push('/profile-setup'); // Redirect to profile setup
+      router.push('/profile-setup'); 
 
     } catch (err: any) {
       console.error("[Signup Page] handleSubmit: Signup error:", err);
@@ -119,13 +117,16 @@ export default function SignupPage() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center">
+          <div className="flex justify-center mb-6 hidden">
+            {/* UserPlus icon was here, now hidden */}
+          </div>
+          <CardTitle className="text-3xl font-headline font-bold text-gradient-primary-accent hidden">
+            Create Account
+          </CardTitle>
           <div className="flex justify-center mb-6">
             <Logo size="large" />
           </div>
-          <CardTitle className="text-3xl font-headline font-bold text-gradient-primary-accent">
-            Create Your Account
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
+          <CardDescription className="text-muted-foreground pt-2">
             Join BharatConnect to connect with India!
           </CardDescription>
         </CardHeader>

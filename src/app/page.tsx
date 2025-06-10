@@ -31,10 +31,10 @@ export default function HomePage() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const initialProfile = {} as LocalUserProfile;
-  const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', initialProfile);
-  const [onboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
-  const [currentUserAuraId] = useLocalStorage<string | null>('currentUserAuraId', null); // Keep for aura functionality
+  const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
+  // const [onboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // Replaced by userProfileLs.onboardingComplete
+  const currentUserAuraId = userProfileLs?.currentAuraId || null;
+
 
   const scrollableContainerRef = useRef<HTMLDivElement>(null);
   const [isHeaderContentLoaded, setIsHeaderContentLoaded] = useState(true);
@@ -55,15 +55,11 @@ export default function HomePage() {
     }
 
     if (!authUser) {
-      router.replace('/login'); // Go to new login hub
+      router.replace('/login'); 
       return;
     }
-
-    // Check onboardingComplete from localStorage, which should be set at end of profile-setup
-    if (!onboardingCompleteLs || userProfileLs?.uid !== authUser.uid) {
-      // If LS says not complete OR if the UID in LS doesn't match current auth user,
-      // send to profile setup to ensure profile is correct for this user.
-      // This handles cases where user might have logged out and logged in as different user.
+    
+    if (!userProfileLs || userProfileLs.uid !== authUser.uid || !userProfileLs.onboardingComplete) {
       console.log(`[HomePage] User ${authUser.uid} not fully onboarded or LS mismatch. Redirecting to profile-setup.`);
       router.replace('/profile-setup');
       return;
@@ -72,7 +68,6 @@ export default function HomePage() {
     // AuthUser exists and onboarding is complete for this user. Proceed to load actual page data.
     setIsPageDataLoading(true); 
     setTimeout(() => {
-      // Use userProfileLs for name, email, photo if available
       const currentUserName = userProfileLs?.displayName || authUser.displayName || 'User';
       const currentUserEmail = userProfileLs?.email || authUser.email || '';
       const currentUserAvatar = userProfileLs?.photoURL || authUser.photoURL || mockCurrentUser.avatarUrl;
@@ -82,7 +77,7 @@ export default function HomePage() {
         id: authUser.uid, 
         name: currentUserName, 
         email: currentUserEmail, 
-        currentAuraId: currentUserAuraId, 
+        currentAuraId: userProfileLs?.currentAuraId || null, 
         avatarUrl: currentUserAvatar
       };
       
@@ -107,7 +102,7 @@ export default function HomePage() {
       setIsPageDataLoading(false); 
     }, 1500);
 
-  }, [authCheckCompleted, authUser, onboardingCompleteLs, userProfileLs, router, currentUserAuraId]);
+  }, [authCheckCompleted, authUser, userProfileLs, router]);
 
 
   const handleScroll = useCallback(() => {
@@ -131,7 +126,7 @@ export default function HomePage() {
   useEffect(() => {
     const scrollableElement = scrollableContainerRef.current;
     const updateScrollBehavior = () => {
-      if (!scrollableElement || isPageDataLoading || !authCheckCompleted || !authUser || !onboardingCompleteLs) {
+      if (!scrollableElement || isPageDataLoading || !authCheckCompleted || !authUser || !userProfileLs?.onboardingComplete) {
         setIsHeaderContentLoaded(true);
         if (scrollableElement) scrollableElement.removeEventListener('scroll', handleScroll);
         return;
@@ -154,7 +149,7 @@ export default function HomePage() {
       if (scrollableElement) scrollableElement.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', updateScrollBehavior);
     };
-  }, [isPageDataLoading, chats, searchTerm, handleScroll, authCheckCompleted, authUser, onboardingCompleteLs]);
+  }, [isPageDataLoading, chats, searchTerm, handleScroll, authCheckCompleted, authUser, userProfileLs?.onboardingComplete]);
 
   const filteredChats = chats.filter(chat =>
     chat.name.toLowerCase().includes(searchTerm.toLowerCase())

@@ -25,8 +25,7 @@ export default function LoginPageHub() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const initialProfile = {} as LocalUserProfile; // Ensure it matches type
-  const [, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', initialProfile);
+  const [, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
   const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
   
   // For redirecting if already logged in and onboarded
@@ -56,6 +55,7 @@ export default function LoginPageHub() {
         displayName: profile.displayName,
         photoURL: profile.photoURL,
         phoneNumber: profile.phoneNumber,
+        onboardingComplete: true,
       });
       setOnboardingCompleteLs(true);
       router.replace('/');
@@ -66,6 +66,7 @@ export default function LoginPageHub() {
         email: user.email || '', // Ensure email is passed
         displayName: profile?.displayName || user.displayName || undefined, // Pre-fill if possible
         photoURL: profile?.photoURL || user.photoURL || undefined,
+        onboardingComplete: false,
       });
       setOnboardingCompleteLs(false);
       router.replace('/profile-setup');

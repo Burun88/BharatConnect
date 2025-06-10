@@ -23,9 +23,8 @@ export default function VerifyOtpPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const initialProfile = {} as LocalUserProfile;
-  const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', initialProfile);
-  const [onboardingCompleteLs, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
+  const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
+  // const [onboardingCompleteLs, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // Replaced
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const phoneToVerify = useMemo(() => userProfileLs?.phoneNumber || 'your phone', [userProfileLs]);
@@ -33,21 +32,18 @@ export default function VerifyOtpPage() {
   useEffect(() => {
      const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        if (onboardingCompleteLs && userProfileLs?.uid === user.uid) {
+        if (userProfileLs?.onboardingComplete && userProfileLs?.uid === user.uid) {
           router.replace('/'); // Already onboarded, no need to be here.
         } else if (!userProfileLs?.uid || userProfileLs.uid !== user.uid || !userProfileLs.phoneNumber) {
-          // If LS doesn't match current user, or no UID/phone in LS, redirect.
-          // This means they didn't arrive here from the phone verification step.
            console.warn("[VerifyOTPPage] Mismatch or missing UID/phone in LS. Redirecting.");
            router.replace(userProfileLs?.uid ? '/profile-setup' : '/login');
         }
-        // Else, allow to stay on page for OTP verification.
       } else {
-         router.replace('/login'); // No auth user.
+         router.replace('/login'); 
       }
     });
     return () => unsubscribe();
-  }, [router, onboardingCompleteLs, userProfileLs]);
+  }, [router, userProfileLs]);
 
   useEffect(() => {
     if (inputRefs.current[0] && auth.currentUser && userProfileLs?.phoneNumber) {
@@ -84,35 +80,37 @@ export default function VerifyOtpPage() {
       return;
     }
     
-    // TODO: Implement actual Firebase Phone Auth OTP verification here.
-    // For now, simulate success with a common OTP like '123456'.
     if (enteredOtp === '123456') { 
       toast({
         title: 'Phone Verified!',
         description: 'Your phone number has been successfully verified.',
       });
 
-      // Update LS to mark phone as verified (if needed for a permissions screen)
-      setUserProfileLs(prev => ({ ...prev!, phoneVerified: true }));
+      const updatedProfileData = { 
+        ...userProfileLs, 
+        phoneVerified: true, // Assuming you might add this field to LocalUserProfile
+        onboardingComplete: true // Now this is the final step
+      };
+      
+      setUserProfileLs(updatedProfileData as LocalUserProfile); // Cast as LocalUserProfile if phoneVerified is added
 
-      // This is now the end of the simplified onboarding (Profile -> Phone OTP)
-      // Save the complete profile to Firestore
       if (userProfileLs?.uid && userProfileLs.email && userProfileLs.displayName) {
         try {
           await createOrUpdateUserFullProfile(userProfileLs.uid, {
             email: userProfileLs.email,
             displayName: userProfileLs.displayName,
             photoURL: userProfileLs.photoURL,
-            phoneNumber: userProfileLs.phoneNumber, // Verified phone number
-            // bio: userProfileLs.bio, // if bio was collected and stored in LS
-            onboardingComplete: true,
+            phoneNumber: userProfileLs.phoneNumber, 
+            bio: (userProfileLs as any).bio, // if bio was collected and stored in LS
+            onboardingComplete: true, // Explicitly set here
+            currentAuraId: userProfileLs.currentAuraId,
           });
-          setOnboardingCompleteLs(true);
+          // setOnboardingCompleteLs(true); // No longer needed
           toast({
             title: `Welcome, ${userProfileLs.displayName}!`,
             description: "Your BharatConnect account is fully set up.",
           });
-          router.push('/'); // Go to home page
+          router.push('/'); 
         } catch (saveError: any) {
           console.error("Error saving profile after OTP verification:", saveError);
           setError("Failed to save profile after phone verification. Please try again or contact support.");
@@ -121,7 +119,7 @@ export default function VerifyOtpPage() {
       } else {
         setError("Critical user information missing. Cannot complete profile setup.");
         toast({variant: "destructive", title: "Setup Error", description: "Missing essential profile data."});
-        router.push('/profile-setup'); // Send back to profile setup
+        router.push('/profile-setup'); 
       }
     } else {
       setError('Invalid OTP. Please try again.');
@@ -131,7 +129,6 @@ export default function VerifyOtpPage() {
   };
 
   const handleResendOtp = () => {
-    // TODO: Implement actual OTP resend logic with Firebase.
     toast({
       title: 'OTP Resent (Simulated)',
       description: `A new OTP would be resent to ${phoneToVerify}.`,
