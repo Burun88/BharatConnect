@@ -31,14 +31,13 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
   const [name, setName] = useState('');
   const [email, setEmail] = useState(''); 
   const [bio, setBio] = useState('');
-  const [profilePicPreview, setProfilePicPreview] = useState<string | null>(null); // This is the URL from Firestore or local preview
-  const [profilePicFile, setProfilePicFile] = useState<File | null>(null); // This is the new File object if selected
+  const [profilePicPreview, setProfilePicPreview] = useState<string | null>(null); 
+  const [profilePicFile, setProfilePicFile] = useState<File | null>(null); 
   const [isLoading, setIsLoading] = useState(false);
 
-  // Temporary states for editing form
   const [tempName, setTempName] = useState('');
   const [tempBio, setTempBio] = useState('');
-  const [tempProfilePicPreview, setTempProfilePicPreview] = useState<string | null>(null); // For local preview during edit
+  const [tempProfilePicPreview, setTempProfilePicPreview] = useState<string | null>(null); 
 
 
   useEffect(() => {
@@ -46,16 +45,14 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
       setName(initialProfileData.displayName || '');
       setEmail(initialProfileData.email || '');
       setBio(initialProfileData.bio || '');
-      setProfilePicPreview(initialProfileData.photoURL || null); // Set the display URL
+      setProfilePicPreview(initialProfileData.photoURL || null); 
 
       if (!isEditing) {
-        // When not editing, sync temp states with actual data
         setTempName(initialProfileData.displayName || '');
         setTempBio(initialProfileData.bio || '');
-        setTempProfilePicPreview(initialProfileData.photoURL || null); // Set temp preview URL
+        setTempProfilePicPreview(initialProfileData.photoURL || null); 
       }
     } else {
-      // Fallbacks if no initial data
       setName('User');
       setEmail('Email not available');
       setBio('Bio not available');
@@ -64,15 +61,15 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
   }, [initialProfileData, isEditing]);
 
   const handleEditToggle = () => {
-    if (isEditing) { // When toggling from Editing to Not Editing (Cancel implicit)
+    if (isEditing) { 
       setTempName(name);
       setTempBio(bio);
-      setTempProfilePicPreview(profilePicPreview); // Reset temp preview to original URL
-      setProfilePicFile(null); // Clear any staged file
-    } else { // When toggling from Not Editing to Editing
+      setTempProfilePicPreview(profilePicPreview); 
+      setProfilePicFile(null); 
+    } else { 
       setTempName(name);
       setTempBio(bio);
-      setTempProfilePicPreview(profilePicPreview); // Initialize temp preview with current URL
+      setTempProfilePicPreview(profilePicPreview); 
     }
     setIsEditing(!isEditing);
   };
@@ -88,14 +85,24 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
     }
     setIsLoading(true);
     
-    let finalPhotoURL = profilePicPreview; // Start with current photoURL (could be from Firestore or previous temp preview if no new file)
+    let finalPhotoURL = profilePicPreview; 
 
-    if (profilePicFile) { // If a new file was staged for upload
+    if (profilePicFile) { 
       try {
         console.log(`[ProfileCard] Preparing FormData for new profile picture. UID: ${authUid}`);
         const formData = new FormData();
-        formData.append('uid', authUid);
+        if (!authUid) { // Redundant check, but good for safety before append
+            toast({ variant: 'destructive', title: "Critical Error", description: "Auth UID became null before FormData creation." });
+            setIsLoading(false);
+            return;
+        }
+        formData.append('uid', authUid); 
         formData.append('profileImageFile', profilePicFile);
+        
+        console.log("[ProfileCard] FormData entries before calling server action:");
+        for (let pair of formData.entries()) {
+          console.log(pair[0]+ ', ' + (pair[1] instanceof File ? `File: ${pair[1].name}, size: ${pair[1].size}, type: ${pair[1].type}` : pair[1]));
+        }
         
         finalPhotoURL = await uploadProfileImage(formData);
         console.log(`[ProfileCard] New profile picture uploaded. URL: ${finalPhotoURL}`);
@@ -109,25 +116,23 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
     }
     
     const profileDataToSave = {
-      email: email, // Email is from initialProfileData, should not change
+      email: email, 
       displayName: tempName.trim(),
-      photoURL: finalPhotoURL, // Use the potentially new URL
-      phoneNumber: initialProfileData?.phoneNumber || null, // Assuming phone number is not edited here
+      photoURL: finalPhotoURL, 
+      phoneNumber: initialProfileData?.phoneNumber || null, 
       bio: tempBio.trim() || null,
-      onboardingComplete: true, // Must be true for users on this page
+      onboardingComplete: true, 
     };
 
     try {
       console.log("[ProfileCard] Attempting to save profile to Firestore. Data:", JSON.stringify(profileDataToSave));
       await createOrUpdateUserFullProfile(authUid, profileDataToSave);
 
-      // Update main state from temp state after successful save
       setName(tempName.trim());
       setBio(tempBio.trim() || '');
-      setProfilePicPreview(finalPhotoURL); // Update the main display URL
-      setProfilePicFile(null); // Clear the staged file
+      setProfilePicPreview(finalPhotoURL); 
+      setProfilePicFile(null); 
 
-      // Update local storage
       setUserProfileLs(prev => {
         if (!prev || prev.uid !== authUid) return prev; 
         return {
@@ -150,28 +155,26 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
   };
 
   const handleCancel = () => {
-    // Reset temp states to original main states
     setTempName(name);
     setTempBio(bio);
-    setTempProfilePicPreview(profilePicPreview); // Reset temp preview to original URL
-    setProfilePicFile(null); // Clear any staged file
+    setTempProfilePicPreview(profilePicPreview); 
+    setProfilePicFile(null); 
     setIsEditing(false);
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setProfilePicFile(file); // Stage the file for upload
+      setProfilePicFile(file); 
       const reader = new FileReader();
       reader.onloadend = () => {
-        setTempProfilePicPreview(reader.result as string); // Show local preview in the editing UI
+        setTempProfilePicPreview(reader.result as string); 
       };
       reader.readAsDataURL(file);
       toast({ title: "Profile picture selected", description: "Save to apply changes." });
     }
   };
 
-  // Determine which avatar source to display based on editing state
   const displayAvatarSrc = isEditing ? tempProfilePicPreview : profilePicPreview;
 
   return (
@@ -181,7 +184,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
           <div className="p-1 rounded-full bg-gradient-to-br from-primary to-accent">
             <Avatar className="w-[100px] h-[100px] border-2 border-background">
               {displayAvatarSrc ? (
-                 <AvatarImage src={displayAvatarSrc} alt="Profile Picture" key={Date.now()} data-ai-hint="person avatar"/> 
+                 <AvatarImage src={displayAvatarSrc} alt="Profile Picture" key={displayAvatarSrc} data-ai-hint="person avatar"/> 
               ) : (
                 <AvatarFallback className="bg-muted">
                   <UserCircle2 className="w-16 h-16 text-muted-foreground" />
@@ -266,3 +269,4 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
     </Card>
   );
 }
+
