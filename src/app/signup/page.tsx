@@ -114,7 +114,7 @@ export default function SignupPage() {
           <div className="flex justify-center mb-4 hidden">
             <UserPlus className="w-16 h-16 text-gradient-primary-accent" />
           </div>
-          <CardTitle className="text-3xl font-headline font-bold text-gradient-primary-accent">
+          <CardTitle className="text-3xl font-headline font-bold text-gradient-primary-accent hidden">
             Create Account
           </CardTitle>
           <CardDescription className="text-muted-foreground">
