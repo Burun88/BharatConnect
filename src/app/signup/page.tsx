@@ -13,7 +13,6 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-// Removed getInstaBharatIdentity and InstaBharatIdentity type
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -24,9 +23,8 @@ export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [onboardingCompleteLs, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
-  const initialProfile = useMemo(() => ({ name: '', phone: '', email: '', photoURL: '', username: '' }), []); // username can be kept or removed, it won't be auto-filled
+  const initialProfile = useMemo(() => ({ name: '', phone: '', email: '', photoURL: '', username: '' }), []);
   const [userProfileLs, setUserProfileLs] = useLocalStorage('userProfile', initialProfile);
-  // Removed setTempInstaBharatProfileData
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -34,7 +32,9 @@ export default function SignupPage() {
         if(userProfileLs.name && userProfileLs.email && onboardingCompleteLs) { 
              router.replace('/');
         } else {
-             router.replace('/profile-setup');
+             // If user exists but onboarding not complete, they might have dropped off.
+             // Let them go to profile-setup if they land here.
+             // Or, if they are already at profile-setup, this effect won't push them from there.
         }
       }
     });
@@ -74,17 +74,15 @@ export default function SignupPage() {
         return;
       }
       
-      console.log(`[Signup Page] handleSubmit: Account created for UID: ${user.uid}. Proceeding to profile setup.`);
-      toast({
-        title: 'Account Created!',
-        description: 'Please set up your BharatConnect profile.',
-      });
+      console.log(`[Signup Page] handleSubmit: Firebase Auth account created for UID: ${user.uid}. Proceeding to profile setup.`);
+      // Toast removed from here as per user request. Main toast will be after profile setup.
       
       setUserProfileLs(prev => ({ 
-        ...initialProfile, // Reset to initialProfile to ensure no stale data like username persists
+        ...initialProfile, 
         email: user.email || '',
+        // name and photoURL will be set during profile setup
       }));
-      setOnboardingCompleteLs(false); // Ensure onboarding is marked as incomplete
+      setOnboardingCompleteLs(false); 
       
       console.log(`[Signup Page] Redirecting to profile-setup for UID: ${user.uid}.`);
       router.push('/profile-setup');
@@ -93,14 +91,19 @@ export default function SignupPage() {
       console.error("[Signup Page] handleSubmit: Signup error:", err);
       if (err.code === 'auth/email-already-in-use') {
         setError('This email is already registered. Please login or use a different email.');
+         toast({
+            variant: 'destructive',
+            title: 'Email Already Registered',
+            description: 'This email is already in use. Please login or try a different one.',
+        });
       } else {
         setError(err.message || 'Failed to create account. Please try again.');
+        toast({
+            variant: 'destructive',
+            title: 'Signup Failed',
+            description: err.message || 'An unexpected error occurred.',
+        });
       }
-      toast({
-        variant: 'destructive',
-        title: 'Signup Failed',
-        description: err.message || 'An unexpected error occurred.',
-      });
     } finally {
       setIsLoading(false);
     }
@@ -162,7 +165,7 @@ export default function SignupPage() {
           </CardContent>
           <CardFooter className="flex-col space-y-3">
             <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isLoading}>
-              {isLoading ? 'Creating Account...' : 'Create Account'}
+              {isLoading ? 'Creating Account...' : 'Create Account & Setup Profile'}
             </Button>
             <p className="text-sm text-muted-foreground">
               Already have an account?{' '}

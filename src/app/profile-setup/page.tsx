@@ -9,15 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from '@/components/ui/card';
-// AlertDialog components removed as they are no longer needed
-import { UserCircle2, Camera, Mail } from 'lucide-react'; // UserIcon removed, Phone icon can be added back if desired
+import { UserCircle2, Camera, Mail } from 'lucide-react'; 
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { auth } from '@/lib/firebase';
 import { createOrUpdateUserFullProfile } from '@/services/profileService';
 import type { User as AuthUser } from 'firebase/auth';
 import Logo from '@/components/shared/Logo';
-// cn utility is not used here currently, can be removed if not added later
 
 function ProfileSetupContent() {
   const router = useRouter();
@@ -27,11 +25,10 @@ function ProfileSetupContent() {
   const [bcPhoneNumber, setBcPhoneNumber] = useState('');
   const [bcBio, setBcBio] = useState('');
   const [bcProfilePicPreview, setBcProfilePicPreview] = useState<string | null>(null);
-  const [bcProfilePicFile, setBcProfilePicFile] = useState<File | null>(null); // Retained for potential future direct upload
+  const [bcProfilePicFile, setBcProfilePicFile] = useState<File | null>(null); 
 
   const [authUser, setAuthUser] = useState<AuthUser | null>(auth.currentUser);
   const [authEmail, setAuthEmail] = useState('');
-  // instaUsername and related states removed
 
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -40,34 +37,34 @@ function ProfileSetupContent() {
   const initialProfileLs = useMemo(() => ({ name: '', phone: '', email: '', photoURL: '', username: '' }), []);
   const [userProfileLs, setUserProfileLs] = useLocalStorage('userProfile', initialProfileLs);
   const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
-  // tempInstaBharatProfileData and related states/effects removed
-  // showInstaBharatPrompt and related states/effects removed
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         setAuthUser(user);
-        setAuthEmail(user.email || '');
-        console.log("[ProfileSetupPage] Auth user found:", user.uid, user.email);
-        // Populate email from localStorage if authUser.email is somehow null but LS has it
-        // This case might happen if userProfileLs was set before auth state fully propagated
-        if (!user.email && userProfileLs.email) {
-            setAuthEmail(userProfileLs.email);
-        }
-        setIsPageLoading(false); // No more dialog, so set loading to false
+        const emailToSet = user.email || userProfileLs.email; // Prioritize live auth email, fallback to LS
+        setAuthEmail(emailToSet);
+        console.log("[ProfileSetupPage] Auth user found/updated:", user.uid, emailToSet);
+
+        // Pre-fill name from localStorage if available (e.g., from a previous incomplete attempt)
+        if (userProfileLs.name && !bcName) setBcName(userProfileLs.name);
+        if (userProfileLs.photoURL && !bcProfilePicPreview) setBcProfilePicPreview(userProfileLs.photoURL);
+        // Phone and bio can also be pre-filled if desired, similar to name
+
+        setIsPageLoading(false);
       } else {
         console.warn("[ProfileSetupPage] No auth user found, redirecting to login.");
         router.replace('/login');
       }
     });
     return () => unsubscribe();
-  }, [router, userProfileLs.email]); // Added userProfileLs.email to dependencies
+  }, [router, userProfileLs.email, userProfileLs.name, userProfileLs.photoURL, bcName, bcProfilePicPreview]);
 
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setBcProfilePicFile(file); // Store the file if direct upload is implemented later
+      setBcProfilePicFile(file); 
       const reader = new FileReader();
       reader.onloadend = () => {
         setBcProfilePicPreview(reader.result as string);
@@ -92,38 +89,35 @@ function ProfileSetupContent() {
       setError('Please enter your name for BharatConnect.');
       return;
     }
-    if (bcPhoneNumber && !/^\d{10}$/.test(bcPhoneNumber)) { // Basic 10-digit validation
-      setError('Please enter a valid 10-digit phone number (optional).');
+    if (bcPhoneNumber && !/^\d{10}$/.test(bcPhoneNumber) && !/^\+\d{11,15}$/.test(bcPhoneNumber) ) { 
+      setError('Please enter a valid phone number (e.g., 10 digits or international format).');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // The photoURL sent here will be the base64 data URI.
-      // A real implementation would upload bcProfilePicFile to Firebase Storage
-      // and then save the download URL. For now, base64 is fine for mock.
       await createOrUpdateUserFullProfile(authUser.uid, {
         name: bcName.trim(),
-        email: authEmail, // Ensure email is from authUser or reliable source
+        email: authEmail, 
         phone: bcPhoneNumber.trim() || undefined,
-        photoURL: bcProfilePicPreview || undefined, // This would be a storage URL in prod
+        photoURL: bcProfilePicPreview || undefined, 
         bio: bcBio.trim() || undefined,
         onboardingComplete: true,
       });
 
-      setUserProfileLs({ // Update localStorage with the new profile
+      setUserProfileLs({ 
         name: bcName.trim(),
         phone: bcPhoneNumber.trim(),
         email: authEmail,
-        photoURL: bcProfilePicPreview || '', // Store preview URL or empty
-        username: '' // Username is no longer part of this flow
+        photoURL: bcProfilePicPreview || '', 
+        username: '' 
       });
       setOnboardingCompleteLs(true);
 
       toast({
-        title: 'BharatConnect Profile Saved!',
-        description: `Welcome, ${bcName.trim()}!`,
+        title: `Welcome, ${bcName.trim()}!`,
+        description: 'Your BharatConnect account is ready.',
       });
       router.push('/');
 
@@ -143,8 +137,8 @@ function ProfileSetupContent() {
   const handleLogoutAndStartOver = () => {
     setError(''); 
     auth.signOut().then(() => {
-      setUserProfileLs(initialProfileLs); // Clear user profile from LS
-      setOnboardingCompleteLs(false);   // Reset onboarding status
+      setUserProfileLs(initialProfileLs); 
+      setOnboardingCompleteLs(false);   
       router.push('/login');
     });
   };
@@ -225,15 +219,14 @@ function ProfileSetupContent() {
             <div className="space-y-1">
               <Label htmlFor="bcPhone">Phone Number (Optional)</Label>
               <div className="flex items-center space-x-2">
-                <span className="p-2.5 rounded-l-md border border-r-0 bg-muted text-muted-foreground text-sm">+91</span>
+                {/* Optional: country code prefix can be added here if desired, or make input flexible */}
                 <Input
                   id="bcPhone"
                   type="tel"
-                  placeholder="98xxxxxx00"
+                  placeholder="e.g. 98xxxxxx00 or +9198xxxxxx00"
                   value={bcPhoneNumber}
                   onChange={(e) => setBcPhoneNumber(e.target.value)}
-                  maxLength={10}
-                  className="flex-1 rounded-l-none"
+                  className="flex-1"
                 />
               </div>
             </div>
@@ -241,7 +234,7 @@ function ProfileSetupContent() {
           </CardContent>
           <CardFooter className="flex-col space-y-2">
             <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isLoading}>
-              {isLoading ? 'Saving...' : 'Save Profile & Continue'}
+              {isLoading ? 'Saving...' : 'Complete Setup & Continue'}
             </Button>
             <Button variant="link" className="mt-2 text-sm text-muted-foreground" onClick={handleLogoutAndStartOver}>
               Logout and start over
