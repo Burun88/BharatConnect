@@ -9,12 +9,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserCircle2, Camera, Mail } from 'lucide-react'; 
+import { UserCircle2, Camera, Mail } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import Logo from '@/components/shared/Logo';
 import type { LocalUserProfile } from '@/types';
-// import { createOrUpdateUserFullProfile } from '@/services/profileService'; // Firebase removed
+import { auth } from '@/lib/firebase'; // Import auth for direct access if needed, though LS is primary
 
 function ProfileSetupContent() {
   const router = useRouter();
@@ -22,46 +22,74 @@ function ProfileSetupContent() {
 
   const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
 
-  const [displayName, setDisplayName] = useState(userProfileLs?.displayName || '');
-  const [phoneNumber, setPhoneNumber] = useState(userProfileLs?.phoneNumber || '');
+  // Initialize component state
+  const [displayName, setDisplayName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [bio, setBio] = useState('');
-  const [profilePicPreview, setProfilePicPreview] = useState<string | null>(userProfileLs?.photoURL || null);
-  const [profilePicFile, setProfilePicFile] = useState<File | null>(null); 
+  const [profilePicPreview, setProfilePicPreview] = useState<string | null>(null);
+  const [profilePicFile, setProfilePicFile] = useState<File | null>(null);
 
-  const [authUid, setAuthUid] = useState<string | null>(userProfileLs?.uid || null);
-  const [authEmail, setAuthEmail] = useState<string>(userProfileLs?.email || '');
+  const [authUid, setAuthUid] = useState<string | null>(null);
+  const [authEmail, setAuthEmail] = useState<string>('');
 
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(true);
 
-  useEffect(() => {
-    // Simplified logic as Firebase auth is removed
-    if (userProfileLs?.uid) {
-      setAuthUid(userProfileLs.uid);
-      setAuthEmail(userProfileLs.email || '');
-      if (userProfileLs.displayName && !displayName) setDisplayName(userProfileLs.displayName);
-      if (userProfileLs.photoURL && !profilePicPreview) setProfilePicPreview(userProfileLs.photoURL);
-      if (userProfileLs.phoneNumber && !phoneNumber) setPhoneNumber(userProfileLs.phoneNumber);
 
-      if (userProfileLs.onboardingComplete) {
+  useEffect(() => {
+    const currentLocalProfile = userProfileLs;
+
+    if (currentLocalProfile?.uid) {
+      setAuthUid(currentLocalProfile.uid);
+      setAuthEmail(currentLocalProfile.email || '');
+
+      // If onboarding is complete, redirect to home.
+      if (currentLocalProfile.onboardingComplete === true) {
         console.log("[ProfileSetupPage] User from LS already onboarded. Redirecting to home.");
         router.replace('/');
-        return;
+        return; 
       }
+
+      // Pre-fill form fields only if they haven't been touched by the user yet (i.e., component state is still initial)
+      // and if the data exists in local storage.
+      // For displayName, if it's a generic default from FirebaseAuthObserver, keep it blank for a fresh setup.
+      const isGenericDisplayName =
+        currentLocalProfile.displayName === (currentLocalProfile.email?.split('@')[0]) ||
+        currentLocalProfile.displayName === 'User';
+
+      if (displayName === '') { // Only set if component state is empty
+        if (currentLocalProfile.displayName && !isGenericDisplayName) {
+          setDisplayName(currentLocalProfile.displayName);
+        } else {
+          setDisplayName(''); // Ensure it's blank for new user or generic name
+        }
+      }
+
+      if (profilePicPreview === null && currentLocalProfile.photoURL) {
+        setProfilePicPreview(currentLocalProfile.photoURL);
+      }
+      if (phoneNumber === '' && currentLocalProfile.phoneNumber) {
+        setPhoneNumber(currentLocalProfile.phoneNumber);
+      }
+      // Bio is not in LocalUserProfile, so it remains as initialized (empty string)
+
       setIsPageLoading(false);
     } else {
-      // No user info in LS, likely needs to go through login/signup again
-      console.warn("[ProfileSetupPage] No user profile in LS. Redirecting to login.");
+      // No UID in local storage could mean the observer hasn't run or user is not authenticated.
+      // FirebaseAuthObserver should handle populating LS. If after a brief period it's still null,
+      // then user is likely not logged in.
+      console.warn("[ProfileSetupPage] No UID in local profile. Redirecting to login.");
+      // A small delay could be added here to wait for observer, but direct redirect is often cleaner.
       router.replace('/login');
     }
-  }, [router, userProfileLs, displayName, profilePicPreview, phoneNumber]);
+  }, [userProfileLs, router]); // Effect re-runs if userProfileLs or router changes. Avoid adding form field states to prevent infinite loops.
 
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setProfilePicFile(file); 
+      setProfilePicFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setProfilePicPreview(reader.result as string);
@@ -75,64 +103,71 @@ function ProfileSetupContent() {
     e.preventDefault();
     setError('');
 
+    console.log("[ProfileSetupPage] handleSubmit - userProfileLs at submission:", userProfileLs);
+    console.log(`[ProfileSetupPage] handleSubmit: authUid from state: ${authUid}, authEmail from state: ${authEmail}`);
+
+
     if (!authUid || !authEmail) {
-      setError('User authentication information is missing. Please try logging in or signing up again.');
-      toast({ title: "User Info Error", description: "UID or Email missing from local storage.", variant: "destructive" });
-      router.push('/login'); // Or signup
+      setError('User authentication information is missing. Please try logging in again.');
+      toast({ title: "User Info Error", description: "UID or Email missing. Please login.", variant: "destructive" });
+      router.push('/login');
       return;
     }
-    console.log(`[ProfileSetupPage] handleSubmit: authUid: ${authUid}, authEmail: ${authEmail}`);
-    console.log(`[ProfileSetupPage] handleSubmit - userProfileLs at submission:`, userProfileLs);
-
 
     if (!displayName.trim()) {
       setError('Please enter your display name.');
       return;
     }
-    if (phoneNumber && !/^\+?\d{10,15}$/.test(phoneNumber.replace(/\s+/g, ''))) { 
+    if (phoneNumber && !/^\+?\d{10,15}$/.test(phoneNumber.replace(/\s+/g, ''))) {
       setError('Please enter a valid phone number (e.g., 10 digits or international format like +919876543210).');
       return;
     }
 
     setIsLoading(true);
-    console.log("[ProfileSetupPage] Attempting to save profile (Firebase removed, this is a mock action).");
 
-    // Mocking profile save as Firebase is removed
-    setTimeout(() => {
-      let finalPhotoURL = profilePicPreview;
-      if (profilePicFile) {
-        console.warn("Profile picture file selected, but upload to cloud storage not implemented (Firebase removed).");
-        // finalPhotoURL would be set after actual upload in a real scenario
-      }
+    let finalPhotoURL = profilePicPreview;
+    if (profilePicFile) {
+      // In a real app, you'd upload profilePicFile to Firebase Storage here
+      // and get back a URL to store in finalPhotoURL.
+      // Since we're not doing that yet, we'll just use the preview (data URI).
+      console.warn("Profile picture file selected, but cloud upload not implemented. Using local preview for LS.");
+    }
+    
+    const updatedProfileForLs: LocalUserProfile = {
+      uid: authUid,
+      email: authEmail,
+      displayName: displayName.trim(),
+      photoURL: finalPhotoURL,
+      phoneNumber: phoneNumber.trim() || null,
+      onboardingComplete: true,
+      // bio: bio.trim() || null, // Bio is not part of LocalUserProfile type yet
+    };
+    setUserProfileLs(updatedProfileForLs);
 
-      const updatedProfileForLs: LocalUserProfile = { 
-        uid: authUid,
-        email: authEmail,
-        displayName: displayName.trim(),
-        photoURL: finalPhotoURL, 
-        phoneNumber: phoneNumber.trim() || null,
-        onboardingComplete: true, // Marking onboarding as complete
-        // currentAuraId: userProfileLs?.currentAuraId || null, // Persist aura if set
-      };
-      setUserProfileLs(updatedProfileForLs);
-
-      toast({
-        title: `Welcome, ${displayName.trim()}! (Mocked)`,
-        description: 'Your BharatConnect account is ready (locally).',
-      });
-      router.push('/');
-      setIsLoading(false);
-    }, 1000);
+    toast({
+      title: `Welcome, ${displayName.trim()}!`,
+      description: 'Your BharatConnect account is ready.',
+    });
+    router.push('/');
+    setIsLoading(false);
   };
 
   const handleLogoutAndStartOver = () => {
-    setError(''); 
-    console.log("[ProfileSetupPage] Logging out (Firebase removed, clearing local storage).");
-    setUserProfileLs(null); 
-    router.push('/login'); 
+    setError('');
+    setIsLoading(true); // Prevent double clicks
+    signOutUser(auth).then(() => {
+        setUserProfileLs(null); // Clear local storage
+        toast({ title: "Logged Out", description: "You have been logged out." });
+        router.push('/login');
+      }).catch((error) => {
+        console.error("Error logging out:", error);
+        toast({ title: "Logout Error", description: error.message, variant: "destructive" });
+      }).finally(() => {
+        setIsLoading(false);
+      });
   };
 
-  if (isPageLoading) { 
+  if (isPageLoading) {
     return (
       <div className="flex flex-col items-center justify-center flex-grow min-h-0 bg-background p-4 hide-scrollbar overflow-y-auto">
         <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -146,7 +181,7 @@ function ProfileSetupContent() {
 
   return (
     <div className="flex flex-col items-center bg-background p-4 flex-grow min-h-0 hide-scrollbar overflow-y-auto">
-      <Card className="w-full max-w-md shadow-2xl my-auto"> 
+      <Card className="w-full max-w-md shadow-2xl my-auto">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-6">
             <Logo size="large" />
@@ -179,7 +214,7 @@ function ProfileSetupContent() {
               <Label htmlFor="auth-email-display">Email</Label>
               <div className="flex items-center space-x-2 p-2.5 rounded-md border bg-muted/30 text-muted-foreground">
                 <Mail className="w-4 h-4" />
-                <span id="auth-email-display" className="flex-1 text-sm">{authEmail || 'Email not found'}</span>
+                <span id="auth-email-display" className="flex-1 text-sm">{authEmail || 'Loading email...'}</span>
               </div>
             </div>
 
@@ -210,7 +245,7 @@ function ProfileSetupContent() {
               </div>
                <p className="text-xs text-muted-foreground">Helps friends find you and secures your account.</p>
             </div>
-            
+
             <div className="space-y-1">
               <Label htmlFor="bio">Bio (Optional)</Label>
               <Textarea
@@ -228,7 +263,7 @@ function ProfileSetupContent() {
             <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isLoading}>
               {isLoading ? 'Saving...' : 'Complete Setup & Continue'}
             </Button>
-            <Button type="button" variant="link" className="mt-2 text-sm text-muted-foreground" onClick={handleLogoutAndStartOver}>
+            <Button type="button" variant="link" className="mt-2 text-sm text-muted-foreground" onClick={handleLogoutAndStartOver} disabled={isLoading}>
               Logout and start over
             </Button>
           </CardFooter>
@@ -238,9 +273,15 @@ function ProfileSetupContent() {
   );
 }
 
+// Helper function to sign out (imported from firebase.ts, but can be defined here too for clarity if only used here)
+// For this example, assuming signOutUser is exported from firebase.ts and auth is available
+import { signOut } from "firebase/auth";
+const signOutUser = (authInstance: typeof auth) => signOut(authInstance);
+
+
 export default function ProfileSetupPage() {
   return (
-    <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background"> 
+    <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background">
       <Suspense fallback={
         <div className="flex flex-col items-center justify-center flex-grow min-h-0 bg-background p-4 hide-scrollbar overflow-y-auto">
           <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -255,3 +296,5 @@ export default function ProfileSetupPage() {
     </div>
   )
 }
+
+    
