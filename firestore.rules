@@ -8,17 +8,16 @@ service cloud.firestore {
       // Allow a user to read their own profile.
       allow read: if request.auth != null && request.auth.uid == userId;
 
-      // Allow a user to create their own profile.
-      // This is a simplified rule for debugging.
-      // For production, you would add more specific field validations:
-      // e.g., request.resource.data.id == userId,
-      // request.resource.data.email == request.auth.token.email, etc.
-      allow create: if request.auth != null && request.auth.uid == userId;
+      // !!! EXTREMELY INSECURE - FOR DEBUGGING ONLY !!!
+      // Temporarily allow anyone to create documents in this collection.
+      // This helps determine if the issue is with auth context in rules or a more fundamental write block.
+      allow create: if true;
+      // !!! REVERT THIS TO A SECURE RULE IMMEDIATELY AFTER TESTING: !!!
+      // allow create: if request.auth != null && request.auth.uid == userId;
+
 
       // Allow a user to update their own profile.
       // This is a simplified rule for debugging.
-      // For production, you would add more specific field validations
-      // and prevent certain fields (like email or createdAt) from being changed.
       allow update: if request.auth != null && request.auth.uid == userId;
 
       // Disallow deletes by default unless explicitly needed.
