@@ -26,17 +26,10 @@ export default function LoginPageHub() {
   const { toast } = useToast();
 
   const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  // const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // Replaced by userProfileLs.onboardingComplete
   
-  // For redirecting if already logged in and onboarded
-  // const [onboardingCompleteGlobal] = useLocalStorage('onboardingComplete', false);
-  // const [userProfileGlobal] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // If user is logged in and onboarding was completed
         if (userProfileLs?.uid === user.uid && userProfileLs?.onboardingComplete) {
           console.log(`[Login Hub] User ${user.uid} already logged in and onboarded. Redirecting to /`);
           router.replace('/');
@@ -49,7 +42,7 @@ export default function LoginPageHub() {
   const handleLoginSuccess = (user: import('firebase/auth').User, profile: BharatConnectFirestoreUser | null) => {
     if (profile && profile.onboardingComplete) {
       console.log(`[Login Hub] Profile found and onboarding complete for UID: ${user.uid}. Redirecting to home.`);
-      setUserProfileLs({ // Store full profile for app use
+      setUserProfileLs({ 
         uid: user.uid,
         email: profile.email,
         displayName: profile.displayName,
@@ -57,18 +50,16 @@ export default function LoginPageHub() {
         phoneNumber: profile.phoneNumber,
         onboardingComplete: true,
       });
-      // setOnboardingCompleteLs(true); // No longer needed
       router.replace('/');
     } else {
       console.log(`[Login Hub] Profile not found or onboarding incomplete for UID: ${user.uid}. Redirecting to profile-setup.`);
-      setUserProfileLs({ // Store minimal info for profile setup
+      setUserProfileLs({ 
         uid: user.uid,
-        email: user.email || '', // Ensure email is passed
-        displayName: profile?.displayName || user.displayName || undefined, // Pre-fill if possible
+        email: user.email || '', 
+        displayName: profile?.displayName || user.displayName || undefined, 
         photoURL: profile?.photoURL || user.photoURL || undefined,
-        onboardingComplete: false, // Onboarding is NOT complete
+        onboardingComplete: false, 
       });
-      // setOnboardingCompleteLs(false); // No longer needed
       router.replace('/profile-setup');
     }
   };
@@ -91,7 +82,6 @@ export default function LoginPageHub() {
 
 
     try {
-      // Step 1: Attempt to sign in the user
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       console.log(`[Login Hub] Sign-in successful for UID: ${user.uid}. Checking profile status.`);
@@ -100,7 +90,15 @@ export default function LoginPageHub() {
       handleLoginSuccess(user, bcProfile);
 
     } catch (err: any) {
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+      if (err.code === 'auth/network-request-failed') {
+        console.warn(`[Login Hub] Handled login error - Code: ${err.code}. Message: Network request failed. Firebase emulators might not be running or accessible.`);
+        setError('Network error. Please ensure Firebase emulators are running (if in development) or check your internet connection.');
+        toast({
+          variant: 'destructive',
+          title: 'Network Error',
+          description: 'Could not connect to Firebase. If developing locally, please ensure emulators are running.',
+        });
+      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
         console.warn(`[Login Hub] Handled login error - Code: ${err.code}. Message: Invalid email or password supplied by user.`);
         setError('Invalid email or password. Please try again or sign up.');
         toast({
