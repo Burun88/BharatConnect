@@ -88,7 +88,7 @@ function ProfileSetupContent() {
       setProfilePicFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
-        setProfilePicPreview(reader.result as string); // Show local preview
+        setProfilePicPreview(reader.result as string); 
       };
       reader.readAsDataURL(file);
       toast({ title: "Profile picture selected. Save to upload." });
@@ -119,13 +119,15 @@ function ProfileSetupContent() {
       return;
     }
     
-    let finalPhotoURL = userProfileLs?.photoURL || null; // Start with existing URL or null
+    let finalPhotoURL = userProfileLs?.photoURL || null; 
 
     if (profilePicFile) {
       try {
         console.log(`[ProfileSetupPage] Uploading new profile picture for UID: ${authUid}`);
-        // Use a consistent file name, e.g., "profileImage" (extension will be handled by upload service)
-        finalPhotoURL = await uploadProfileImage(authUid, profilePicFile, "profileImage");
+        const formData = new FormData();
+        formData.append('uid', authUid);
+        formData.append('profileImageFile', profilePicFile);
+        finalPhotoURL = await uploadProfileImage(formData);
         toast({ title: "Profile picture uploaded!" });
       } catch (uploadError: any) {
         console.error("[ProfileSetupPage] Error uploading profile picture:", uploadError);
@@ -235,7 +237,7 @@ function ProfileSetupContent() {
                   </div>
                 </div>
               </Label>
-              <Input id="profile-pic-upload" type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+              <Input id="profile-pic-upload" type="file" accept="image/*,.heic,.heif" onChange={handleFileChange} className="hidden" />
               <p className="text-xs text-muted-foreground">Tap to upload a profile picture (Optional)</p>
             </div>
 

@@ -5,29 +5,36 @@ import { storage } from '@/lib/firebase'; // Assuming storage is correctly initi
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 /**
- * Uploads a profile image to Firebase Storage.
- * @param uid The user's UID.
- * @param file The image file to upload.
- * @param fileName The name to use for the file in storage (e.g., "profileImage").
+ * Uploads a profile image to Firebase Storage using FormData.
+ * @param formData The FormData object containing 'uid' and 'profileImageFile'.
  * @returns A promise that resolves with the public download URL of the uploaded image.
  */
-export async function uploadProfileImage(uid: string, file: File, fileName: string = "profileImage"): Promise<string> {
-  console.log(`[StorageService] Attempting to upload profile image for UID: ${uid}`);
-  console.log(`[StorageService] File details: name=${file.name}, size=${file.size}, type=${file.type}`);
-  console.log(`[StorageService] Desired fileName in storage (base): ${fileName}`);
+export async function uploadProfileImage(formData: FormData): Promise<string> {
+  const file = formData.get('profileImageFile') as File | null;
+  const uid = formData.get('uid') as string | null;
+  const baseFileName = 'profileImage'; // Consistent base name for the profile image
 
+  console.log(`[StorageService] Attempting to upload profile image via FormData.`);
+  
   if (!uid) {
-    console.error('[StorageService] Error: UID is missing.');
-    throw new Error('User ID is required for upload.');
+    console.error('[StorageService] Error: UID is missing in FormData.');
+    throw new Error('User ID is required in FormData for upload.');
   }
   if (!file) {
-    console.error('[StorageService] Error: File is missing.');
-    throw new Error('File is required for upload.');
+    console.error('[StorageService] Error: File (profileImageFile) is missing in FormData.');
+    throw new Error('File (profileImageFile) is required in FormData for upload.');
+  }
+   if (file.size === 0) {
+    console.error('[StorageService] Error: File is empty (size 0).');
+    throw new Error('File cannot be empty.');
   }
   if (!storage) {
-    console.error('[StorageService] Error: Firebase Storage instance is not available. Check firebase.ts has "export { storage };" and is initialized.');
+    console.error('[StorageService] Error: Firebase Storage instance is not available. Check firebase.ts.');
     throw new Error('Firebase Storage is not initialized.');
   }
+
+  console.log(`[StorageService] Received UID: ${uid}`);
+  console.log(`[StorageService] Received File details: name=${file.name}, size=${file.size}, type=${file.type}`);
 
   const extension = file.name.split('.').pop();
   if (!extension) {
@@ -35,7 +42,7 @@ export async function uploadProfileImage(uid: string, file: File, fileName: stri
     throw new Error('File must have an extension.');
   }
 
-  const finalFileNameWithExtension = `${fileName}.${extension}`;
+  const finalFileNameWithExtension = `${baseFileName}.${extension.toLowerCase()}`; // Use lowercase extension
   const storagePath = `profileImages/${uid}/${finalFileNameWithExtension}`;
   console.log(`[StorageService] Constructed full storage path: ${storagePath}`);
 
@@ -63,12 +70,12 @@ export async function uploadProfileImage(uid: string, file: File, fileName: stri
 /**
  * Deletes a profile image from Firebase Storage.
  * @param uid The user's UID.
- * @param fileName The name of the file in storage (e.g., "profileImage.jpg" or "profileImage" if extension is handled inside).
- *                 It's safer if the calling component knows the full file name as stored.
+ * @param fullFileNameInStorage The full name of the file in storage (e.g., "profileImage.jpg").
  * @returns A promise that resolves when the image is deleted.
  */
 export async function deleteProfileImage(uid: string, fullFileNameInStorage: string): Promise<void> {
    if (!uid || !fullFileNameInStorage) {
+    console.error('[StorageService] UID and fullFileNameInStorage are required for deletion.');
     throw new Error('User ID and the full file name in storage are required for deletion.');
   }
  
