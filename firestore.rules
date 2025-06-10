@@ -4,26 +4,55 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // bharatConnectUsers: Main profile data for the BharatConnect app.
+    // Each user can manage their own profile document.
     match /bharatConnectUsers/{userId} {
       // Allow a user to read their own profile.
       allow read: if request.auth != null && request.auth.uid == userId;
 
-      // !!! EXTREMELY INSECURE - FOR DEBUGGING ONLY !!!
-      // Temporarily allow anyone to create documents in this collection.
-      // This helps determine if the issue is with auth context in rules or a more fundamental write block.
-      allow create: if true;
-      // !!! REVERT THIS TO A SECURE RULE IMMEDIATELY AFTER TESTING: !!!
-      // allow create: if request.auth != null && request.auth.uid == userId;
+      // Allow a user to create their own profile document.
+      // - The user must be authenticated.
+      // - The document ID (userId) must match the authenticated user's UID.
+      // - Ensure required fields are present and correctly formatted.
+      allow create: if request.auth != null 
+                      && request.auth.uid == userId
+                      && request.resource.data.id == userId
+                      && request.resource.data.name is string
+                      && request.resource.data.name.size() > 0
+                      && request.resource.data.email == request.auth.token.email
+                      && request.resource.data.onboardingComplete == true
+                      && request.resource.data.createdAt == request.time
+                      && request.resource.data.updatedAt == request.time;
+                      // Add other field validations as needed (e.g., phone, photoURL, bio format)
 
+      // Allow a user to update their own profile document.
+      // - The user must be authenticated.
+      // - The document ID (userId) must match the authenticated user's UID.
+      // - Prevent certain fields from being changed (e.g., email, id, createdAt).
+      // - Ensure required fields are present and correctly formatted.
+      allow update: if request.auth != null 
+                      && request.auth.uid == userId
+                      && request.resource.data.id == userId // Cannot change ID
+                      && request.resource.data.email == resource.data.email // Cannot change email
+                      && request.resource.data.createdAt == resource.data.createdAt // Cannot change createdAt
+                      && request.resource.data.name is string
+                      && request.resource.data.name.size() > 0
+                      && request.resource.data.onboardingComplete == true
+                      && request.resource.data.updatedAt == request.time;
+                      // Add other field validations as needed
 
-      // Allow a user to update their own profile.
-      // This is a simplified rule for debugging.
-      allow update: if request.auth != null && request.auth.uid == userId;
-
-      // Disallow deletes by default unless explicitly needed.
+      // Disallow deletes by default unless explicitly needed and secured.
       allow delete: if false;
     }
 
-    // Add rules for other collections here if needed for bharatconnect-i8510
+    // Add rules for other collections specific to bharatconnect-i8510 here as needed.
+    // For example, if you have chat messages:
+    // match /chats/{chatId} {
+    //   allow read, write: if request.auth != null && request.auth.uid in resource.data.participants;
+    //   match /messages/{messageId} {
+    //     allow read, create: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+    //     // Typically don't allow update/delete of messages or secure it tightly.
+    //     allow update, delete: if false;
+    //   }
+    // }
   }
 }
