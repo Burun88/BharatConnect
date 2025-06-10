@@ -1,5 +1,5 @@
 
-"use client";
+// "use client"; // Removed to allow server-side usage in Server Actions
 
 import { initializeApp, getApps, getApp, type FirebaseOptions } from 'firebase/app';
 import { 
