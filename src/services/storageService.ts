@@ -1,7 +1,7 @@
 
 'use server';
 
-import { storage } from '@/lib/firebase'; // Assuming storage is correctly initialized and exported
+import { storage, auth } from '@/lib/firebase'; // Ensure auth is imported
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 /**
@@ -10,12 +10,22 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
  * @returns A promise that resolves with the public download URL of the uploaded image.
  */
 export async function uploadProfileImage(formData: FormData): Promise<string> {
-  console.log('[StorageService] uploadProfileImage server action STARTED.'); // <<< --- ADDED THIS LINE
+  console.log('[StorageService] uploadProfileImage server action STARTED.');
 
   const file = formData.get('profileImageFile') as File | null;
   const uid = formData.get('uid') as string | null;
-  const baseFileName = 'profileImage'; // Consistent base name for the profile image
+  const baseFileName = 'profileImage';
 
+  // --- BEGIN DIAGNOSTIC LOG ---
+  const currentUserInAction = auth.currentUser;
+  console.log(`[StorageService] auth.currentUser UID in Server Action: ${currentUserInAction ? currentUserInAction.uid : 'null'}`);
+  if (currentUserInAction) {
+    console.log('[StorageService] auth.currentUser details in Server Action:', JSON.stringify(currentUserInAction));
+  } else {
+    console.warn('[StorageService] auth.currentUser is NULL in Server Action. This will cause storage rules relying on request.auth to fail.');
+  }
+  // --- END DIAGNOSTIC LOG ---
+  
   console.log(`[StorageService] Attempting to upload profile image via FormData.`);
   
   if (!uid) {
@@ -35,7 +45,7 @@ export async function uploadProfileImage(formData: FormData): Promise<string> {
     throw new Error('Firebase Storage is not initialized.');
   }
 
-  console.log(`[StorageService] Received UID: ${uid}`);
+  console.log(`[StorageService] Received UID from FormData: ${uid}`);
   console.log(`[StorageService] Received File details: name=${file.name}, size=${file.size}, type=${file.type}`);
 
   const extension = file.name.split('.').pop();
@@ -44,7 +54,7 @@ export async function uploadProfileImage(formData: FormData): Promise<string> {
     throw new Error('File must have an extension.');
   }
 
-  const finalFileNameWithExtension = `${baseFileName}.${extension.toLowerCase()}`; // Use lowercase extension
+  const finalFileNameWithExtension = `${baseFileName}.${extension.toLowerCase()}`;
   const storagePath = `profileImages/${uid}/${finalFileNameWithExtension}`;
   console.log(`[StorageService] Constructed full storage path: ${storagePath}`);
 
