@@ -20,41 +20,11 @@ const firestore = getFirestore(app);
 // const functions = getFunctions(app);
 // const storage = getStorage(app);
 
-if (process.env.NODE_ENV === 'development') {
-  console.info(
-    '[Firebase Lib] Development mode. REMINDER: Ensure Firebase Emulators are running via "firebase emulators:start". Connecting to:\nAuth: http://127.0.0.1:9199\nFirestore: http://127.0.0.1:8180'
-  );
-  try {
-    connectAuthEmulator(auth, 'http://127.0.0.1:9199', { disableWarnings: true });
-    console.log('[Firebase Lib] Connected to Auth Emulator on port 9199.');
-  } catch (e) {
-    console.warn('[Firebase Lib] Failed to connect to Auth Emulator. Is it running? Error:', e);
-  }
+// Removed emulator connection logic. App will now connect to live Firebase.
+// Reminder: Server actions running in local dev will likely be unauthenticated
+// against live Firestore unless ID tokens are validated or Admin SDK is used.
+// This may cause "permission-denied" errors with secure Firestore rules.
 
-  try {
-    connectFirestoreEmulator(firestore, '127.0.0.1', 8180);
-    console.log('[Firebase Lib] Connected to Firestore Emulator on port 8180.');
-  } catch (e) {
-    console.warn('[Firebase Lib] Failed to connect to Firestore Emulator. Is it running? Error:', e);
-  }
-
-  // Example for Functions emulator (if you use it):
-  // try {
-  //   connectFunctionsEmulator(functions, '127.0.0.1', 5101); // Updated port
-  //   console.log('[Firebase Lib] Connected to Functions Emulator on port 5101.');
-  // } catch (e) {
-  //   console.warn('[Firebase Lib] Failed to connect to Functions Emulator. Is it running? Error:', e);
-  // }
-
-  // Example for Storage emulator (if you use it):
-  // try {
-  //   connectStorageEmulator(storage, '127.0.0.1', 9199); // Default storage emulator port
-  //   console.log('[Firebase Lib] Connected to Storage Emulator on port 9199.');
-  // } catch (e) {
-  //   console.warn('[Firebase Lib] Failed to connect to Storage Emulator. Is it running? Error:', e);
-  // }
-} else {
-  console.log('[Firebase Lib] Production mode or emulators not configured for this environment.');
-}
+console.log('[Firebase Lib] Application configured to connect to LIVE Firebase services.');
 
 export { app, auth, firestore /*, functions, storage */ };
