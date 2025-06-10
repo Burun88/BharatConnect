@@ -66,8 +66,9 @@ export type StatusUpdate = {
 export interface LocalUserProfile {
   uid: string;
   email: string;
-  displayName?: string;
+  displayName?: string | null; // Allow null for consistency
   photoURL?: string | null;
   phoneNumber?: string | null;
-  // Add other fields from Firestore schema if needed client-side, e.g. languagePreference
+  bio?: string | null;
+  onboardingComplete: boolean; // Added this field
 }
