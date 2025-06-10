@@ -75,12 +75,10 @@ export default function SignupPage() {
       }
       
       console.log(`[Signup Page] handleSubmit: Firebase Auth account created for UID: ${user.uid}. Proceeding to profile setup.`);
-      // Toast removed from here as per user request. Main toast will be after profile setup.
       
       setUserProfileLs(prev => ({ 
         ...initialProfile, 
         email: user.email || '',
-        // name and photoURL will be set during profile setup
       }));
       setOnboardingCompleteLs(false); 
       
@@ -113,7 +111,7 @@ export default function SignupPage() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
+          <div className="flex justify-center mb-4 hidden">
             <UserPlus className="w-16 h-16 text-gradient-primary-accent" />
           </div>
           <CardTitle className="text-3xl font-headline font-bold text-gradient-primary-accent">
