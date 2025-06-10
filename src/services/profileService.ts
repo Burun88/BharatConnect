@@ -1,57 +1,73 @@
 
 'use server';
 
-import { app, firestore } from '@/lib/firebase'; // app is needed to re-get auth
-import { getAuth as getClientAuth } from 'firebase/auth'; // Client SDK for use in server action
-import { doc, getDoc, setDoc, serverTimestamp,FieldValue } from 'firebase/firestore';
+import { app, firestore } from '@/lib/firebase';
+import { getAuth as getClientAuth } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp, FieldValue } from 'firebase/firestore';
 
 /**
- * @fileOverview Service functions for managing BharatConnect user profiles.
- * - BharatConnectUser: Full user profile for BharatConnect.
- * - createOrUpdateUserFullProfile: Manages the full profile in '/bharatConnectUsers'.
- * - getUserFullProfile: Fetches a full BharatConnect profile.
+ * @fileOverview Service functions for managing BharatConnect user profiles in Firestore.
+ * - BharatConnectFirestoreUser: Defines the structure of a user document in Firestore.
+ * - createOrUpdateUserFullProfile: Creates or updates a user's profile document.
+ * - getUserFullProfile: Fetches a user's profile document.
  */
 
-export interface BharatConnectUser {
-  id: string; // Firebase UID
-  name: string;
-  email: string;
-  phone?: string;
-  photoURL?: string | null;
-  bio?: string;
-  currentAuraId?: string | null;
-  onboardingComplete: boolean;
-  createdAt: FieldValue; // Use FieldValue for serverTimestamp
-  updatedAt: FieldValue; // Use FieldValue for serverTimestamp
+export interface BharatConnectFirestoreUser {
+  id: string; // Firebase UID, same as document ID
+  email: string; // Mandatory
+  displayName: string; // Mandatory
+  photoURL?: string | null; // Optional
+  phoneNumber?: string | null; // Optional
+  
+  status?: string; // Optional, e.g., "Hey! I'm using Bharat Connect."
+  languagePreference?: string; // Optional, e.g., "hi"
+  lastSeen?: FieldValue; // Timestamp of last activity, server-set
+
+  bio?: string; // Optional, from original profile setup
+  currentAuraId?: string | null; // Optional, from original profile setup
+  
+  onboardingComplete: boolean; // Crucial flag for new user flow
+  
+  createdAt: FieldValue; // Server-set timestamp
+  updatedAt: FieldValue; // Server-set timestamp
 }
 
 /**
- * Creates or updates a full BharatConnect user profile in the '/bharatConnectUsers/{uid}' collection.
+ * Creates or updates a user's profile document in the '/bharatConnectUsers/{uid}' collection.
+ * This function is typically called at the end of the onboarding process.
  * @param uid The Firebase User ID.
- * @param profileData Data for the full BharatConnect profile.
+ * @param profileData Data for the user's profile. `onboardingComplete` should be set by the caller.
  */
 export async function createOrUpdateUserFullProfile(
   uid: string,
-  profileData: Omit<BharatConnectUser, 'id' | 'createdAt' | 'updatedAt' | 'email'> & { email: string } // email is now explicitly part of input for clarity
+  profileData: {
+    email: string;
+    displayName: string;
+    onboardingComplete: boolean;
+    photoURL?: string | null;
+    phoneNumber?: string | null;
+    bio?: string | null;
+    status?: string;
+    languagePreference?: string;
+    currentAuraId?: string | null;
+  }
 ): Promise<void> {
   console.log(`[SVC_PROF] createOrUpdateUserFullProfile invoked for UID: ${uid}`);
-  console.log(`[SVC_PROF] Received profileData (essentials): name=${profileData.name}, email=${profileData.email}, onboardingComplete=${profileData.onboardingComplete}`);
+  console.log(`[SVC_PROF] Received profileData: email=${profileData.email}, displayName=${profileData.displayName}, onboardingComplete=${profileData.onboardingComplete}`);
 
-  const authInstanceInAction = getClientAuth(app); // Re-get auth instance
+  const authInstanceInAction = getClientAuth(app);
   const currentUserInAction = authInstanceInAction.currentUser;
-  // This console.log is CRUCIAL for debugging. Check server-side (App Hosting/Cloud Run) logs.
   console.log(`[SVC_PROF] Auth state in server action (re-fetched) - currentUserInAction?.uid: ${currentUserInAction?.uid}`);
-
 
   if (!uid) {
     console.error("[SVC_PROF] createOrUpdateUserFullProfile: UID is required.");
     throw new Error("User ID is required to create or update profile.");
   }
-  if (!profileData.name) {
-    console.error("[SVC_PROF] createOrUpdateUserFullProfile: Name is required.");
-    throw new Error("Name is required for profile.");
+  if (!profileData.displayName || profileData.displayName.trim() === '') {
+    console.error("[SVC_PROF] createOrUpdateUserFullProfile: Display Name is required.");
+    throw new Error("Display Name is required for profile.");
   }
-  if (!profileData.email) {
+  if (!profileData.email || profileData.email.trim() === '') {
     console.error("[SVC_PROF] createOrUpdateUserFullProfile: Email is required.");
     throw new Error("Email is required for profile.");
   }
@@ -60,29 +76,30 @@ export async function createOrUpdateUserFullProfile(
     const profileDocRef = doc(firestore, 'bharatConnectUsers', uid);
     const existingProfileSnap = await getDoc(profileDocRef);
 
-    // Ensure all fields potentially being undefined are handled gracefully.
-    const dataToSet: Partial<Omit<BharatConnectUser, 'createdAt' | 'updatedAt'>> & { updatedAt: FieldValue, id: string, email: string, name: string, onboardingComplete: boolean } = {
+    const dataToSet: Partial<BharatConnectFirestoreUser> = {
       id: uid,
-      name: profileData.name,
       email: profileData.email,
-      phone: profileData.phone || undefined, // Use undefined if not provided
-      photoURL: profileData.photoURL || null, // Use null if not provided
-      bio: profileData.bio || undefined,
-      currentAuraId: profileData.currentAuraId || null,
+      displayName: profileData.displayName,
+      photoURL: profileData.photoURL || null,
+      phoneNumber: profileData.phoneNumber || null,
+      bio: profileData.bio || undefined, // Keep if used
+      currentAuraId: profileData.currentAuraId || null, // Keep if used
+      status: profileData.status || `Hey! I'm using Bharat Connect.`, // Default status
+      languagePreference: profileData.languagePreference || 'en', // Default language
       onboardingComplete: profileData.onboardingComplete,
       updatedAt: serverTimestamp(),
     };
 
     if (!existingProfileSnap.exists()) {
-      // Only add createdAt if the document is new
-      (dataToSet as Partial<BharatConnectUser>).createdAt = serverTimestamp();
-      console.log(`[SVC_PROF] Profile for UID: ${uid} does not exist. Will create with createdAt timestamp.`);
+      dataToSet.createdAt = serverTimestamp();
+      dataToSet.lastSeen = serverTimestamp(); // Set initial lastSeen on creation
+      console.log(`[SVC_PROF] Profile for UID: ${uid} does not exist. Will create with createdAt and lastSeen timestamp.`);
     } else {
       console.log(`[SVC_PROF] Profile for UID: ${uid} exists. Will merge/update.`);
+      // lastSeen could be updated here too, or separately on user activity
     }
     
     console.log(`[SVC_PROF] Path for Firestore write: bharatConnectUsers/${uid}`);
-    // Log safely, converting undefined to null for JSON.stringify if needed
     console.log(`[SVC_PROF] Data to be set/merged: ${JSON.stringify(dataToSet, (key, value) => (value === undefined ? null : value), 2)}`);
 
     await setDoc(profileDocRef, dataToSet, { merge: true });
@@ -92,7 +109,6 @@ export async function createOrUpdateUserFullProfile(
     console.error(`[SVC_PROF] Error writing full profile for UID ${uid}. Raw error:`, error);
     
     let firebaseErrorCode = null;
-    // Check if the error object has a 'code' property (common in Firebase errors)
     if (error && typeof error.code === 'string') {
         firebaseErrorCode = error.code;
     }
@@ -100,7 +116,7 @@ export async function createOrUpdateUserFullProfile(
       console.error(`[SVC_PROF] Firebase error code: ${firebaseErrorCode}`);
     }
 
-    const authInstanceOnError = getClientAuth(app); // Re-get auth instance
+    const authInstanceOnError = getClientAuth(app);
     const currentUserInActionOnError = authInstanceOnError.currentUser;
     console.error(`[SVC_PROF] Auth state during error (re-fetched) - currentUserInActionOnError?.uid: ${currentUserInActionOnError?.uid}`);
     
@@ -113,11 +129,11 @@ export async function createOrUpdateUserFullProfile(
 }
 
 /**
- * Fetches a full BharatConnect user profile from the '/bharatConnectUsers' collection.
+ * Fetches a full user profile from the '/bharatConnectUsers' collection.
  * @param uid The Firebase User ID.
- * @returns The BharatConnectUser object, or null if not found.
+ * @returns The BharatConnectFirestoreUser object, or null if not found.
  */
-export async function getUserFullProfile(uid: string): Promise<BharatConnectUser | null> {
+export async function getUserFullProfile(uid: string): Promise<BharatConnectFirestoreUser | null> {
   if (!uid) {
     console.warn("[SVC_PROF] getUserFullProfile: Called with no UID.");
     return null;
@@ -127,8 +143,7 @@ export async function getUserFullProfile(uid: string): Promise<BharatConnectUser
     const docSnap = await getDoc(profileDocRef);
 
     if (docSnap.exists()) {
-      // Timestamps will be Firebase Timestamp objects, ensure client handles them or convert here if necessary
-      return docSnap.data() as BharatConnectUser;
+      return docSnap.data() as BharatConnectFirestoreUser;
     } else {
       console.log(`[SVC_PROF] getUserFullProfile: No profile found in '/bharatConnectUsers' for UID: ${uid}.`);
       return null;
@@ -137,6 +152,6 @@ export async function getUserFullProfile(uid: string): Promise<BharatConnectUser
     console.error(`[SVC_PROF] getUserFullProfile: Error fetching full profile for UID ${uid}:`, error);
     if (error.code) console.error(`[SVC_PROF] Firebase error code: ${error.code}`);
     if (error.message) console.error(`[SVC_PROF] Firebase error message: ${error.message}`);
-    return null; // Or rethrow, depending on desired error handling
+    return null;
   }
 }

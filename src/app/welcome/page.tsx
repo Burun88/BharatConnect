@@ -10,36 +10,37 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShieldCheck } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { auth } from '@/lib/firebase'; // Import Firebase auth
+import { auth } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import type { LocalUserProfile } from '@/types';
 
 export default function WelcomePage() {
   const [agreed, setAgreed] = useState(false);
   const router = useRouter();
-  // We might not need this specific onboardingComplete from localStorage if we rely on Firebase profile
-  const [onboardingCompleteLs, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
+  const [onboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const initialProfile = {} as LocalUserProfile; // Ensure it matches type
+  const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', initialProfile);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // If user is logged in and onboarding was completed (from localStorage or ideally Firestore profile)
-        // This logic might need to move to after login/signup to check Firestore profile
-        if (onboardingCompleteLs) {
+        // If user is logged in and onboarding was completed (from localStorage)
+        if (userProfileLs?.uid === user.uid && onboardingCompleteLs) {
           router.replace('/');
         } else {
-          // User is logged in but onboarding not marked complete in LS,
-          // might need to check Firestore profile here or guide to profile-setup
-          // For now, if LS says not complete, they stay on welcome or go to setup.
-          // This could be refined once Firestore profile check is robust post-login.
-           setCheckingAuth(false); // Allow page to render if onboarding not complete
+          // User is logged in but onboarding not marked complete in LS for this user,
+          // or LS profile doesn't match current auth user.
+          // Allow page to render if onboarding not complete for THIS user.
+           setCheckingAuth(false);
         }
       } else {
         setCheckingAuth(false); // No user, allow page to render
       }
     });
     return () => unsubscribe();
-  }, [router, onboardingCompleteLs]);
+  }, [router, onboardingCompleteLs, userProfileLs]);
 
   const handleAgreeChange = (checked: boolean | 'indeterminate') => {
     setAgreed(checked === true);
@@ -73,10 +74,9 @@ export default function WelcomePage() {
     );
   }
 
-
-  // If already onboarded via localStorage (and user is logged in), redirect.
-  // This might be redundant if onAuthStateChanged handles it, but acts as a quick check.
-  if (auth.currentUser && onboardingCompleteLs) {
+  // This check might be redundant if onAuthStateChanged covers it, but ensures
+  // if user lands here while authenticated and onboarded (e.g. via back button), they are redirected.
+  if (auth.currentUser && userProfileLs?.uid === auth.currentUser.uid && onboardingCompleteLs) {
      router.replace('/');
      return null;
   }
@@ -117,21 +117,16 @@ export default function WelcomePage() {
               </Label>
             </div>
           </div>
-        </CardContent>
+        </CellContent>
         <CardFooter className="flex-col space-y-2">
           <Button
             disabled={!agreed}
             className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity"
-            onClick={() => agreed && router.push('/signup')}
+            onClick={() => agreed && router.push('/login')} // Changed from /signup to /login (the new hub)
           >
-            Agree and Continue to Signup
+            Agree and Continue
           </Button>
-          <p className="text-sm text-muted-foreground">
-            Already have an account?{' '}
-            <Link href="/login" className="text-primary hover:underline">
-              Login
-            </Link>
-          </p>
+          {/* The "Already have an account? Login" might be redundant if this button now goes to the login/signup hub */}
         </CardFooter>
       </Card>
       <p className="mt-8 text-xs text-muted-foreground">

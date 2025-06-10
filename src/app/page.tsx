@@ -8,7 +8,7 @@ import BottomNavigationBar from '@/components/bottom-navigation-bar';
 import HomeHeader from '@/components/home/home-header';
 import AuraBar from '@/components/home/aura-bar';
 import ChatList from '@/components/home/chat-list';
-import type { User, Chat } from '@/types'; // BharatConnect User type
+import type { User, Chat, LocalUserProfile } from '@/types'; // BharatConnect User type
 import { mockCurrentUser, mockAuraBarItemsData, mockChats } from '@/lib/mock-data';
 import { Plus } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
@@ -23,21 +23,18 @@ const SCROLL_DELTA = 5;
 export default function HomePage() {
   const router = useRouter();
   
-  // Auth state
-  const [authUser, setAuthUser] = useState<AuthUser | null | undefined>(undefined); // undefined: loading, null: no user, AuthUser: user object
+  const [authUser, setAuthUser] = useState<AuthUser | null | undefined>(undefined); 
   const [authCheckCompleted, setAuthCheckCompleted] = useState(false);
-
-  // Page content loading state (after auth and onboarding checks pass)
   const [isPageDataLoading, setIsPageDataLoading] = useState(true); 
   
   const [auraBarItems, setAuraBarItems] = useState<User[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const initialUserProfile = useMemo(() => ({ name: '', phone: '', email: '' }), []);
-  const [userProfile] = useLocalStorage('userProfile', initialUserProfile);
-  const [onboardingComplete] = useLocalStorage('onboardingComplete', false);
-  const [currentUserAuraId] = useLocalStorage<string | null>('currentUserAuraId', null);
+  const initialProfile = {} as LocalUserProfile;
+  const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', initialProfile);
+  const [onboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
+  const [currentUserAuraId] = useLocalStorage<string | null>('currentUserAuraId', null); // Keep for aura functionality
 
   const scrollableContainerRef = useRef<HTMLDivElement>(null);
   const [isHeaderContentLoaded, setIsHeaderContentLoaded] = useState(true);
@@ -53,24 +50,41 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!authCheckCompleted) {
-      setIsPageDataLoading(true); // Keep page in loading state until auth check is done
+      setIsPageDataLoading(true); 
       return;
     }
 
     if (!authUser) {
-      router.replace('/login');
+      router.replace('/login'); // Go to new login hub
       return;
     }
 
-    if (!onboardingComplete) {
+    // Check onboardingComplete from localStorage, which should be set at end of profile-setup
+    if (!onboardingCompleteLs || userProfileLs?.uid !== authUser.uid) {
+      // If LS says not complete OR if the UID in LS doesn't match current auth user,
+      // send to profile setup to ensure profile is correct for this user.
+      // This handles cases where user might have logged out and logged in as different user.
+      console.log(`[HomePage] User ${authUser.uid} not fully onboarded or LS mismatch. Redirecting to profile-setup.`);
       router.replace('/profile-setup');
       return;
     }
 
-    // AuthUser exists and onboarding is complete. Proceed to load actual page data.
+    // AuthUser exists and onboarding is complete for this user. Proceed to load actual page data.
     setIsPageDataLoading(true); 
     setTimeout(() => {
-      const updatedCurrentUser = { ...mockCurrentUser, id: authUser.uid, name: userProfile.name || authUser.displayName || 'User', email: authUser.email || userProfile.email, currentAuraId: currentUserAuraId, avatarUrl: authUser.photoURL || mockCurrentUser.avatarUrl };
+      // Use userProfileLs for name, email, photo if available
+      const currentUserName = userProfileLs?.displayName || authUser.displayName || 'User';
+      const currentUserEmail = userProfileLs?.email || authUser.email || '';
+      const currentUserAvatar = userProfileLs?.photoURL || authUser.photoURL || mockCurrentUser.avatarUrl;
+
+      const updatedCurrentUser: User = { 
+        ...mockCurrentUser, 
+        id: authUser.uid, 
+        name: currentUserName, 
+        email: currentUserEmail, 
+        currentAuraId: currentUserAuraId, 
+        avatarUrl: currentUserAvatar
+      };
       
       let allUsersFromMock = mockAuraBarItemsData().map(u =>
           u.id === updatedCurrentUser.id ? updatedCurrentUser : u
@@ -84,17 +98,16 @@ export default function HomePage() {
          allUsersFromMock.unshift(currentUserData);
       }
 
-
       const finalAuraItems = allUsersFromMock.filter(
           u => u.id === updatedCurrentUser.id || u.currentAuraId
       );
 
       setAuraBarItems(finalAuraItems as User[]);
-      setChats(mockChats); // Assuming mockChats are fine for now
+      setChats(mockChats); 
       setIsPageDataLoading(false); 
     }, 1500);
 
-  }, [authCheckCompleted, authUser, onboardingComplete, router, userProfile.name, userProfile.email, currentUserAuraId]);
+  }, [authCheckCompleted, authUser, onboardingCompleteLs, userProfileLs, router, currentUserAuraId]);
 
 
   const handleScroll = useCallback(() => {
@@ -118,7 +131,7 @@ export default function HomePage() {
   useEffect(() => {
     const scrollableElement = scrollableContainerRef.current;
     const updateScrollBehavior = () => {
-      if (!scrollableElement || isPageDataLoading || !authCheckCompleted || !authUser || !onboardingComplete) {
+      if (!scrollableElement || isPageDataLoading || !authCheckCompleted || !authUser || !onboardingCompleteLs) {
         setIsHeaderContentLoaded(true);
         if (scrollableElement) scrollableElement.removeEventListener('scroll', handleScroll);
         return;
@@ -141,7 +154,7 @@ export default function HomePage() {
       if (scrollableElement) scrollableElement.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', updateScrollBehavior);
     };
-  }, [isPageDataLoading, chats, searchTerm, handleScroll, authCheckCompleted, authUser, onboardingComplete]);
+  }, [isPageDataLoading, chats, searchTerm, handleScroll, authCheckCompleted, authUser, onboardingCompleteLs]);
 
   const filteredChats = chats.filter(chat =>
     chat.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -175,13 +188,13 @@ export default function HomePage() {
         }}
       >
         <AuraBar
-          isLoading={isPageDataLoading} // AuraBar loading linked to page data loading
+          isLoading={isPageDataLoading} 
           auraBarItems={isPageDataLoading ? [] : auraBarItems}
           currentUserId={authUser?.uid || mockCurrentUser.id}
           onCurrentUserAuraClick={handleCurrentUserAuraClick}
         />
         <ChatList
-          isLoading={isPageDataLoading} // ChatList loading linked to page data loading
+          isLoading={isPageDataLoading} 
           filteredChats={filteredChats}
           searchTerm={searchTerm}
         />

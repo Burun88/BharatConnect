@@ -10,13 +10,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { MessageSquareLock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { auth } from '@/lib/firebase'; // Import auth
-import { onAuthStateChanged } from 'firebase/auth'; // Import onAuthStateChanged
+import { auth } from '@/lib/firebase'; 
+import { onAuthStateChanged } from 'firebase/auth';
+import { createOrUpdateUserFullProfile } from '@/services/profileService'; // For final save
+import type { LocalUserProfile } from '@/types';
 
 const OTP_LENGTH = 6;
-
-// This page might be deprecated or used for a secondary phone verification if needed.
-// For now, it will redirect if user is logged in via email/password.
 
 export default function VerifyOtpPage() {
   const [otp, setOtp] = useState<string[]>(new Array(OTP_LENGTH).fill(''));
@@ -24,30 +23,37 @@ export default function VerifyOtpPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const initialProfile = useMemo(() => ({ phone: '', name: '', email: '' }), []);
-  const [userProfileLs] = useLocalStorage('userProfile', initialProfile);
+  const initialProfile = {} as LocalUserProfile;
+  const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', initialProfile);
+  const [onboardingCompleteLs, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const [onboardingCompleteLs] = useLocalStorage('onboardingComplete', false);
+
+  const phoneToVerify = useMemo(() => userProfileLs?.phoneNumber || 'your phone', [userProfileLs]);
 
   useEffect(() => {
      const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // If user is logged in (likely via email/pass), this flow is not primary.
-        if (onboardingCompleteLs) {
-          router.replace('/');
-        } else {
-          router.replace('/profile-setup');
+        if (onboardingCompleteLs && userProfileLs?.uid === user.uid) {
+          router.replace('/'); // Already onboarded, no need to be here.
+        } else if (!userProfileLs?.uid || userProfileLs.uid !== user.uid || !userProfileLs.phoneNumber) {
+          // If LS doesn't match current user, or no UID/phone in LS, redirect.
+          // This means they didn't arrive here from the phone verification step.
+           console.warn("[VerifyOTPPage] Mismatch or missing UID/phone in LS. Redirecting.");
+           router.replace(userProfileLs?.uid ? '/profile-setup' : '/login');
         }
+        // Else, allow to stay on page for OTP verification.
+      } else {
+         router.replace('/login'); // No auth user.
       }
     });
     return () => unsubscribe();
-  }, [router, onboardingCompleteLs]);
+  }, [router, onboardingCompleteLs, userProfileLs]);
 
   useEffect(() => {
-    if (!auth.currentUser) { // Only focus if not already logged in and redirected
+    if (inputRefs.current[0] && auth.currentUser && userProfileLs?.phoneNumber) {
         inputRefs.current[0]?.focus();
     }
-  }, []);
+  }, [userProfileLs?.phoneNumber]);
 
   const handleChange = (elementIndex: number, event: ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
@@ -68,7 +74,7 @@ export default function VerifyOtpPage() {
     }
   };
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     const enteredOtp = otp.join('');
@@ -78,27 +84,57 @@ export default function VerifyOtpPage() {
       return;
     }
     
-    // Simulate OTP verification 
-     toast({
-        title: "Phone Auth Inactive",
-        description: "This OTP flow is currently not primary. Please use email/password signup or login.",
-        variant: "default"
-    });
-    // if (enteredOtp === '123456') { // Example OTP
-    //   toast({
-    //     title: 'Phone Verified!',
-    //     description: 'Your phone number has been successfully verified.',
-    //   });
-    //   router.push('/profile-setup'); // This would be the next step
-    // } else {
-    //   setError('Invalid OTP. Please try again.');
-    // }
+    // TODO: Implement actual Firebase Phone Auth OTP verification here.
+    // For now, simulate success with a common OTP like '123456'.
+    if (enteredOtp === '123456') { 
+      toast({
+        title: 'Phone Verified!',
+        description: 'Your phone number has been successfully verified.',
+      });
+
+      // Update LS to mark phone as verified (if needed for a permissions screen)
+      setUserProfileLs(prev => ({ ...prev!, phoneVerified: true }));
+
+      // This is now the end of the simplified onboarding (Profile -> Phone OTP)
+      // Save the complete profile to Firestore
+      if (userProfileLs?.uid && userProfileLs.email && userProfileLs.displayName) {
+        try {
+          await createOrUpdateUserFullProfile(userProfileLs.uid, {
+            email: userProfileLs.email,
+            displayName: userProfileLs.displayName,
+            photoURL: userProfileLs.photoURL,
+            phoneNumber: userProfileLs.phoneNumber, // Verified phone number
+            // bio: userProfileLs.bio, // if bio was collected and stored in LS
+            onboardingComplete: true,
+          });
+          setOnboardingCompleteLs(true);
+          toast({
+            title: `Welcome, ${userProfileLs.displayName}!`,
+            description: "Your BharatConnect account is fully set up.",
+          });
+          router.push('/'); // Go to home page
+        } catch (saveError: any) {
+          console.error("Error saving profile after OTP verification:", saveError);
+          setError("Failed to save profile after phone verification. Please try again or contact support.");
+          toast({variant: "destructive", title: "Profile Save Failed", description: saveError.message});
+        }
+      } else {
+        setError("Critical user information missing. Cannot complete profile setup.");
+        toast({variant: "destructive", title: "Setup Error", description: "Missing essential profile data."});
+        router.push('/profile-setup'); // Send back to profile setup
+      }
+    } else {
+      setError('Invalid OTP. Please try again.');
+      setOtp(new Array(OTP_LENGTH).fill(''));
+      inputRefs.current[0]?.focus();
+    }
   };
 
   const handleResendOtp = () => {
+    // TODO: Implement actual OTP resend logic with Firebase.
     toast({
       title: 'OTP Resent (Simulated)',
-      description: `This flow is currently not primary. An OTP would be resent to ${userProfileLs.phone}.`,
+      description: `A new OTP would be resent to ${phoneToVerify}.`,
     });
     setOtp(new Array(OTP_LENGTH).fill(''));
     inputRefs.current[0]?.focus();
@@ -112,10 +148,10 @@ export default function VerifyOtpPage() {
             <MessageSquareLock className="w-16 h-16 text-gradient-primary-accent" />
           </div>
           <CardTitle className="text-3xl font-headline font-bold text-gradient-primary-accent">
-            Enter OTP (Legacy)
+            Enter OTP
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            Phone verification is not the primary flow. An OTP would have been sent to {userProfileLs.phone || 'your phone'}.
+            An OTP has been sent to {phoneToVerify}.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -135,28 +171,27 @@ export default function VerifyOtpPage() {
                     ref={el => inputRefs.current[index] = el}
                     className="w-10 h-12 text-center text-xl font-mono"
                     aria-label={`OTP digit ${index + 1}`}
-                    disabled // Disabled as it's not primary flow
                   />
                 ))}
               </div>
               {error && <p className="text-sm text-destructive text-center pt-2">{error}</p>}
             </div>
             <div className="text-center">
-              <Button type="button" variant="link" onClick={handleResendOtp} className="text-primary" disabled>
-                Resend OTP (Disabled)
+              <Button type="button" variant="link" onClick={handleResendOtp} className="text-primary">
+                Resend OTP
               </Button>
             </div>
           </CardContent>
-          <CardFooter>
-            <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled>
-              Verify OTP (Disabled)
+          <CardFooter className="flex-col space-y-2">
+            <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity">
+              Verify OTP & Complete Setup
+            </Button>
+             <Button type="button" variant="outline" onClick={() => router.back()} className="w-full">
+              Back
             </Button>
           </CardFooter>
         </form>
       </Card>
-      <Button variant="link" className="mt-4 text-sm text-muted-foreground" onClick={() => router.push('/welcome')}>
-        Back to Welcome
-      </Button>
     </div>
   );
 }

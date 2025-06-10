@@ -6,10 +6,13 @@ export type UserAura = {
   gradient?: string; // For mood-specific gradient ring, e.g., 'bg-gradient-to-r from-yellow-400 to-red-500'
 };
 
+// This User type is primarily for client-side display and mock data.
+// The definitive Firestore structure is in profileService.ts's BharatConnectFirestoreUser
 export type User = {
-  id: string;
-  name: string;
-  phone?: string;
+  id: string; // Firebase UID
+  name: string; // Display Name
+  email?: string; // User's email
+  phone?: string; // Optional phone number
   avatarUrl?: string; // Placeholder or initials if not available
   currentAuraId?: string | null;
   status?: string; // e.g., "Online", "Last seen...", "Feeling Happy"
@@ -58,3 +61,13 @@ export type StatusUpdate = {
   text?: string; // For text statuses
   viewedByCurrentUser: boolean; // Has the current logged-in user seen this status?
 };
+
+// This represents the structure in localStorage during onboarding and for general app use.
+export interface LocalUserProfile {
+  uid: string;
+  email: string;
+  displayName?: string;
+  photoURL?: string | null;
+  phoneNumber?: string | null;
+  // Add other fields from Firestore schema if needed client-side, e.g. languagePreference
+}
