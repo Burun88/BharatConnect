@@ -14,7 +14,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import Logo from '@/components/shared/Logo';
 import type { LocalUserProfile } from '@/types';
-import { auth } from '@/lib/firebase'; // Import auth for direct access if needed, though LS is primary
+import { auth, signOutUser as fbSignOutUser } from '@/lib/firebase'; 
+import { createOrUpdateUserFullProfile } from '@/services/profileService';
 
 function ProfileSetupContent() {
   const router = useRouter();
@@ -22,7 +23,6 @@ function ProfileSetupContent() {
 
   const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
 
-  // Initialize component state
   const [displayName, setDisplayName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [bio, setBio] = useState('');
@@ -39,30 +39,27 @@ function ProfileSetupContent() {
 
   useEffect(() => {
     const currentLocalProfile = userProfileLs;
+    console.log("[ProfileSetupPage] useEffect - userProfileLs:", currentLocalProfile);
 
     if (currentLocalProfile?.uid) {
       setAuthUid(currentLocalProfile.uid);
       setAuthEmail(currentLocalProfile.email || '');
 
-      // If onboarding is complete, redirect to home.
       if (currentLocalProfile.onboardingComplete === true) {
         console.log("[ProfileSetupPage] User from LS already onboarded. Redirecting to home.");
         router.replace('/');
         return; 
       }
 
-      // Pre-fill form fields only if they haven't been touched by the user yet (i.e., component state is still initial)
-      // and if the data exists in local storage.
-      // For displayName, if it's a generic default from FirebaseAuthObserver, keep it blank for a fresh setup.
       const isGenericDisplayName =
         currentLocalProfile.displayName === (currentLocalProfile.email?.split('@')[0]) ||
         currentLocalProfile.displayName === 'User';
 
-      if (displayName === '') { // Only set if component state is empty
+      if (displayName === '') {
         if (currentLocalProfile.displayName && !isGenericDisplayName) {
           setDisplayName(currentLocalProfile.displayName);
         } else {
-          setDisplayName(''); // Ensure it's blank for new user or generic name
+          setDisplayName('');
         }
       }
 
@@ -72,18 +69,16 @@ function ProfileSetupContent() {
       if (phoneNumber === '' && currentLocalProfile.phoneNumber) {
         setPhoneNumber(currentLocalProfile.phoneNumber);
       }
-      // Bio is not in LocalUserProfile, so it remains as initialized (empty string)
-
+      if (bio === '' && currentLocalProfile.bio) {
+        setBio(currentLocalProfile.bio);
+      }
+      
       setIsPageLoading(false);
     } else {
-      // No UID in local storage could mean the observer hasn't run or user is not authenticated.
-      // FirebaseAuthObserver should handle populating LS. If after a brief period it's still null,
-      // then user is likely not logged in.
-      console.warn("[ProfileSetupPage] No UID in local profile. Redirecting to login.");
-      // A small delay could be added here to wait for observer, but direct redirect is often cleaner.
+      console.warn("[ProfileSetupPage] No UID in local profile or LS is null. Redirecting to login.");
       router.replace('/login');
     }
-  }, [userProfileLs, router]); // Effect re-runs if userProfileLs or router changes. Avoid adding form field states to prevent infinite loops.
+  }, [userProfileLs, router, displayName, profilePicPreview, phoneNumber, bio]);
 
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -103,9 +98,8 @@ function ProfileSetupContent() {
     e.preventDefault();
     setError('');
 
-    console.log("[ProfileSetupPage] handleSubmit - userProfileLs at submission:", userProfileLs);
-    console.log(`[ProfileSetupPage] handleSubmit: authUid from state: ${authUid}, authEmail from state: ${authEmail}`);
-
+    console.log("[ProfileSetupPage] handleSubmit triggered.");
+    console.log(`[ProfileSetupPage] Current state: authUid=${authUid}, authEmail=${authEmail}`);
 
     if (!authUid || !authEmail) {
       setError('User authentication information is missing. Please try logging in again.');
@@ -126,37 +120,64 @@ function ProfileSetupContent() {
     setIsLoading(true);
 
     let finalPhotoURL = profilePicPreview;
+    // In a real app, you'd upload profilePicFile to Firebase Storage here
+    // and get back a URL to store in finalPhotoURL.
+    // For now, we are directly saving the data URI if a new pic is chosen,
+    // or the existing URL if no new pic is chosen.
     if (profilePicFile) {
-      // In a real app, you'd upload profilePicFile to Firebase Storage here
-      // and get back a URL to store in finalPhotoURL.
-      // Since we're not doing that yet, we'll just use the preview (data URI).
-      console.warn("Profile picture file selected, but cloud upload not implemented. Using local preview for LS.");
+        console.warn("[ProfileSetupPage] New profile picture file selected. Using data URI for Firestore. Cloud upload not implemented.");
     }
     
-    const updatedProfileForLs: LocalUserProfile = {
-      uid: authUid,
+    const profileDataToSave = {
       email: authEmail,
       displayName: displayName.trim(),
-      photoURL: finalPhotoURL,
+      photoURL: finalPhotoURL, // This could be a data URI
       phoneNumber: phoneNumber.trim() || null,
+      bio: bio.trim() || null,
       onboardingComplete: true,
-      // bio: bio.trim() || null, // Bio is not part of LocalUserProfile type yet
     };
-    setUserProfileLs(updatedProfileForLs);
 
-    toast({
-      title: `Welcome, ${displayName.trim()}!`,
-      description: 'Your BharatConnect account is ready.',
-    });
-    router.push('/');
-    setIsLoading(false);
+    console.log("[ProfileSetupPage] Attempting to save to Firestore. UID:", authUid);
+    console.log("[ProfileSetupPage] Data to save:", JSON.stringify(profileDataToSave));
+
+    try {
+      await createOrUpdateUserFullProfile(authUid, profileDataToSave);
+
+      const updatedProfileForLs: LocalUserProfile = {
+        uid: authUid,
+        email: authEmail,
+        displayName: displayName.trim(),
+        photoURL: finalPhotoURL,
+        phoneNumber: phoneNumber.trim() || null,
+        bio: bio.trim() || null,
+        onboardingComplete: true,
+      };
+      setUserProfileLs(updatedProfileForLs);
+      console.log("[ProfileSetupPage] Profile saved to Firestore and LS updated:", updatedProfileForLs);
+
+      toast({
+        title: `Welcome, ${displayName.trim()}!`,
+        description: 'Your BharatConnect account is ready.',
+      });
+      router.push('/');
+    } catch (error: any) {
+      console.error("[ProfileSetupPage] Error during handleSubmit (saving profile):", error);
+      setError('Failed to save your profile. Please try again.');
+      toast({
+        variant: 'destructive',
+        title: 'Profile Save Error',
+        description: error.message || 'Could not save profile.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleLogoutAndStartOver = () => {
     setError('');
-    setIsLoading(true); // Prevent double clicks
-    signOutUser(auth).then(() => {
-        setUserProfileLs(null); // Clear local storage
+    setIsLoading(true);
+    fbSignOutUser(auth).then(() => {
+        setUserProfileLs(null); 
         toast({ title: "Logged Out", description: "You have been logged out." });
         router.push('/login');
       }).catch((error) => {
@@ -273,12 +294,6 @@ function ProfileSetupContent() {
   );
 }
 
-// Helper function to sign out (imported from firebase.ts, but can be defined here too for clarity if only used here)
-// For this example, assuming signOutUser is exported from firebase.ts and auth is available
-import { signOut } from "firebase/auth";
-const signOutUser = (authInstance: typeof auth) => signOut(authInstance);
-
-
 export default function ProfileSetupPage() {
   return (
     <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background">
@@ -296,5 +311,3 @@ export default function ProfileSetupPage() {
     </div>
   )
 }
-
-    
