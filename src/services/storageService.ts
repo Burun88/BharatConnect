@@ -1,65 +1,93 @@
 
 'use server';
 
-import { storage } from '@/lib/firebase';
+import { storage } from '@/lib/firebase'; // Assuming storage is correctly initialized and exported
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 /**
  * Uploads a profile image to Firebase Storage.
  * @param uid The user's UID.
  * @param file The image file to upload.
- * @param fileName The name to use for the file in storage (e.g., "profileImage.jpg").
+ * @param fileName The name to use for the file in storage (e.g., "profileImage").
  * @returns A promise that resolves with the public download URL of the uploaded image.
  */
 export async function uploadProfileImage(uid: string, file: File, fileName: string = "profileImage"): Promise<string> {
-  if (!uid || !file) {
-    throw new Error('User ID and file are required for upload.');
+  console.log(`[StorageService] Attempting to upload profile image for UID: ${uid}`);
+  console.log(`[StorageService] File details: name=${file.name}, size=${file.size}, type=${file.type}`);
+  console.log(`[StorageService] Desired fileName in storage (base): ${fileName}`);
+
+  if (!uid) {
+    console.error('[StorageService] Error: UID is missing.');
+    throw new Error('User ID is required for upload.');
+  }
+  if (!file) {
+    console.error('[StorageService] Error: File is missing.');
+    throw new Error('File is required for upload.');
+  }
+  if (!storage) {
+    console.error('[StorageService] Error: Firebase Storage instance is not available. Check firebase.ts has "export { storage };" and is initialized.');
+    throw new Error('Firebase Storage is not initialized.');
   }
 
-  // Append file extension to fileName if not already present
   const extension = file.name.split('.').pop();
-  const finalFileName = fileName.includes('.') ? fileName : `${fileName}.${extension}`;
-  const storagePath = `profileImages/${uid}/${finalFileName}`;
+  if (!extension) {
+    console.error('[StorageService] Error: File has no extension.');
+    throw new Error('File must have an extension.');
+  }
+
+  const finalFileNameWithExtension = `${fileName}.${extension}`;
+  const storagePath = `profileImages/${uid}/${finalFileNameWithExtension}`;
+  console.log(`[StorageService] Constructed full storage path: ${storagePath}`);
+
   const imageRef = ref(storage, storagePath);
 
   try {
-    console.log(`[StorageService] Uploading to: ${storagePath}`);
+    console.log(`[StorageService] Calling uploadBytes for path: ${storagePath}...`);
     const snapshot = await uploadBytes(imageRef, file);
+    console.log(`[StorageService] uploadBytes successful. Snapshot fullPath: ${snapshot.ref.fullPath}, size: ${snapshot.metadata.size}`);
+    
+    console.log(`[StorageService] Calling getDownloadURL for ref: ${snapshot.ref.fullPath}...`);
     const downloadURL = await getDownloadURL(snapshot.ref);
-    console.log(`[StorageService] File uploaded successfully. URL: ${downloadURL}`);
+    console.log(`[StorageService] getDownloadURL successful. URL: ${downloadURL}`);
     return downloadURL;
-  } catch (error) {
-    console.error('[StorageService] Error uploading profile image:', error);
-    throw new Error(`Failed to upload profile image: ${(error as Error).message}`);
+  } catch (error: any) {
+    console.error('[StorageService] Firebase Storage operation failed during upload or URL retrieval.');
+    console.error(`[StorageService] Error Code: ${error.code || 'N/A'}`);
+    console.error(`[StorageService] Error Message: ${error.message || 'No message'}`);
+    console.error(`[StorageService] Full Error Object:`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    
+    throw new Error(`Firebase Storage operation failed: ${error.message || 'Unknown error'} (Code: ${error.code || 'N/A'})`);
   }
 }
 
 /**
  * Deletes a profile image from Firebase Storage.
  * @param uid The user's UID.
- * @param fileName The name of the file in storage (e.g., "profileImage.jpg").
+ * @param fileName The name of the file in storage (e.g., "profileImage.jpg" or "profileImage" if extension is handled inside).
+ *                 It's safer if the calling component knows the full file name as stored.
  * @returns A promise that resolves when the image is deleted.
  */
-export async function deleteProfileImage(uid: string, fileName: string = "profileImage"): Promise<void> {
-   if (!uid) {
-    throw new Error('User ID is required for deletion.');
+export async function deleteProfileImage(uid: string, fullFileNameInStorage: string): Promise<void> {
+   if (!uid || !fullFileNameInStorage) {
+    throw new Error('User ID and the full file name in storage are required for deletion.');
   }
-  // Note: If the original file had an extension and fileName doesn't, this might not find it.
-  // It's safer if the calling component knows the full path or the exact stored name.
-  // For simplicity now, we assume fileName might need an extension if the original upload used it.
-  // However, our uploadProfileImage now standardizes the name before extension.
-  const storagePath = `profileImages/${uid}/${fileName}`; // Assuming fileName includes extension if needed
+ 
+  const storagePath = `profileImages/${uid}/${fullFileNameInStorage}`;
+  console.log(`[StorageService] Attempting to delete profile image at path: ${storagePath}`);
   const imageRef = ref(storage, storagePath);
 
   try {
     await deleteObject(imageRef);
-    console.log(`[StorageService] Profile image deleted: ${storagePath}`);
+    console.log(`[StorageService] Profile image deleted successfully: ${storagePath}`);
   } catch (error: any) {
     if (error.code === 'storage/object-not-found') {
       console.warn(`[StorageService] Profile image not found for deletion (this might be okay): ${storagePath}`);
     } else {
-      console.error('[StorageService] Error deleting profile image:', error);
-      throw new Error(`Failed to delete profile image: ${error.message}`);
+      console.error('[StorageService] Error deleting profile image.');
+      console.error(`[StorageService] Error Code: ${error.code || 'N/A'}`);
+      console.error(`[StorageService] Error Message: ${error.message || 'No message'}`);
+      console.error(`[StorageService] Full Error Object:`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      throw new Error(`Failed to delete profile image: ${error.message || 'Unknown error'} (Code: ${error.code || 'N/A'})`);
     }
   }
 }
