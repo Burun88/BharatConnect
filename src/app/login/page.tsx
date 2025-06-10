@@ -12,21 +12,21 @@ import Logo from '@/components/shared/Logo';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { LocalUserProfile } from '@/types';
-import { auth, signInUser, resetUserPassword } from '@/lib/firebase'; // Ensure signInUser and resetUserPassword are imported
+import { auth, signInUser, resetUserPassword } from '@/lib/firebase'; 
 
 export default function LoginPageHub() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false); // Renamed from isLoading to avoid conflict
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
   const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  const [isLoadingPage, setIsLoadingPage] = useState(true); // New loading state for initial auth check
+  const [isLoadingPage, setIsLoadingPage] = useState(true); 
   
   useEffect(() => {
-    if (userProfileLs) { // If userProfileLs is not null, we have info (or observer confirmed no session)
+    if (userProfileLs) { 
       if (userProfileLs.uid && userProfileLs.onboardingComplete) {
         console.log(`[Login Hub] User ${userProfileLs.uid} from LS is onboarded. Redirecting to /`);
         router.replace('/');
@@ -36,39 +36,11 @@ export default function LoginPageHub() {
         router.replace('/profile-setup');
         return;
       }
-      // If userProfileLs has no uid, or other conditions not met, we show login page
       setIsLoadingPage(false);
     } else {
-      // userProfileLs is null (initial load, or genuinely logged out)
-      // FirebaseAuthObserver will update it if a session exists.
-      // For now, assume we might show login page, unless observer updates and triggers redirect.
-      // If observer confirms no user, isLoadingPage will be set to false.
-      // If observer finds a user, this effect re-runs, and redirection should happen.
-      // We set isLoadingPage to false to allow login form if no immediate redirection occurs.
       setIsLoadingPage(false); 
     }
   }, [userProfileLs, router]);
-
-  const handleLoginSuccess = (userId: string, profileEmail: string, profileData?: Partial<LocalUserProfile>) => {
-    const onboardingComplete = !!profileData?.onboardingComplete;
-    // Update local storage with comprehensive user data
-    setUserProfileLs({ 
-      uid: userId,
-      email: profileEmail,
-      displayName: profileData?.displayName || profileEmail.split('@')[0] || 'User', // Sensible default for displayName
-      photoURL: profileData?.photoURL || null,
-      phoneNumber: profileData?.phoneNumber || null,
-      onboardingComplete: onboardingComplete,
-    });
-
-    if (onboardingComplete) {
-      console.log(`[Login Hub] Login success for ${userId}. Redirecting to home.`);
-      router.replace('/');
-    } else {
-      console.log(`[Login Hub] Login success for ${userId}, but onboarding incomplete. Redirecting to profile-setup.`);
-      router.replace('/profile-setup');
-    }
-  };
 
   const handleContinue = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -89,24 +61,12 @@ export default function LoginPageHub() {
     try {
       const userCredential = await signInUser(auth, email, password);
       console.log("[Login Hub] Firebase SignIn Success:", userCredential.user.uid);
-      // FirebaseAuthObserver will handle setting LocalStorage for basic uid/email.
-      // We can assume onboarding is NOT complete yet for a direct login,
-      // unless we fetch a full profile from Firestore here (which is not part of current auth-only setup).
-      // For now, redirect to profile-setup; observer will set basic LS, profile-setup will complete it.
-      // Or, better: let observer handle LS, and profile-setup reads it.
-      // For login, we assume if successful, onboarding status depends on what's ALREADY in LS (set by observer)
-      // or we fetch it. Simplest is to rely on observer to set basic LS.
-      // The redirection useEffect should then pick up changes.
-      
-      // We don't call handleLoginSuccess directly anymore like this if observer is primary LS setter.
-      // Instead, observer updates LS, and the useEffect for redirection handles it.
-      // Toasting success can be done here.
+      // FirebaseAuthObserver will handle setting LocalStorage.
+      // Redirection is handled by the useEffect hook listening to userProfileLs changes.
       toast({
         title: 'Login Successful!',
-        description: `Welcome back, ${userCredential.user.email}!`,
+        description: `Welcome back, ${userCredential.user.email || 'user'}!`,
       });
-      // Redirection is handled by the useEffect hook listening to userProfileLs changes.
-
     } catch (err: any) {
       console.error("[Login Hub] Firebase SignIn Error:", err);
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
@@ -117,12 +77,11 @@ export default function LoginPageHub() {
             description: 'Incorrect email or password. New user? Please sign up.',
         });
       } else if (err.code === 'auth/invalid-email') {
-        console.warn(`[Login Hub] Handled login error - Code: ${err.code}. Message: Invalid email format supplied by user.`);
         setError('Invalid email format. Please check your email address.');
         toast({ variant: 'destructive', title: 'Invalid Email', description: 'Please enter a valid email address.' });
       } else if (err.code === 'auth/network-request-failed') {
         setError('Network error. Please check your connection and try again.');
-        toast({ variant: 'destructive', title: 'Network Error', description: 'Could not connect to authentication service. Please check your internet connection.' });
+        toast({ variant: 'destructive', title: 'Network Error', description: 'Could not connect. Check internet.' });
       } else {
         setError('An unexpected error occurred. Please try again.');
         toast({ variant: 'destructive', title: 'Login Error', description: err.message || 'An unexpected error occurred.' });
@@ -133,7 +92,6 @@ export default function LoginPageHub() {
   };
   
   const handleGoogleSignIn = () => {
-    console.log("Google Sign-In clicked - Firebase removed"); // This message is from when Firebase was removed.
     toast({ title: "Coming Soon!", description: "Google Sign-In will be available soon." });
   };
 
@@ -146,7 +104,7 @@ export default function LoginPageHub() {
     setError('');
     setIsSubmitting(true);
     try {
-      await resetUserPassword(email);
+      await resetUserPassword(email); // resetUserPassword is from firebase.ts
       toast({ title: "Password Reset Email Sent", description: `If an account exists for ${email}, a password reset link has been sent.` });
     } catch (err: any) {
       console.error("Error sending password reset email:", err);
@@ -154,8 +112,8 @@ export default function LoginPageHub() {
         setError('Invalid email format. Please check your email address.');
         toast({ variant: 'destructive', title: 'Invalid Email', description: 'The email address is not valid.' });
       } else if (err.code === 'auth/user-not-found') {
-         setError('No user found with this email address.');
-         toast({ variant: 'destructive', title: 'User Not Found', description: 'No account found with this email.' });
+         setError('No user found with this email address. Please sign up if you are new.');
+         toast({ variant: 'destructive', title: 'User Not Found', description: 'No account found with this email. Sign up?' });
       } else {
         setError('Failed to send password reset email. Please try again.');
         toast({ variant: 'destructive', title: 'Error', description: 'Could not send password reset email.' });
