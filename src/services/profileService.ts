@@ -57,9 +57,10 @@ export async function createOrUpdateUserFullProfile(
 
   const authInstanceInAction = getClientAuth(app);
   const currentUserInAction = authInstanceInAction.currentUser;
-  // This log is CRITICAL for diagnosing Firestore permission issues.
-  // If currentUserInAction is null or its UID doesn't match 'uid', Firestore rules will deny write access.
-  console.log(`[SVC_PROF] Auth state in server action (re-fetched) - currentUserInAction?.uid: ${currentUserInAction?.uid}`);
+  // Log the auth state from the client SDK's perspective within the server action for diagnosis.
+  // This does NOT necessarily reflect what Firestore rules will see in request.auth.
+  console.log(`[SVC_PROF] Client SDK auth state in server action: currentUserInAction?.uid: ${currentUserInAction?.uid}`);
+
 
   if (!uid) {
     console.error("[SVC_PROF] createOrUpdateUserFullProfile: Target UID parameter is required.");
@@ -74,19 +75,11 @@ export async function createOrUpdateUserFullProfile(
     throw new Error("Email is required for profile.");
   }
 
-  try {
-    // Explicitly check if the server action is running with an authenticated context
-    // and if that context matches the UID of the profile being modified.
-    // This is what `request.auth.uid == userId` in Firestore rules checks.
-    if (!currentUserInAction) {
-      console.error(`[SVC_PROF] Server action is unauthenticated. Firestore write for UID ${uid} will be denied by security rules.`);
-      throw new Error("Server action unauthenticated. Cannot save profile. This often indicates an issue with the App Hosting environment or its service account permissions.");
-    }
-    if (currentUserInAction.uid !== uid) {
-      console.error(`[SVC_PROF] Authenticated user in server action (${currentUserInAction.uid}) does not match target profile UID (${uid}). Firestore write will be denied.`);
-      throw new Error("Authenticated user mismatch. Cannot save profile for another user. This is a security restriction.");
-    }
+  // The early throws based on currentUserInAction have been removed.
+  // Firestore rules will now be the primary gatekeeper based on the actual request.auth context
+  // provided by the App Hosting environment.
 
+  try {
     const profileDocRef = doc(firestore, 'bharatConnectUsers', uid);
     const existingProfileSnap = await getDoc(profileDocRef);
 
@@ -119,12 +112,6 @@ export async function createOrUpdateUserFullProfile(
     console.log(`[SVC_PROF] Full profile for UID: ${uid} successfully written/merged to '/bharatConnectUsers'.`);
 
   } catch (error: any) {
-    // Check if the error message already indicates an auth issue from our explicit checks
-    if (error.message.startsWith("Server action unauthenticated") || error.message.startsWith("Authenticated user mismatch")) {
-      console.error(`[SVC_PROF] Pre-Firestore check failed: ${error.message}`);
-      throw error; // Re-throw the more specific error
-    }
-
     console.error(`[SVC_PROF] Error writing full profile for UID ${uid}. Raw error:`, error);
     
     let firebaseErrorCode = null;
@@ -139,10 +126,11 @@ export async function createOrUpdateUserFullProfile(
     if (firebaseErrorCode) {
         detailedErrorMessage += ` (Code: ${firebaseErrorCode})`;
     }
-    // Log the auth state again on error, just in case it's relevant
+    
+    // Log the client SDK auth state again on error, for comparison.
     const authInstanceOnError = getClientAuth(app);
     const currentUserInActionOnError = authInstanceOnError.currentUser;
-    console.error(`[SVC_PROF] Auth state during error (re-fetched) - currentUserInActionOnError?.uid: ${currentUserInActionOnError?.uid}`);
+    console.error(`[SVC_PROF] Client SDK auth state during error: currentUserInActionOnError?.uid: ${currentUserInActionOnError?.uid}`);
     
     throw new Error(detailedErrorMessage);
   }
@@ -163,20 +151,7 @@ export async function getUserFullProfile(uid: string): Promise<BharatConnectFire
     const docSnap = await getDoc(profileDocRef);
 
     if (docSnap.exists()) {
-      // Convert Firestore Timestamps to a serializable format if necessary,
-      // though for server actions returning to client components, Next.js handles this.
-      // For direct use within server components, it's fine.
       const data = docSnap.data() as BharatConnectFirestoreUser;
-      // Example of manual conversion if needed elsewhere:
-      // if (data.lastSeen && typeof data.lastSeen.toDate === 'function') {
-      //   data.lastSeen = data.lastSeen.toDate().toISOString();
-      // }
-      // if (data.createdAt && typeof data.createdAt.toDate === 'function') {
-      //   data.createdAt = data.createdAt.toDate().toISOString();
-      // }
-      // if (data.updatedAt && typeof data.updatedAt.toDate === 'function') {
-      //   data.updatedAt = data.updatedAt.toDate().toISOString();
-      // }
       return data;
     } else {
       console.log(`[SVC_PROF] getUserFullProfile: No profile found in '/bharatConnectUsers' for UID: ${uid}.`);
@@ -189,5 +164,3 @@ export async function getUserFullProfile(uid: string): Promise<BharatConnectFire
     return null;
   }
 }
-
-    
