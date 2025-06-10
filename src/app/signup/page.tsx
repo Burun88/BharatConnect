@@ -12,33 +12,35 @@ import Logo from '@/components/shared/Logo';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { LocalUserProfile } from '@/types';
-import { auth, createUser } from '@/lib/firebase'; // Ensure createUser is imported
+import { auth, createUser } from '@/lib/firebase'; 
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false); // Renamed from isLoading
+  const [isSubmitting, setIsSubmitting] = useState(false); 
   const router = useRouter();
   const { toast } = useToast();
 
   const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  const [isLoadingPage, setIsLoadingPage] = useState(true); // New loading state
+  const [isLoadingPage, setIsLoadingPage] = useState(true); 
 
   useEffect(() => {
-    if (userProfileLs) { // If userProfileLs is not null
+    if (userProfileLs) { 
       if (userProfileLs.uid && userProfileLs.onboardingComplete) {
         router.replace('/');
         return;
       } else if (userProfileLs.uid && !userProfileLs.onboardingComplete) {
-        router.replace('/profile-setup');
-        return;
+        // If user is here but already has a profile in LS indicating onboarding isn't complete,
+        // let them proceed to profile-setup or stay if they are already there.
+        // This case is more relevant for direct navigation to /signup, not typically after a new signup.
+        // However, to be safe, if they somehow land here and are mid-onboarding, let profile-setup handle it.
+        // router.replace('/profile-setup'); // This could cause a loop if they are trying to re-signup.
+                                          // Better to just let them see the signup form or redirect if fully onboarded.
       }
-      setIsLoadingPage(false);
-    } else {
-      setIsLoadingPage(false);
     }
+    setIsLoadingPage(false); 
   }, [userProfileLs, router]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -66,15 +68,23 @@ export default function SignupPage() {
       const userCredential = await createUser(auth, email, password);
       console.log("[Signup Page] Firebase Account Created:", userCredential.user.uid);
 
-      // FirebaseAuthObserver will pick up this new user and set initial LocalStorage.
-      // No need to call setUserProfileLs directly here for the basic profile (uid, email, onboardingComplete: false).
-      // The observer handles this consistently.
+      // Set initial basic profile in local storage immediately
+      // to ensure profile-setup page has the necessary data.
+      setUserProfileLs({
+        uid: userCredential.user.uid,
+        email: userCredential.user.email || '',
+        onboardingComplete: false,
+        displayName: userCredential.user.email?.split('@')[0] || 'User', // Default display name
+        photoURL: null,
+        phoneNumber: null,
+        bio: null, 
+      });
 
       toast({
         title: 'Account Created!',
         description: "We're taking you to setup your profile.",
       });
-      router.push('/profile-setup'); // Redirect to profile setup after successful Firebase account creation
+      router.push('/profile-setup'); 
     } catch (err: any) {
       console.error("[Signup Page] Firebase Signup Error:", err);
       if (err.code === 'auth/email-already-in-use') {
