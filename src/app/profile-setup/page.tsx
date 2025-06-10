@@ -17,7 +17,53 @@ import type { LocalUserProfile } from '@/types';
 import { auth, signOutUser as fbSignOutUser } from '@/lib/firebase'; 
 import { createOrUpdateUserFullProfile } from '@/services/profileService';
 import { uploadProfileImage } from '@/services/storageService';
-import { testFormDataAction } from '@/actions/testFormDataAction'; // Import the test action
+
+// Moved testFormDataAction inline
+async function testFormDataAction(formData: FormData): Promise<{ success: boolean; message: string; fileDetails?: string; textDetails?: string }> {
+  'use server';
+  console.log('[testFormDataAction - INLINE] SERVER ACTION STARTED --- FormData received on server:');
+
+  const file = formData.get('profileImageFile') as File | null;
+  const uid = formData.get('uid') as string | null;
+  let fileDetails = 'No file received or file field name mismatch.';
+  let textDetails = 'No UID received or uid field name mismatch.';
+
+  if (uid) {
+    console.log(`[testFormDataAction - INLINE] UID from FormData: ${uid}`);
+    textDetails = `UID: ${uid}`;
+  } else {
+    console.log('[testFormDataAction - INLINE] UID not found in FormData.');
+  }
+
+  if (file) {
+    console.log(`[testFormDataAction - INLINE] File from FormData: name=${file.name}, size=${file.size}, type=${file.type}`);
+    fileDetails = `File: ${file.name}, Size: ${file.size}, Type: ${file.type}`;
+  } else {
+    console.log('[testFormDataAction - INLINE] "profileImageFile" not found in FormData or is null.');
+  }
+
+  // Log all FormData entries
+  console.log('[testFormDataAction - INLINE] All FormData entries:');
+  for (const [key, value] of formData.entries()) {
+    if (value instanceof File) {
+      console.log(`  ${key}: File - name=${value.name}, size=${value.size}, type=${value.type}`);
+    } else {
+      console.log(`  ${key}: ${value}`);
+    }
+  }
+
+  if (uid && file) {
+    return { success: true, message: 'Test FormData Action (INLINE) received data.', fileDetails, textDetails };
+  } else if (uid && !file) {
+    return { success: true, message: 'Test FormData Action (INLINE) received UID but no file.', fileDetails, textDetails };
+  } else if (!uid && file) {
+    return { success: true, message: 'Test FormData Action (INLINE) received file but no UID.', fileDetails, textDetails };
+  }
+   else {
+    return { success: false, message: 'Test FormData Action (INLINE) did not receive expected uid and/or file.', fileDetails, textDetails };
+  }
+}
+
 
 function ProfileSetupContent() {
   const router = useRouter();
@@ -212,14 +258,13 @@ function ProfileSetupContent() {
       return;
     }
     const testFormData = new FormData();
-    testFormData.append('uid', authUid); // Add UID to test form data
+    testFormData.append('uid', authUid); 
 
     if (profilePicFile) {
-      testFormData.append('profileImageFile', profilePicFile); // Use the same field name as original
+      testFormData.append('profileImageFile', profilePicFile); 
       console.log('[ProfileSetupPage] Appended profilePicFile to testFormData:', profilePicFile.name);
     } else {
       console.log('[ProfileSetupPage] No profilePicFile to append to testFormData.');
-      // Optionally append a placeholder or skip, depending on what testFormDataAction expects
     }
     
     console.log('[ProfileSetupPage] Calling testFormDataAction. FormData entries:');
@@ -233,16 +278,17 @@ function ProfileSetupContent() {
 
     try {
       setIsLoading(true);
-      const result = await testFormDataAction(testFormData);
-      console.log('[ProfileSetupPage] testFormDataAction result:', result);
+      // Call the INLINE testFormDataAction
+      const result = await testFormDataAction(testFormData); 
+      console.log('[ProfileSetupPage] testFormDataAction (INLINE) result:', result);
       toast({ 
-        title: `Test Action: ${result.success ? 'Success' : 'Failed'}`, 
+        title: `Test Action (Inline): ${result.success ? 'Success' : 'Failed'}`, 
         description: `${result.message} File: ${result.fileDetails || 'N/A'}. Text: ${result.textDetails || 'N/A'}`,
         variant: result.success ? 'default' : 'destructive'
       });
     } catch (error) {
-      console.error('[ProfileSetupPage] testFormDataAction caught error:', error);
-      toast({ title: 'Test FormData Action Error', description: String(error), variant: 'destructive' });
+      console.error('[ProfileSetupPage] testFormDataAction (INLINE) caught error:', error);
+      toast({ title: 'Test FormData Action (Inline) Error', description: String(error), variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -375,3 +421,5 @@ export default function ProfileSetupPage() {
     </div>
   )
 }
+
+    
