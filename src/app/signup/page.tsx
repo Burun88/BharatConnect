@@ -1,17 +1,15 @@
 
 "use client";
 
-import { useState, type FormEvent, useEffect, useMemo } from 'react';
+import { useState, type FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import Logo from '@/components/shared/Logo'; // Assuming you have a Logo component
+import Logo from '@/components/shared/Logo';
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
-import { createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { LocalUserProfile } from '@/types';
 
@@ -25,19 +23,13 @@ export default function SignupPage() {
   const { toast } = useToast();
 
   const [, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  
   const [userProfileGlobal] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
 
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        if (userProfileGlobal?.uid === user.uid && userProfileGlobal?.onboardingComplete) {
-             router.replace('/');
-        }
-      }
-    });
-    return () => unsubscribe();
+    // Simplified: If user profile exists and onboarding is complete, redirect.
+    if (userProfileGlobal?.uid && userProfileGlobal?.onboardingComplete) {
+      router.replace('/');
+    }
   }, [router, userProfileGlobal]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -61,74 +53,34 @@ export default function SignupPage() {
       return;
     }
 
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      if (!user || !user.uid || !user.email) {
-        console.error("[Signup Page] handleSubmit: Signup successful but user object, UID or email is missing.");
-        setError("Signup failed: User session is invalid. Please try again or contact support.");
-        toast({ variant: 'destructive', title: 'Signup Failed', description: 'User session is invalid after signup.' });
-        setIsLoading(false);
-        return;
-      }
+    console.log("[Signup Page] Attempting signup (Firebase removed, this is a mock action).");
+    // Mocking signup success as Firebase is removed
+    setTimeout(() => {
+      const mockUserId = `user_${Date.now()}`;
+      const mockUserEmail = email;
       
-      console.log(`[Signup Page] handleSubmit: Firebase Auth account created for UID: ${user.uid}. Email: ${user.email}. Proceeding to profile setup.`);
+      console.log(`[Signup Page] Mock account created for UID: ${mockUserId}. Email: ${mockUserEmail}. Proceeding to profile setup.`);
       
       setUserProfileLs({ 
-        uid: user.uid, 
-        email: user.email,
+        uid: mockUserId, 
+        email: mockUserEmail,
         onboardingComplete: false, 
       });
       
-      console.log(`[Signup Page] Redirecting to profile-setup for UID: ${user.uid}.`);
+      console.log(`[Signup Page] Redirecting to profile-setup for UID: ${mockUserId}.`);
       router.push('/profile-setup'); 
-
-    } catch (err: any) {
-      console.error("[Signup Page] handleSubmit: Signup error:", err);
-      if (err.code === 'auth/email-already-in-use') {
-        setError('This email is already registered. Please login or use a different email.');
-         toast({
-            variant: 'destructive',
-            title: 'Email Already Registered',
-            description: (
-              <span>
-                This email is already in use. Please{' '}
-                <Link href="/login" className="underline">Login</Link> or try a different one.
-              </span>
-            ),
-        });
-      } else if (err.code === 'auth/network-request-failed') {
-        setError('Network error. Please ensure Firebase emulators are running or check your internet connection.');
-        toast({
-            variant: 'destructive',
-            title: 'Network Error',
-            description: 'Could not connect to Firebase. If developing locally, please ensure emulators are running.',
-        });
-      }
-       else {
-        setError(err.message || 'Failed to create account. Please try again.');
-        toast({
-            variant: 'destructive',
-            title: 'Signup Failed',
-            description: err.message || 'An unexpected error occurred.',
-        });
-      }
-    } finally {
       setIsLoading(false);
-    }
+      toast({
+        title: 'Signup Attempted (Mock)',
+        description: 'Firebase is removed. Simulating signup and redirecting to profile setup.',
+      });
+    }, 1000);
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-6 hidden">
-            {/* UserPlus icon was here, now hidden */}
-          </div>
-          <CardTitle className="text-3xl font-headline font-bold text-gradient-primary-accent hidden">
-            Create Account
-          </CardTitle>
           <div className="flex justify-center mb-6">
             <Logo size="large" />
           </div>

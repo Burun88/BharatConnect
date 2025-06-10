@@ -9,13 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import StatusListItem from '@/components/status-list-item';
 import { mockCurrentUser, mockUsers, mockStatusUpdates } from '@/lib/mock-data';
-import type { StatusUpdate, User as BharatConnectUser } from '@/types'; // Renamed to BharatConnectUser
+import type { StatusUpdate, User as BharatConnectUser, LocalUserProfile } from '@/types';
 import { QrCode, Search, MoreVertical, PlusCircle, Pencil, Camera, UserCircle2 } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
+// import { Skeleton } from '@/components/ui/skeleton'; // Not used after guard removal
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
-import type { User as AuthUser } from 'firebase/auth'; // Firebase Auth User
-import { onAuthStateChanged } from 'firebase/auth';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 interface StatusUpdateWithUser extends StatusUpdate {
@@ -26,50 +23,33 @@ export default function StatusPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const [authUser, setAuthUser] = useState<AuthUser | null | undefined>(undefined);
-  const [authCheckCompleted, setAuthCheckCompleted] = useState(false);
-  const [onboardingComplete] = useLocalStorage('onboardingComplete', false);
+  const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
   const [isGuardLoading, setIsGuardLoading] = useState(true);
   
-  const [isPageLoading, setIsPageLoading] = useState(true); // Renamed from isLoading
+  const [isPageLoading, setIsPageLoading] = useState(true);
   const [myUser, setMyUser] = useState<BharatConnectUser | null>(null);
   const [recentStatusUpdates, setRecentStatusUpdates] = useState<StatusUpdateWithUser[]>([]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setAuthUser(user);
-      setAuthCheckCompleted(true);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!authCheckCompleted) {
-      setIsGuardLoading(true);
-      return;
-    }
-    if (!authUser) {
+    // Simplified guard logic as Firebase auth is removed
+    if (!userProfileLs || !userProfileLs.uid || !userProfileLs.onboardingComplete) {
+      console.log(`[StatusPage] User from LS not found or not fully onboarded. Redirecting to login.`);
       router.replace('/login');
       return;
     }
-    if (!onboardingComplete) {
-      router.replace('/profile-setup');
-      return;
-    }
     setIsGuardLoading(false);
-  }, [authCheckCompleted, authUser, onboardingComplete, router]);
+  }, [userProfileLs, router]);
 
   useEffect(() => {
-    if (isGuardLoading) return; // Don't load page data until guard passes
+    if (isGuardLoading) return;
 
     setIsPageLoading(true);
     setTimeout(() => {
-      // Use authUser info if available for 'myUser'
-      const currentAppUser = authUser ? {
-        ...mockCurrentUser, // Base mock
-        id: authUser.uid,
-        name: authUser.displayName || 'You',
-        avatarUrl: authUser.photoURL || mockCurrentUser.avatarUrl,
+      const currentAppUser = userProfileLs ? {
+        ...mockCurrentUser, 
+        id: userProfileLs.uid,
+        name: userProfileLs.displayName || 'You',
+        avatarUrl: userProfileLs.photoURL || mockCurrentUser.avatarUrl,
       } : mockCurrentUser;
       setMyUser(currentAppUser);
 
@@ -84,7 +64,7 @@ export default function StatusPage() {
       setRecentStatusUpdates(updatesWithUsers);
       setIsPageLoading(false);
     }, 1000);
-  }, [isGuardLoading, authUser]);
+  }, [isGuardLoading, userProfileLs]);
 
   const showComingSoonToast = () => {
     toast({
@@ -140,7 +120,7 @@ export default function StatusPage() {
             <div className="relative">
               <Avatar className="w-14 h-14">
                 {myUser?.avatarUrl ? (
-                  <AvatarImage src={myUser.avatarUrl} alt={myUser.name} data-ai-hint="person avatar" />
+                  <AvatarImage src={myUser.avatarUrl} alt={myUser.name || 'User'} data-ai-hint="person avatar" />
                 ) : (
                   <AvatarFallback className="bg-muted text-muted-foreground">
                     <UserCircle2 className="w-10 h-10" />

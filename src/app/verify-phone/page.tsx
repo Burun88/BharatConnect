@@ -10,11 +10,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { auth } from '@/lib/firebase'; 
-import { onAuthStateChanged } from 'firebase/auth';
 import type { LocalUserProfile } from '@/types';
-import { createOrUpdateUserFullProfile } from '@/services/profileService';
-
+// import { createOrUpdateUserFullProfile } from '@/services/profileService'; // Firebase removed
 
 export default function VerifyPhonePage() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -23,21 +20,15 @@ export default function VerifyPhonePage() {
   const { toast } = useToast();
 
   const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  // const [onboardingCompleteLs, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // Replaced
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        if (userProfileLs?.onboardingComplete && userProfileLs?.uid === user.uid) {
-          router.replace('/');
-        } else if (!userProfileLs?.uid || userProfileLs.uid !== user.uid) {
-           console.warn("[VerifyPhonePage] Mismatch between auth user and LS profile or no LS UID. Redirecting.");
-        }
-      } else {
-        router.replace('/login');
-      }
-    });
-    return () => unsubscribe();
+    // Simplified check as Firebase auth is removed
+    if (userProfileLs?.onboardingComplete) {
+      router.replace('/');
+    } else if (!userProfileLs?.uid) {
+       console.warn("[VerifyPhonePage] No UID in LS. Redirecting to login/profile setup.");
+       router.replace(userProfileLs?.displayName ? '/profile-setup' : '/login');
+    }
   }, [router, userProfileLs]);
 
 
@@ -49,11 +40,11 @@ export default function VerifyPhonePage() {
       return;
     }
     
-    setUserProfileLs(prev => ({ ...prev!, phoneNumber: `+91${phoneNumber}` })); 
+    setUserProfileLs(prev => ({ ...prev!, phoneNumber: `+91${phoneNumber}` } as LocalUserProfile)); 
     
     toast({
       title: 'OTP Sent (Simulated)',
-      description: `An OTP has been sent to +91${phoneNumber}. Please enter it on the next screen.`,
+      description: `An OTP has been sent to +91${phoneNumber}. Please enter it on the next screen. (Firebase removed)`,
     });
     router.push('/verify-otp'); 
   };
@@ -62,29 +53,20 @@ export default function VerifyPhonePage() {
     toast({ title: "Skipped", description: "Phone verification skipped."});
     if (userProfileLs?.uid && userProfileLs?.email && userProfileLs?.displayName) {
       try {
-        await createOrUpdateUserFullProfile(userProfileLs.uid, {
-          email: userProfileLs.email,
-          displayName: userProfileLs.displayName,
-          photoURL: userProfileLs.photoURL,
-          phoneNumber: null, // Explicitly null as it's skipped
-          bio: (userProfileLs as any).bio, 
-          onboardingComplete: true, // Onboarding is complete
-          currentAuraId: userProfileLs.currentAuraId,
-        });
-        setUserProfileLs(prev => ({ ...prev!, onboardingComplete: true, phoneNumber: null }));
-        // setOnboardingCompleteLs(true); // No longer needed
+        // Mock saving profile as Firebase is removed
+        console.log("[VerifyPhonePage] Skipping phone, marking onboarding complete (mock).");
+        setUserProfileLs(prev => ({ ...prev!, onboardingComplete: true, phoneNumber: null } as LocalUserProfile));
         router.push('/');
       } catch (saveError: any) {
-         console.error("Error saving profile after skipping phone verification:", saveError);
-         setError("Failed to save profile. Please try again or contact support.");
-         toast({variant: "destructive", title: "Profile Save Failed", description: saveError.message});
+         console.error("Error during mock profile save after skipping phone verification:", saveError);
+         setError("Failed to save profile (mock). Please try again or contact support.");
+         toast({variant: "destructive", title: "Profile Save Failed (Mock)", description: saveError.message});
       }
     } else {
       console.warn("[VerifyPhonePage] Critical profile info missing when skipping. Redirecting to profile setup.");
       router.push('/profile-setup'); 
     }
   };
-
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">

@@ -6,62 +6,44 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import PageHeader from '@/components/page-header';
-import type { UserAura } from '@/types';
+import type { UserAura, LocalUserProfile } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Sparkles, XCircle } from 'lucide-react';
-import { auth } from '@/lib/firebase';
-import type { User as AuthUser } from 'firebase/auth';
-import { onAuthStateChanged } from 'firebase/auth';
 
 export default function AuraSelectPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const [authUser, setAuthUser] = useState<AuthUser | null | undefined>(undefined);
-  const [authCheckCompleted, setAuthCheckCompleted] = useState(false);
-  const [onboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // Renamed to avoid conflict
+  const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
   const [isGuardLoading, setIsGuardLoading] = useState(true);
   
-  const [currentUserAuraId, setCurrentUserAuraId] = useLocalStorage<string | null>('currentUserAuraId', null);
+  const [currentUserAuraId, setCurrentUserAuraId] = useLocalStorage<string | null>('currentUserAuraId', null); // This LS item might be independent or tied to userProfileLs
   const [selectedAuraId, setSelectedAuraId] = useState<string | null>(currentUserAuraId);
-  const [isPageLoading, setIsPageLoading] = useState(true); // Renamed from isLoading
+  const [isPageLoading, setIsPageLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setAuthUser(user);
-      setAuthCheckCompleted(true);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!authCheckCompleted) {
-      setIsGuardLoading(true);
-      return;
-    }
-    if (!authUser) {
+    // Simplified guard logic as Firebase auth is removed
+    if (!userProfileLs || !userProfileLs.uid || !userProfileLs.onboardingComplete) {
+      console.log(`[AuraSelectPage] User from LS not found or not fully onboarded. Redirecting to login.`);
       router.replace('/login');
       return;
     }
-    if (!onboardingCompleteLs) {
-      router.replace('/profile-setup');
-      return;
-    }
     setIsGuardLoading(false);
-  }, [authCheckCompleted, authUser, onboardingCompleteLs, router]);
+  }, [userProfileLs, router]);
 
   useEffect(() => {
-    if (isGuardLoading) return; // Don't run this effect until guard passes
+    if (isGuardLoading) return;
     setSelectedAuraId(currentUserAuraId);
     setIsPageLoading(false);
   }, [currentUserAuraId, isGuardLoading]);
 
   const handleSelectAura = (aura: UserAura) => {
     setSelectedAuraId(aura.id);
-    setCurrentUserAuraId(aura.id);
+    setCurrentUserAuraId(aura.id); // This will update the LS for 'currentUserAuraId'
+    // If you want this tied to the main userProfileLs, you'd update that LS object instead/additionally
     toast({
       title: 'Aura Updated!',
       description: `You are now feeling ${aura.name} ${aura.emoji}`,

@@ -6,41 +6,23 @@ import { useRouter } from 'next/navigation';
 import BottomNavigationBar from "@/components/bottom-navigation-bar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Phone } from "lucide-react";
-import { auth } from '@/lib/firebase';
-import type { User as AuthUser } from 'firebase/auth';
-import { onAuthStateChanged } from 'firebase/auth';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import type { LocalUserProfile } from '@/types';
 
 export default function CallsPage() {
   const router = useRouter();
-  const [authUser, setAuthUser] = useState<AuthUser | null | undefined>(undefined);
-  const [authCheckCompleted, setAuthCheckCompleted] = useState(false);
-  const [onboardingComplete] = useLocalStorage('onboardingComplete', false);
+  const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
   const [isGuardLoading, setIsGuardLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setAuthUser(user);
-      setAuthCheckCompleted(true);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!authCheckCompleted) {
-      setIsGuardLoading(true);
-      return;
-    }
-    if (!authUser) {
+    // Simplified guard logic as Firebase auth is removed
+    if (!userProfileLs || !userProfileLs.uid || !userProfileLs.onboardingComplete) {
+      console.log(`[CallsPage] User from LS not found or not fully onboarded. Redirecting to login.`);
       router.replace('/login');
       return;
     }
-    if (!onboardingComplete) {
-      router.replace('/profile-setup');
-      return;
-    }
     setIsGuardLoading(false);
-  }, [authCheckCompleted, authUser, onboardingComplete, router]);
+  }, [userProfileLs, router]);
 
   if (isGuardLoading) {
     return (

@@ -10,31 +10,21 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShieldCheck } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { auth } from '@/lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
 import type { LocalUserProfile } from '@/types';
 
 export default function WelcomePage() {
   const [agreed, setAgreed] = useState(false);
   const router = useRouter();
-  // const [onboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // Replaced by userProfileLs.onboardingComplete
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [checkingAuth, setCheckingAuth] = useState(true); // Renamed for clarity
   const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
 
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        if (userProfileLs?.uid === user.uid && userProfileLs?.onboardingComplete) {
-          router.replace('/');
-        } else {
-           setCheckingAuth(false);
-        }
-      } else {
-        setCheckingAuth(false); 
-      }
-    });
-    return () => unsubscribe();
+    // Simplified check: if user profile exists and onboarding is complete, redirect.
+    if (userProfileLs?.uid && userProfileLs?.onboardingComplete) {
+      router.replace('/');
+    } else {
+       setCheckingAuth(false);
+    }
   }, [router, userProfileLs]);
 
   const handleAgreeChange = (checked: boolean | 'indeterminate') => {
@@ -69,7 +59,8 @@ export default function WelcomePage() {
     );
   }
 
-  if (auth.currentUser && userProfileLs?.uid === auth.currentUser.uid && userProfileLs?.onboardingComplete) {
+  // This condition might still be true if LS is populated from a previous session
+  if (userProfileLs?.uid && userProfileLs?.onboardingComplete) {
      router.replace('/');
      return null;
   }

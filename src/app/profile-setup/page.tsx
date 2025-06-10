@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, type FormEvent, type ChangeEvent, useEffect, useMemo, Suspense } from 'react';
+import { useState, type FormEvent, type ChangeEvent, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -9,29 +9,25 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserCircle2, Camera, Mail, Phone } from 'lucide-react'; 
+import { UserCircle2, Camera, Mail } from 'lucide-react'; 
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { auth } from '@/lib/firebase';
-import { createOrUpdateUserFullProfile } from '@/services/profileService';
-import type { User as AuthUser } from 'firebase/auth';
 import Logo from '@/components/shared/Logo';
 import type { LocalUserProfile } from '@/types';
+// import { createOrUpdateUserFullProfile } from '@/services/profileService'; // Firebase removed
 
 function ProfileSetupContent() {
   const router = useRouter();
   const { toast } = useToast();
 
   const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  // const [, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // Replaced by userProfileLs.onboardingComplete
 
   const [displayName, setDisplayName] = useState(userProfileLs?.displayName || '');
   const [phoneNumber, setPhoneNumber] = useState(userProfileLs?.phoneNumber || '');
-  const [bio, setBio] = useState(''); // Bio can be fresh for this setup
+  const [bio, setBio] = useState('');
   const [profilePicPreview, setProfilePicPreview] = useState<string | null>(userProfileLs?.photoURL || null);
   const [profilePicFile, setProfilePicFile] = useState<File | null>(null); 
 
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authUid, setAuthUid] = useState<string | null>(userProfileLs?.uid || null);
   const [authEmail, setAuthEmail] = useState<string>(userProfileLs?.email || '');
 
@@ -40,48 +36,25 @@ function ProfileSetupContent() {
   const [isPageLoading, setIsPageLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        setAuthUser(user);
-        const currentUid = userProfileLs?.uid || user.uid;
-        const currentEmail = userProfileLs?.email || user.email || '';
-        
-        setAuthUid(currentUid);
-        setAuthEmail(currentEmail);
-        
-        console.log("[ProfileSetupPage] Auth user/LS data processed:", { uid: currentUid, email: currentEmail });
+    // Simplified logic as Firebase auth is removed
+    if (userProfileLs?.uid) {
+      setAuthUid(userProfileLs.uid);
+      setAuthEmail(userProfileLs.email || '');
+      if (userProfileLs.displayName && !displayName) setDisplayName(userProfileLs.displayName);
+      if (userProfileLs.photoURL && !profilePicPreview) setProfilePicPreview(userProfileLs.photoURL);
+      if (userProfileLs.phoneNumber && !phoneNumber) setPhoneNumber(userProfileLs.phoneNumber);
 
-        if (userProfileLs?.displayName && !displayName) setDisplayName(userProfileLs.displayName);
-        if (userProfileLs?.photoURL && !profilePicPreview) setProfilePicPreview(userProfileLs.photoURL);
-        if (userProfileLs?.phoneNumber && !phoneNumber) setPhoneNumber(userProfileLs.phoneNumber);
-
-
-        // If onboarding is already complete for this user, redirect them.
-        if (userProfileLs?.uid === user.uid && userProfileLs?.onboardingComplete) {
-          console.log("[ProfileSetupPage] User already onboarded. Redirecting to home.");
-          router.replace('/');
-          return;
-        }
-        
-        setIsPageLoading(false);
-      } else {
-        // If no auth user and no UID from LS (meaning didn't come from signup/login hub)
-        if (!userProfileLs?.uid) {
-          console.warn("[ProfileSetupPage] No auth user & no UID from LS, redirecting to login.");
-          router.replace('/login');
-        } else {
-          // Has UID/Email from LS (came from signup/login hub), but auth state might be initializing.
-          // This state is fine as long as authUid and authEmail are set from LS.
-          setAuthUid(userProfileLs.uid);
-          setAuthEmail(userProfileLs.email || '');
-          if (userProfileLs.displayName && !displayName) setDisplayName(userProfileLs.displayName);
-          if (userProfileLs.photoURL && !profilePicPreview) setProfilePicPreview(userProfileLs.photoURL);
-          if (userProfileLs.phoneNumber && !phoneNumber) setPhoneNumber(userProfileLs.phoneNumber);
-          setIsPageLoading(false); 
-        }
+      if (userProfileLs.onboardingComplete) {
+        console.log("[ProfileSetupPage] User from LS already onboarded. Redirecting to home.");
+        router.replace('/');
+        return;
       }
-    });
-    return () => unsubscribe();
+      setIsPageLoading(false);
+    } else {
+      // No user info in LS, likely needs to go through login/signup again
+      console.warn("[ProfileSetupPage] No user profile in LS. Redirecting to login.");
+      router.replace('/login');
+    }
   }, [router, userProfileLs, displayName, profilePicPreview, phoneNumber]);
 
 
@@ -104,11 +77,13 @@ function ProfileSetupContent() {
 
     if (!authUid || !authEmail) {
       setError('User authentication information is missing. Please try logging in or signing up again.');
-      toast({ title: "Authentication Error", description: "UID or Email missing. Please restart signup/login.", variant: "destructive" });
-      router.push('/login');
+      toast({ title: "User Info Error", description: "UID or Email missing from local storage.", variant: "destructive" });
+      router.push('/login'); // Or signup
       return;
     }
     console.log(`[ProfileSetupPage] handleSubmit: authUid: ${authUid}, authEmail: ${authEmail}`);
+    console.log(`[ProfileSetupPage] handleSubmit - userProfileLs at submission:`, userProfileLs);
+
 
     if (!displayName.trim()) {
       setError('Please enter your display name.');
@@ -120,25 +95,15 @@ function ProfileSetupContent() {
     }
 
     setIsLoading(true);
+    console.log("[ProfileSetupPage] Attempting to save profile (Firebase removed, this is a mock action).");
 
-    try {
+    // Mocking profile save as Firebase is removed
+    setTimeout(() => {
       let finalPhotoURL = profilePicPreview;
       if (profilePicFile) {
-        console.warn("Profile picture file selected, but upload to Firebase Storage not implemented yet. Using preview URL if available.");
-        toast({ title: "Note", description: "Profile picture upload to cloud storage is a TODO."});
+        console.warn("Profile picture file selected, but upload to cloud storage not implemented (Firebase removed).");
+        // finalPhotoURL would be set after actual upload in a real scenario
       }
-
-      const profileToSave = {
-        email: authEmail,
-        displayName: displayName.trim(),
-        photoURL: finalPhotoURL,
-        phoneNumber: phoneNumber.trim() || null,
-        bio: bio.trim() || undefined,
-        onboardingComplete: true, // Mark onboarding as complete
-        currentAuraId: userProfileLs?.currentAuraId || null, // Persist aura if set
-      };
-
-      await createOrUpdateUserFullProfile(authUid, profileToSave);
 
       const updatedProfileForLs: LocalUserProfile = { 
         uid: authUid,
@@ -146,46 +111,25 @@ function ProfileSetupContent() {
         displayName: displayName.trim(),
         photoURL: finalPhotoURL, 
         phoneNumber: phoneNumber.trim() || null,
-        onboardingComplete: true,
-        currentAuraId: userProfileLs?.currentAuraId || null,
+        onboardingComplete: true, // Marking onboarding as complete
+        // currentAuraId: userProfileLs?.currentAuraId || null, // Persist aura if set
       };
       setUserProfileLs(updatedProfileForLs);
-      // setOnboardingCompleteLs(true); // No longer needed, part of userProfileLs
 
       toast({
-        title: `Welcome, ${displayName.trim()}!`,
-        description: 'Your BharatConnect account is ready.',
+        title: `Welcome, ${displayName.trim()}! (Mocked)`,
+        description: 'Your BharatConnect account is ready (locally).',
       });
       router.push('/');
-
-    } catch (err: any) {
-      console.error("[ProfileSetupPage] Error saving profile:", err);
-      const firebaseErrorCode = err.code || null;
-      let detailedErrorMessage = `Failed to save profile. Original error: ${err.message || 'An unknown server error occurred.'}`;
-      if (firebaseErrorCode) {
-          detailedErrorMessage += ` (Code: ${firebaseErrorCode})`;
-      }
-      setError(detailedErrorMessage);
-      toast({
-        title: 'Profile Save Failed',
-        description: detailedErrorMessage,
-        variant: 'destructive',
-      });
-    } finally {
       setIsLoading(false);
-    }
+    }, 1000);
   };
 
   const handleLogoutAndStartOver = () => {
     setError(''); 
-    auth.signOut().then(() => {
-      setUserProfileLs(null); 
-      // setOnboardingCompleteLs(false); // No longer needed
-      router.push('/login'); 
-    }).catch(error => {
-      console.error("Error signing out: ", error);
-      toast({title: "Logout Error", description: "Could not sign out.", variant: "destructive"});
-    });
+    console.log("[ProfileSetupPage] Logging out (Firebase removed, clearing local storage).");
+    setUserProfileLs(null); 
+    router.push('/login'); 
   };
 
   if (isPageLoading) { 

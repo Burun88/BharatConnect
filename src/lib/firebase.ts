@@ -1,30 +1,19 @@
 
-import { initializeApp, getApps, getApp, type FirebaseOptions } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
-// import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
-// import { getStorage, connectStorageEmulator } from 'firebase/storage';
+// Firebase has been removed from this project.
+// You will need to re-initialize Firebase and its services
+// if you intend to use them.
 
-const firebaseConfig: FirebaseOptions = {
-  apiKey: "AIzaSyCmVRTIvMTgZ_IBhzlc-Ml0yt106l0EyOk",
-  authDomain: "bharatconnect-i8510.firebaseapp.com",
-  projectId: "bharatconnect-i8510",
-  storageBucket: "bharatconnect-i8510.firebasestorage.app", 
-  messagingSenderId: "1011856991455",
-  appId: "1:1011856991455:web:b8611aad228c31ccbf756a"
-};
+// Example:
+// import { initializeApp, getApps, getApp, type FirebaseOptions } from 'firebase/app';
+// import { getAuth } from 'firebase/auth';
+// import { getFirestore } from 'firebase/firestore';
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const firestore = getFirestore(app);
-// const functions = getFunctions(app);
-// const storage = getStorage(app);
+// const firebaseConfig: FirebaseOptions = {
+//   // Your Firebase config object here
+// };
 
-// Removed emulator connection logic. App will now connect to live Firebase.
-// Reminder: Server actions running in local dev will likely be unauthenticated
-// against live Firestore unless ID tokens are validated or Admin SDK is used.
-// This may cause "permission-denied" errors with secure Firestore rules.
+// const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+// const auth = getAuth(app);
+// const firestore = getFirestore(app);
 
-console.log('[Firebase Lib] Application configured to connect to LIVE Firebase services.');
-
-export { app, auth, firestore /*, functions, storage */ };
+// export { app, auth, firestore };

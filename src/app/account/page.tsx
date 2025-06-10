@@ -12,41 +12,28 @@ import LanguageSettingsCard from "@/components/account/LanguageSettingsCard";
 import SecuritySettingsCard from "@/components/account/SecuritySettingsCard";
 import LinkedAppsCard from "@/components/account/LinkedAppsCard";
 import AdvancedOptionsCard from "@/components/account/AdvancedOptionsCard";
-import { auth } from '@/lib/firebase';
-import type { User as AuthUser } from 'firebase/auth';
-import { onAuthStateChanged } from 'firebase/auth';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import type { LocalUserProfile } from '@/types';
 
 export default function AccountPage() {
   const router = useRouter();
-  const [authUser, setAuthUser] = useState<AuthUser | null | undefined>(undefined);
-  const [authCheckCompleted, setAuthCheckCompleted] = useState(false);
-  const [onboardingComplete] = useLocalStorage('onboardingComplete', false);
+  const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
+  const [onboardingComplete] = useLocalStorage('onboardingComplete', userProfileLs?.onboardingComplete || false); // Use value from LS or default
   const [isGuardLoading, setIsGuardLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setAuthUser(user);
-      setAuthCheckCompleted(true);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!authCheckCompleted) {
-      setIsGuardLoading(true);
-      return;
-    }
-    if (!authUser) {
+    // Simplified guard logic as Firebase auth is removed
+    setIsGuardLoading(true);
+    if (!userProfileLs || !userProfileLs.uid ) {
       router.replace('/login');
       return;
     }
-    if (!onboardingComplete) {
+    if (!onboardingComplete && userProfileLs.uid) { // Check onboarding if UID exists
       router.replace('/profile-setup');
       return;
     }
     setIsGuardLoading(false); 
-  }, [authCheckCompleted, authUser, onboardingComplete, router]);
+  }, [userProfileLs, onboardingComplete, router]);
 
   if (isGuardLoading) {
     return (

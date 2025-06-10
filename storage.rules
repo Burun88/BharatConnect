@@ -1,25 +1,14 @@
+
+// Firebase Storage rules have been cleared as Firebase integration was removed.
+// If you re-integrate Firebase Storage, you will need to define appropriate
+// security rules for your buckets and files.
 rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Rules for user-specific files, e.g., profile pictures.
-    // Files are stored in a path like: userFiles/{userId}/profilePictures/{fileName}
-    match /userFiles/{userId}/{allPaths=**} {
-      // Allow read access to anyone (if profile pictures are public).
-      // If profile pictures should only be readable by authenticated users or specific users,
-      // you'll need to adjust this. For simplicity, making them publicly readable.
-      allow read: if true; 
-      
-      // Allow write (create, update, delete) access only to the authenticated user
-      // who owns this {userId} path.
-      allow write: if request.auth != null && request.auth.uid == userId;
+    // Default deny all reads and writes
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
-
-    // You might have other paths for other types of files with different rules.
-    // Example: Group chat images might have different rules based on group membership.
-    // match /groupFiles/{groupId}/{allPaths=**} {
-    //   allow read: if request.auth != null && resource.metadata.groupId == groupId; // Example, adjust as needed
-    //   allow write: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members; // Example
-    // }
   }
 }

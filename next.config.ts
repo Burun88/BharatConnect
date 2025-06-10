@@ -23,12 +23,13 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      {
-        protocol: 'https',
-        hostname: 'storage.googleapis.com',
-        port: '',
-        pathname: '/**', // You might want to make this more specific if needed, e.g., '/instabharat.firebasestorage.app/**'
-      },
+      // Removed Firebase Storage pattern:
+      // {
+      //   protocol: 'https',
+      //   hostname: 'storage.googleapis.com',
+      //   port: '',
+      //   pathname: '/**', 
+      // },
     ],
   },
 };

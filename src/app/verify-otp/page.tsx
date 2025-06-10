@@ -10,10 +10,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { MessageSquareLock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { auth } from '@/lib/firebase'; 
-import { onAuthStateChanged } from 'firebase/auth';
-import { createOrUpdateUserFullProfile } from '@/services/profileService'; // For final save
 import type { LocalUserProfile } from '@/types';
+// import { createOrUpdateUserFullProfile } from '@/services/profileService'; // Firebase removed
 
 const OTP_LENGTH = 6;
 
@@ -24,29 +22,22 @@ export default function VerifyOtpPage() {
   const { toast } = useToast();
 
   const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  // const [onboardingCompleteLs, setOnboardingCompleteLs] = useLocalStorage('onboardingComplete', false); // Replaced
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const phoneToVerify = useMemo(() => userProfileLs?.phoneNumber || 'your phone', [userProfileLs]);
 
   useEffect(() => {
-     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        if (userProfileLs?.onboardingComplete && userProfileLs?.uid === user.uid) {
-          router.replace('/'); // Already onboarded, no need to be here.
-        } else if (!userProfileLs?.uid || userProfileLs.uid !== user.uid || !userProfileLs.phoneNumber) {
-           console.warn("[VerifyOTPPage] Mismatch or missing UID/phone in LS. Redirecting.");
-           router.replace(userProfileLs?.uid ? '/profile-setup' : '/login');
-        }
-      } else {
-         router.replace('/login'); 
-      }
-    });
-    return () => unsubscribe();
+    // Simplified check as Firebase auth is removed
+    if (userProfileLs?.onboardingComplete) {
+      router.replace('/'); 
+    } else if (!userProfileLs?.uid || !userProfileLs.phoneNumber) {
+       console.warn("[VerifyOTPPage] Mismatch or missing UID/phone in LS. Redirecting.");
+       router.replace(userProfileLs?.uid ? '/profile-setup' : '/login');
+    }
   }, [router, userProfileLs]);
 
   useEffect(() => {
-    if (inputRefs.current[0] && auth.currentUser && userProfileLs?.phoneNumber) {
+    if (inputRefs.current[0] && userProfileLs?.phoneNumber) {
         inputRefs.current[0]?.focus();
     }
   }, [userProfileLs?.phoneNumber]);
@@ -80,41 +71,34 @@ export default function VerifyOtpPage() {
       return;
     }
     
+    // Mock OTP verification
     if (enteredOtp === '123456') { 
       toast({
-        title: 'Phone Verified!',
-        description: 'Your phone number has been successfully verified.',
+        title: 'Phone Verified! (Mocked)',
+        description: 'Your phone number has been successfully verified (locally).',
       });
 
       const updatedProfileData = { 
         ...userProfileLs, 
-        phoneVerified: true, // Assuming you might add this field to LocalUserProfile
-        onboardingComplete: true // Now this is the final step
+        // phoneVerified: true, // Example field if you add it
+        onboardingComplete: true // Final step
       };
       
-      setUserProfileLs(updatedProfileData as LocalUserProfile); // Cast as LocalUserProfile if phoneVerified is added
+      setUserProfileLs(updatedProfileData as LocalUserProfile);
 
       if (userProfileLs?.uid && userProfileLs.email && userProfileLs.displayName) {
         try {
-          await createOrUpdateUserFullProfile(userProfileLs.uid, {
-            email: userProfileLs.email,
-            displayName: userProfileLs.displayName,
-            photoURL: userProfileLs.photoURL,
-            phoneNumber: userProfileLs.phoneNumber, 
-            bio: (userProfileLs as any).bio, // if bio was collected and stored in LS
-            onboardingComplete: true, // Explicitly set here
-            currentAuraId: userProfileLs.currentAuraId,
-          });
-          // setOnboardingCompleteLs(true); // No longer needed
+          // Mock saving profile
+          console.log("[VerifyOTPPage] Marking onboarding complete (mock).");
           toast({
-            title: `Welcome, ${userProfileLs.displayName}!`,
-            description: "Your BharatConnect account is fully set up.",
+            title: `Welcome, ${userProfileLs.displayName}! (Mocked)`,
+            description: "Your BharatConnect account is fully set up (locally).",
           });
           router.push('/'); 
         } catch (saveError: any) {
-          console.error("Error saving profile after OTP verification:", saveError);
-          setError("Failed to save profile after phone verification. Please try again or contact support.");
-          toast({variant: "destructive", title: "Profile Save Failed", description: saveError.message});
+          console.error("Error during mock profile save after OTP verification:", saveError);
+          setError("Failed to save profile (mock). Please try again or contact support.");
+          toast({variant: "destructive", title: "Profile Save Failed (Mock)", description: saveError.message});
         }
       } else {
         setError("Critical user information missing. Cannot complete profile setup.");
@@ -131,7 +115,7 @@ export default function VerifyOtpPage() {
   const handleResendOtp = () => {
     toast({
       title: 'OTP Resent (Simulated)',
-      description: `A new OTP would be resent to ${phoneToVerify}.`,
+      description: `A new OTP would be resent to ${phoneToVerify}. (Firebase removed)`,
     });
     setOtp(new Array(OTP_LENGTH).fill(''));
     inputRefs.current[0]?.focus();

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, type FormEvent, useEffect, useMemo } from 'react';
+import { useState, type FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -10,12 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import Logo from '@/components/shared/Logo';
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
-import { signInWithEmailAndPassword, onAuthStateChanged, fetchSignInMethodsForEmail } from 'firebase/auth';
-import { getUserFullProfile, type BharatConnectFirestoreUser } from '@/services/profileService';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import type { LocalUserProfile } from '@/types';
-import { Divide } from 'lucide-react'; // For "OR" divider
+import type { LocalUserProfile, BharatConnectFirestoreUser } from '@/types'; // Assuming BharatConnectFirestoreUser might still be used for structure by LocalUserProfile
 
 export default function LoginPageHub() {
   const [email, setEmail] = useState('');
@@ -28,36 +24,34 @@ export default function LoginPageHub() {
   const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
   
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        if (userProfileLs?.uid === user.uid && userProfileLs?.onboardingComplete) {
-          console.log(`[Login Hub] User ${user.uid} already logged in and onboarded. Redirecting to /`);
-          router.replace('/');
-        }
-      }
-    });
-    return () => unsubscribe();
+    // Simplified: If user profile exists and onboarding is complete, redirect.
+    // This no longer checks live auth state.
+    if (userProfileLs?.uid && userProfileLs?.onboardingComplete) {
+      console.log(`[Login Hub] User ${userProfileLs.uid} from LS appears onboarded. Redirecting to /`);
+      router.replace('/');
+    }
   }, [router, userProfileLs]);
 
-  const handleLoginSuccess = (user: import('firebase/auth').User, profile: BharatConnectFirestoreUser | null) => {
-    if (profile && profile.onboardingComplete) {
-      console.log(`[Login Hub] Profile found and onboarding complete for UID: ${user.uid}. Redirecting to home.`);
+  const handleLoginSuccess = (userId: string, profileEmail: string, profileData?: Partial<BharatConnectFirestoreUser>) => {
+    const onboardingComplete = !!profileData?.onboardingComplete;
+    if (onboardingComplete) {
+      console.log(`[Login Hub] Mock login success for ${userId}. Redirecting to home.`);
       setUserProfileLs({ 
-        uid: user.uid,
-        email: profile.email,
-        displayName: profile.displayName,
-        photoURL: profile.photoURL,
-        phoneNumber: profile.phoneNumber,
+        uid: userId,
+        email: profileEmail,
+        displayName: profileData?.displayName,
+        photoURL: profileData?.photoURL,
+        phoneNumber: profileData?.phoneNumber,
         onboardingComplete: true,
       });
       router.replace('/');
     } else {
-      console.log(`[Login Hub] Profile not found or onboarding incomplete for UID: ${user.uid}. Redirecting to profile-setup.`);
+      console.log(`[Login Hub] Mock login success for ${userId}, but onboarding incomplete. Redirecting to profile-setup.`);
       setUserProfileLs({ 
-        uid: user.uid,
-        email: user.email || '', 
-        displayName: profile?.displayName || user.displayName || undefined, 
-        photoURL: profile?.photoURL || user.photoURL || undefined,
+        uid: userId,
+        email: profileEmail,
+        displayName: profileData?.displayName || undefined, 
+        photoURL: profileData?.photoURL || undefined,
         onboardingComplete: false, 
       });
       router.replace('/profile-setup');
@@ -80,65 +74,34 @@ export default function LoginPageHub() {
          return;
     }
 
-
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      console.log(`[Login Hub] Sign-in successful for UID: ${user.uid}. Checking profile status.`);
-      
-      const bcProfile = await getUserFullProfile(user.uid);
-      handleLoginSuccess(user, bcProfile);
-
-    } catch (err: any) {
-      if (err.code === 'auth/network-request-failed') {
-        console.warn(`[Login Hub] Handled login error - Code: ${err.code}. Message: Network request failed. Firebase emulators might not be running or accessible.`);
-        setError('Network error. Please ensure Firebase emulators are running (if in development) or check your internet connection.');
-        toast({
-          variant: 'destructive',
-          title: 'Network Error',
-          description: 'Could not connect to Firebase. If developing locally, please ensure emulators are running.',
-        });
-      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
-        console.warn(`[Login Hub] Handled login error - Code: ${err.code}. Message: Invalid email or password supplied by user.`);
-        setError('Invalid email or password. Please try again or sign up.');
-        toast({
-            variant: 'destructive',
-            title: 'Login Failed',
-            description: 'Incorrect email or password. New user? Please sign up.',
-        });
-      } else if (err.code === 'auth/invalid-email') {
-        console.warn(`[Login Hub] Handled login error - Code: ${err.code}. Message: Invalid email format supplied by user.`);
-        setError('The email address is not valid. Please check and try again.');
-         toast({
-            variant: 'destructive',
-            title: 'Invalid Email',
-            description: 'The email address format is not valid.',
-        });
-      } else {
-        console.error("[Login Hub] Unhandled login error during signInWithEmailAndPassword:", err);
-        setError(err.message || 'Failed to login. Please try again.');
-        toast({
-            variant: 'destructive',
-            title: 'Login Failed',
-            description: err.message || 'An unexpected error occurred during login.',
-        });
-      }
+    console.log("[Login Hub] Attempting login (Firebase removed, this is a mock action).");
+    // Mocking login success for demonstration as Firebase is removed
+    // In a real scenario, this would call an auth provider.
+    setTimeout(() => {
+      // Simulate fetching a profile or proceeding based on email/pass.
+      // For now, let's assume login is successful and user needs onboarding.
+      const mockUserId = `user_${Date.now()}`;
+      handleLoginSuccess(mockUserId, email, { onboardingComplete: false, displayName: "Demo User" });
       setIsLoading(false);
-    }
+      toast({
+        title: 'Login Attempted (Mock)',
+        description: 'Firebase is removed. Simulating login process.',
+      });
+    }, 1000);
   };
   
   const handleGoogleSignIn = () => {
-    console.log("Google Sign-In clicked - To be implemented");
-    toast({ title: "Coming Soon!", description: "Google Sign-In will be available soon." });
+    console.log("Google Sign-In clicked - Firebase removed");
+    toast({ title: "Coming Soon!", description: "Google Sign-In will be available soon (Firebase removed)." });
   };
 
   const handleForgotPassword = () => {
-    console.log("Forgot Password clicked - To be implemented");
+    console.log("Forgot Password clicked - Firebase removed");
     if (!email.trim()) {
       toast({ title: "Email Required", description: "Please enter your email address to reset password.", variant: "default" });
       return;
     }
-    toast({ title: "Password Reset", description: `If ${email} is a registered account, a password reset link will be sent.` });
+    toast({ title: "Password Reset (Mock)", description: `If ${email} were registered, a reset link would be sent.` });
   };
 
 

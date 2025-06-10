@@ -6,18 +6,15 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Skeleton } from '@/components/ui/skeleton';
+// import { Skeleton } from '@/components/ui/skeleton'; // Not used after guard removal
 import MessageBubble from '@/components/message-bubble';
-import type { Message, User, Chat } from '@/types'; // BharatConnect types
-import { AURA_OPTIONS } from '@/types';
-import { mockMessagesData, mockUsers, mockChats, mockCurrentUser } from '@/lib/mock-data';
+import type { Message, User, Chat, LocalUserProfile } from '@/types'; 
+import { AURA_OPTIONS, mockCurrentUser } from '@/types'; // Added mockCurrentUser
+import { mockMessagesData, mockUsers, mockChats } from '@/lib/mock-data';
 import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import EmojiPicker from '@/components/emoji-picker';
-import { auth } from '@/lib/firebase';
-import type { User as AuthUser } from 'firebase/auth'; // Firebase Auth User
-import { onAuthStateChanged } from 'firebase/auth';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 export default function ChatPage() {
@@ -26,14 +23,10 @@ export default function ChatPage() {
   const chatId = params.chatId as string;
   const { toast } = useToast();
 
-  // Auth state
-  const [authUser, setAuthUser] = useState<AuthUser | null | undefined>(undefined);
-  const [authCheckCompleted, setAuthCheckCompleted] = useState(false);
-  const [onboardingComplete] = useLocalStorage('onboardingComplete', false);
-  const [isGuardLoading, setIsGuardLoading] = useState(true);
+  const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
+  const [isGuardLoading, setIsGuardLoading] = useState(true); // Renamed for consistency
 
-  // Page specific state
-  const [isChatDataLoading, setIsChatDataLoading] = useState(true); // Renamed from isLoading
+  const [isChatDataLoading, setIsChatDataLoading] = useState(true);
   const [chatDetails, setChatDetails] = useState<Chat | null>(null);
   const [contact, setContact] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -48,31 +41,17 @@ export default function ChatPage() {
   const bottomBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setAuthUser(user);
-      setAuthCheckCompleted(true);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!authCheckCompleted) {
-      setIsGuardLoading(true);
-      return;
-    }
-    if (!authUser) {
+    // Simplified guard logic as Firebase auth is removed
+    if (!userProfileLs || !userProfileLs.uid || !userProfileLs.onboardingComplete) {
+      console.log(`[ChatPage] User from LS not found or not fully onboarded. Redirecting to login.`);
       router.replace('/login');
       return;
     }
-    if (!onboardingComplete) {
-      router.replace('/profile-setup');
-      return;
-    }
     setIsGuardLoading(false);
-  }, [authCheckCompleted, authUser, onboardingComplete, router]);
+  }, [userProfileLs, router]);
 
   useEffect(() => {
-    if (isGuardLoading) return; // Don't load chat data until guard passes
+    if (isGuardLoading) return; 
 
     setIsChatDataLoading(true);
     setTimeout(() => {
@@ -164,12 +143,12 @@ export default function ChatPage() {
 
   const handleSendMessage = (e: FormEvent) => {
     e.preventDefault();
-    if (newMessage.trim() === '' || !authUser) return;
+    if (newMessage.trim() === '' || !userProfileLs?.uid) return;
 
     const messageToSend: Message = {
       id: `msg${Date.now()}`,
       chatId: chatId,
-      senderId: authUser.uid, // Use Firebase UID
+      senderId: userProfileLs.uid, // Use UID from local storage
       text: newMessage.trim(),
       timestamp: Date.now(),
       status: 'sent',
@@ -239,7 +218,6 @@ export default function ChatPage() {
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
         <p className="mt-4 text-muted-foreground">Loading Chat...</p>
-        {/* More detailed skeleton can be here if preferred over simple spinner */}
       </div>
     );
   }
@@ -253,7 +231,7 @@ export default function ChatPage() {
     );
   }
   
-  const currentSenderId = authUser?.uid || 'currentUser'; // Fallback for mock data if needed
+  const currentSenderId = userProfileLs?.uid || mockCurrentUser.id; // Use LS UID or mock
 
   return (
     <div className="flex flex-col h-dvh bg-background">

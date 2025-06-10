@@ -1,40 +1,12 @@
+
+// Firestore rules have been cleared as Firebase integration was removed.
+// If you re-integrate Firebase, you will need to define appropriate
+// security rules for your collections.
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // BharatConnect User Profiles
-    match /bharatConnectUsers/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-
-      allow create: if request.auth != null && request.auth.uid == userId
-                    // Document ID must match the user's UID
-                    && request.resource.data.id == userId
-                    // Name must be a non-empty string
-                    && request.resource.data.displayName is string && request.resource.data.displayName.size() > 0
-                    // Email in the document must match the authenticated user's token email
-                    && request.resource.data.email == request.auth.token.email
-                    // Ensure onboardingComplete is true when profile is created this way
-                    && request.resource.data.onboardingComplete == true
-                    // Timestamps should be set by the server
-                    && request.resource.data.createdAt == request.time
-                    && request.resource.data.updatedAt == request.time;
-
-      allow update: if request.auth != null && request.auth.uid == userId
-                    // Prevent changing immutable fields
-                    && request.resource.data.id == resource.data.id
-                    && request.resource.data.email == resource.data.email
-                    && request.resource.data.createdAt == resource.data.createdAt
-                    // Name must be a non-empty string if provided
-                    && (request.resource.data.displayName == null || (request.resource.data.displayName is string && request.resource.data.displayName.size() > 0))
-                     // Ensure onboardingComplete is true
-                    && request.resource.data.onboardingComplete == true
-                    // Update timestamp should be set by the server
-                    && request.resource.data.updatedAt == request.time;
-      
-      allow delete: if false; // Generally, users should not delete their own core profile doc directly
-    }
-
-    // Default deny all other collections/paths if not explicitly defined
+    // Default deny all reads and writes
     match /{document=**} {
       allow read, write: if false;
     }
