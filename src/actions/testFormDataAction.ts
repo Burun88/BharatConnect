@@ -35,7 +35,12 @@ export async function testFormDataAction(formData: FormData): Promise<{ success:
 
   if (uid && file) {
     return { success: true, message: 'Test FormData Action received data.', fileDetails, textDetails };
-  } else {
-    return { success: false, message: 'Test FormData Action did not receive expected uid and file.', fileDetails, textDetails };
+  } else if (uid && !file) {
+    return { success: true, message: 'Test FormData Action received UID but no file.', fileDetails, textDetails };
+  } else if (!uid && file) {
+    return { success: true, message: 'Test FormData Action received file but no UID.', fileDetails, textDetails };
+  }
+   else {
+    return { success: false, message: 'Test FormData Action did not receive expected uid and/or file.', fileDetails, textDetails };
   }
 }
