@@ -17,6 +17,7 @@ import type { LocalUserProfile } from '@/types';
 import { auth, signOutUser as fbSignOutUser } from '@/lib/firebase'; 
 import { createOrUpdateUserFullProfile } from '@/services/profileService';
 import { uploadProfileImage } from '@/services/storageService';
+import { testFormDataAction } from '@/actions/testFormDataAction'; // Import the test action
 
 function ProfileSetupContent() {
   const router = useRouter();
@@ -122,11 +123,18 @@ function ProfileSetupContent() {
     let finalPhotoURL = userProfileLs?.photoURL || null; 
 
     if (profilePicFile) {
+      const formData = new FormData();
+      formData.append('uid', authUid);
+      formData.append('profileImageFile', profilePicFile);
+      
+      console.log("[ProfileSetupPage] typeof uploadProfileImage:", typeof uploadProfileImage);
+      console.log("[ProfileSetupPage] FormData entries before calling ACTUAL uploadProfileImage:");
+      for (let pair of formData.entries()) {
+        console.log(pair[0]+ ', ' + (pair[1] instanceof File ? `File: ${pair[1].name}, size: ${pair[1].size}, type: ${pair[1].type}` : pair[1]));
+      }
+
       try {
         console.log(`[ProfileSetupPage] Uploading new profile picture for UID: ${authUid}`);
-        const formData = new FormData();
-        formData.append('uid', authUid);
-        formData.append('profileImageFile', profilePicFile);
         finalPhotoURL = await uploadProfileImage(formData);
         toast({ title: "Profile picture uploaded!" });
       } catch (uploadError: any) {
@@ -197,6 +205,49 @@ function ProfileSetupContent() {
         setIsLoading(false);
       });
   };
+
+  const handleTestFormDataAction = async () => {
+    if (!authUid) {
+      toast({ title: "Auth UID missing for test", variant: "destructive"});
+      return;
+    }
+    const testFormData = new FormData();
+    testFormData.append('uid', authUid); // Add UID to test form data
+
+    if (profilePicFile) {
+      testFormData.append('profileImageFile', profilePicFile); // Use the same field name as original
+      console.log('[ProfileSetupPage] Appended profilePicFile to testFormData:', profilePicFile.name);
+    } else {
+      console.log('[ProfileSetupPage] No profilePicFile to append to testFormData.');
+      // Optionally append a placeholder or skip, depending on what testFormDataAction expects
+    }
+    
+    console.log('[ProfileSetupPage] Calling testFormDataAction. FormData entries:');
+    for (const [key, value] of testFormData.entries()) {
+      if (value instanceof File) {
+        console.log(`  ${key}: File - name=${value.name}, size=${value.size}, type=${value.type}`);
+      } else {
+        console.log(`  ${key}: ${value}`);
+      }
+    }
+
+    try {
+      setIsLoading(true);
+      const result = await testFormDataAction(testFormData);
+      console.log('[ProfileSetupPage] testFormDataAction result:', result);
+      toast({ 
+        title: `Test Action: ${result.success ? 'Success' : 'Failed'}`, 
+        description: `${result.message} File: ${result.fileDetails || 'N/A'}. Text: ${result.textDetails || 'N/A'}`,
+        variant: result.success ? 'default' : 'destructive'
+      });
+    } catch (error) {
+      console.error('[ProfileSetupPage] testFormDataAction caught error:', error);
+      toast({ title: 'Test FormData Action Error', description: String(error), variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
   if (isPageLoading) {
     return (
@@ -293,6 +344,9 @@ function ProfileSetupContent() {
           <CardFooter className="flex-col space-y-2">
             <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isLoading}>
               {isLoading ? 'Saving...' : 'Complete Setup & Continue'}
+            </Button>
+            <Button type="button" variant="outline" onClick={handleTestFormDataAction} className="w-full" disabled={isLoading}>
+              Test FormData Action
             </Button>
             <Button type="button" variant="link" className="mt-2 text-sm text-muted-foreground" onClick={handleLogoutAndStartOver} disabled={isLoading}>
               Logout and start over
