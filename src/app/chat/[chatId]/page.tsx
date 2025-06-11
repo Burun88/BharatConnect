@@ -90,7 +90,7 @@ export default function ChatPage() {
                       avatarUrl: potentialContact.avatarUrl,
                       requestStatus: typeFromChatId === 'sent' ? 'pending' : (typeFromChatId === 'rec' ? 'awaiting_action' : 'none'),
                       requesterId: typeFromChatId === 'sent' ? userProfileLs.uid : contactIdFromChatId,
-                      firstMessageTextPreview: typeFromChatId === 'sent' ? "Request sent. Waiting for approval..." : "Wants to connect with you. Tap to respond."
+                      firstMessageTextPreview: typeFromChatId === 'sent' ? "Request sent. Waiting for approval..." : (mockMessagesData[chatId]?.[0]?.text || "Wants to connect with you. Tap to respond.")
                   };
                   console.log(`[ChatPage] Reconstructed currentChat for request:`, currentChat);
               } else {
@@ -424,7 +424,7 @@ export default function ChatPage() {
       <div className="flex flex-col h-dvh bg-background items-center justify-center p-4">
         <Card className="w-full max-w-sm rounded-xl shadow-2xl overflow-hidden bg-card">
           <CardHeader className="text-center pt-8 pb-4">
-            <h2 className="text-3xl font-semibold text-gradient-primary-accent mb-1">
+            <h2 className="text-3xl font-semibold text-gradient-primary-accent mb-1 sr-only">
               Connection Request
             </h2>
             <CardDescription className="text-sm text-muted-foreground">
