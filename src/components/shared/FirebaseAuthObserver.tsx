@@ -2,16 +2,16 @@
 "use client";
 
 import { useEffect } from 'react';
-import { onAuthUserChanged, type FirebaseUser } from '@/lib/firebase';
+import { auth, onAuthUserChanged, type FirebaseUser } from '@/lib/firebase'; // Import auth
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { LocalUserProfile } from '@/types';
-import { getUserFullProfile } from '@/services/profileService'; // Added import
+import { getUserFullProfile } from '@/services/profileService';
 
 export default function FirebaseAuthObserver() {
   const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
 
   useEffect(() => {
-    const unsubscribe = onAuthUserChanged(async (firebaseUser: FirebaseUser | null) => { // Made async
+    const unsubscribe = onAuthUserChanged(auth, async (firebaseUser: FirebaseUser | null) => { // Pass auth instance
       if (firebaseUser) {
         console.log("[AuthObserver] Firebase user detected via onAuthUserChanged:", firebaseUser.uid, firebaseUser.email);
 
@@ -30,8 +30,7 @@ export default function FirebaseAuthObserver() {
                          ? currentLocalProfileSnapshot.displayName
                          : (firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User'),
             photoURL: currentLocalProfileSnapshot.photoURL || firebaseUser.photoURL || null,
-            // Ensure onboardingComplete remains true from the snapshot
-            onboardingComplete: true,
+            onboardingComplete: true, // Ensure onboardingComplete remains true from the snapshot
           };
           console.log("[AuthObserver] LS Snapshot path. Determined onboardingComplete to set:", updatedProfile.onboardingComplete);
           if (JSON.stringify(updatedProfile) !== JSON.stringify(currentLocalProfileSnapshot)) {
@@ -90,7 +89,7 @@ export default function FirebaseAuthObserver() {
 
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setUserProfileLs]);
+  }, [setUserProfileLs]); // Removed userProfileLs from dependencies to prevent potential loops, auth instance doesn't change.
 
   return null;
 }
