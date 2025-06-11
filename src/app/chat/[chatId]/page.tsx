@@ -56,18 +56,12 @@ export default function ChatPage() {
 
     setIsChatDataLoading(true);
     setTimeout(() => {
-      // Attempt to find the chat in initialMockChats first
       let currentChat = initialMockChats.find(c => c.id === chatId);
 
-      // If not found in mockChats, and it's a request ID format (e.g., req_sent_xxx or req_rec_xxx)
-      // this indicates it might be a newer request not yet "accepted" into mockChats.
-      // We'll construct a temporary Chat object based on information we might have
-      // (e.g. from local storage or passed params if we were to extend this)
-      // For now, if it starts with 'req_', we assume its details are primarily for request handling.
       if (!currentChat && (chatId.startsWith('req_sent_') || chatId.startsWith('req_rec_'))) {
           const parts = chatId.split('_');
           const contactIdFromChatId = parts.length === 3 ? parts[2] : null;
-          const typeFromChatId = parts.length > 1 ? parts[1] : null; // 'sent' or 'rec'
+          const typeFromChatId = parts.length > 1 ? parts[1] : null; 
 
           if (contactIdFromChatId) {
               const potentialContact = mockUsers.find(u => u.id === contactIdFromChatId);
@@ -81,10 +75,9 @@ export default function ChatPage() {
                           { id: userProfileLs.uid, name: userProfileLs.displayName || 'You' },
                           potentialContact
                       ],
-                      lastMessage: null, // Will be set by request status logic
+                      lastMessage: null,
                       unreadCount: 0,
                       avatarUrl: potentialContact.avatarUrl,
-                      // Infer requestStatus and requesterId based on chatId prefix
                       requestStatus: typeFromChatId === 'sent' ? 'pending' : (typeFromChatId === 'rec' ? 'awaiting_action' : 'none'),
                       requesterId: typeFromChatId === 'sent' ? userProfileLs.uid : contactIdFromChatId,
                       firstMessageTextPreview: typeFromChatId === 'sent' ? "Request sent. Waiting for approval..." : "Wants to connect with you. Tap to respond."
@@ -93,25 +86,22 @@ export default function ChatPage() {
           }
       }
 
-
       if (currentChat) {
         setChatDetails(currentChat);
         const contactUser = currentChat.contactUserId ? mockUsers.find(u => u.id === currentChat.contactUserId) : (currentChat.participants.find(p => p.id !== currentUserId));
         setContact(contactUser || null);
         
-        // Logic for loading messages based on request status
         if (currentChat.requestStatus === 'accepted' || !currentChat.requestStatus || currentChat.requestStatus === 'none') {
             setMessages(mockMessagesData[chatId] || []);
         } else if (currentChat.requestStatus === 'awaiting_action' && currentChat.requesterId !== currentUserId) {
-            // Show first message preview if available, else empty
             const previewMsgText = currentChat.firstMessageTextPreview || "Wants to connect with you.";
-             if (contactUser) { // Ensure contactUser is defined before creating message
+             if (contactUser) {
                 setMessages([{
                     id: `preview_${chatId}`,
                     chatId: chatId,
                     senderId: contactUser.id, 
                     text: previewMsgText,
-                    timestamp: Date.now(), // Or a more appropriate timestamp
+                    timestamp: Date.now(),
                     type: 'text'
                 }]);
              } else {
@@ -124,17 +114,17 @@ export default function ChatPage() {
                 chatId: chatId,
                 senderId: currentUserId,
                 text: previewMsgText,
-                timestamp: Date.now(), // Or a more appropriate timestamp
+                timestamp: Date.now(),
                 type: 'text',
                 status: 'sent'
             }]);
         }
         else {
-            setMessages([]); // No messages for rejected or other states
+            setMessages([]);
         }
       }
       setIsChatDataLoading(false);
-    }, 300); // Reduced timeout
+    }, 300);
   }, [chatId, isGuardLoading, currentUserId, userProfileLs]);
 
   useEffect(() => {
@@ -287,7 +277,7 @@ export default function ChatPage() {
     if (chatIndex !== -1) {
       initialMockChats[chatIndex].requestStatus = action;
       if (action === 'accepted') {
-         initialMockChats[chatIndex].lastMessage = { // Add a system message or clear preview
+         initialMockChats[chatIndex].lastMessage = {
             id: `sys_accepted_${Date.now()}`,
             chatId: chatId,
             senderId: 'system',
@@ -297,8 +287,6 @@ export default function ChatPage() {
          };
       }
     } else if (action === 'accepted') {
-      // If it was a live request not in mockChats, add it as an accepted chat
-      // This is a simplified mock update. A real app would fetch/update Firestore.
       const newAcceptedChat: Chat = {
         ...chatDetails,
         requestStatus: 'accepted',
@@ -314,16 +302,15 @@ export default function ChatPage() {
       initialMockChats.push(newAcceptedChat);
     }
 
-
     toast({
       title: `Request ${action}`,
       description: `You have ${action} the chat request from ${contact.name}.`,
     });
 
     if (action === 'accepted') {
-      setMessages(mockMessagesData[chatId] || []); // Load full messages or prepare for new ones
+      setMessages(mockMessagesData[chatId] || []); 
     } else {
-      setMessages([]); // Clear messages for rejected
+      setMessages([]); 
     }
   };
 
@@ -375,6 +362,86 @@ export default function ChatPage() {
   const isChatActive = chatDetails.requestStatus === 'accepted' || !chatDetails.requestStatus || chatDetails.requestStatus === 'none';
   const showInputArea = isChatActive;
 
+
+  if (isRequestView) {
+    return (
+      <div className="flex flex-col h-dvh bg-background items-center justify-center p-4">
+        <Card className="w-full max-w-md shadow-lg border-primary/50">
+          <CardHeader className="items-center text-center">
+            <Avatar className="w-16 h-16 mb-2">
+              {contact.avatarUrl ? <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar"/> : <AvatarFallback><UserCircle2 className="w-10 h-10" /></AvatarFallback>}
+            </Avatar>
+            <CardTitle>{contact.name} wants to connect!</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center space-y-2">
+            <p className="text-sm text-muted-foreground italic p-3 bg-muted/50 rounded-md">
+              "{chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text) || 'No message preview.'}"
+            </p>
+            <p className="text-xs text-muted-foreground pt-2">Accept this chat request to start messaging.</p>
+          </CardContent>
+          <CardFooter className="flex justify-center gap-3">
+            <Button variant="outline" onClick={() => handleRequestAction('rejected')} className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive">
+              <X className="mr-2 h-4 w-4" /> Reject
+            </Button>
+            <Button onClick={() => handleRequestAction('accepted')} className="bg-gradient-to-r from-green-500 to-green-700 text-primary-foreground">
+              <Check className="mr-2 h-4 w-4" /> Accept
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isPendingSenderView) {
+    return (
+      <div className="flex flex-col h-dvh bg-background items-center justify-center p-4">
+        <Card className="w-full max-w-sm">
+            <CardHeader className="items-center text-center">
+                <Send className="w-12 h-12 text-amber-500 mb-3" />
+                <CardTitle className="text-amber-600">
+                    Request Sent
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+                <p className="text-sm text-muted-foreground">Your message request has been sent to {contact.name}. You'll be able to chat once they accept. <br/> <span className="italic mt-2 block">"{chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text) || ''}"</span></p>
+            </CardContent>
+            <CardFooter>
+                <Button variant="outline" onClick={() => router.push('/')} className="w-full">
+                Back to Chats
+                </Button>
+            </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isRejectedView) {
+    return (
+      <div className="flex flex-col h-dvh bg-background items-center justify-center p-4">
+        <Card className="w-full max-w-sm">
+            <CardHeader className="items-center text-center">
+                <MessageSquareX className="w-12 h-12 text-destructive mb-3" />
+                <CardTitle className="text-destructive">
+                    Request Rejected
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+                {chatDetails.requesterId === currentUserId ?
+                    <p className="text-sm text-muted-foreground">Your chat request to {contact.name} was rejected.</p> :
+                    <p className="text-sm text-muted-foreground">You rejected the chat request from {contact.name}.</p>
+                }
+            </CardContent>
+            <CardFooter>
+                <Button variant="outline" onClick={() => router.push('/')} className="w-full">
+                Back to Chats
+                </Button>
+            </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+  
+  // If it's an active chat (none of the above request states)
   return (
     <div className="flex flex-col h-dvh bg-background">
       <header className="fixed top-0 left-0 right-0 z-20 flex items-center p-2.5 border-b bg-background h-16">
@@ -393,9 +460,6 @@ export default function ChatPage() {
         <div className="flex-1 min-w-0">
           <h2 className="text-sm font-semibold">{contact.name}</h2>
           {isChatActive && <p className="text-xs text-muted-foreground truncate">{contactStatus || 'Offline'}</p>}
-          {isRequestView && <p className="text-xs text-primary truncate">Wants to connect with you</p>}
-          {isPendingSenderView && <p className="text-xs text-amber-500 truncate">Request sent, awaiting approval</p>}
-           {isRejectedView && <p className="text-xs text-destructive truncate">Chat request rejected</p>}
         </div>
         <Button variant="ghost" size="icon" className="ml-auto" onClick={showComingSoonToastOptions}>
           <MoreVertical className="w-5 h-5" />
@@ -403,63 +467,6 @@ export default function ChatPage() {
       </header>
 
       <div ref={mainContentRef} className="flex flex-col flex-1 pt-16 overflow-hidden">
-        {isRequestView && (
-          <div className="flex-grow flex flex-col items-center justify-center p-4">
-            <Card className="w-full max-w-md shadow-lg border-primary/50">
-              <CardHeader className="items-center text-center">
-                <Avatar className="w-16 h-16 mb-2">
-                  {contact.avatarUrl ? <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar"/> : <AvatarFallback><UserCircle2 className="w-10 h-10" /></AvatarFallback>}
-                </Avatar>
-                <CardTitle>{contact.name} wants to connect!</CardTitle>
-              </CardHeader>
-              <CardContent className="text-center space-y-2">
-                <p className="text-sm text-muted-foreground italic p-3 bg-muted/50 rounded-md">
-                  "{chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text) || 'No message preview.'}"
-                </p>
-                <p className="text-xs text-muted-foreground pt-2">Accept this chat request to start messaging.</p>
-              </CardContent>
-              <CardFooter className="flex justify-center gap-3">
-                <Button variant="outline" onClick={() => handleRequestAction('rejected')} className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive">
-                  <X className="mr-2 h-4 w-4" /> Reject
-                </Button>
-                <Button onClick={() => handleRequestAction('accepted')} className="bg-gradient-to-r from-green-500 to-green-700 text-primary-foreground">
-                  <Check className="mr-2 h-4 w-4" /> Accept
-                </Button>
-              </CardFooter>
-            </Card>
-          </div>
-        )}
-
-        {(isPendingSenderView || isRejectedView) && (
-          <div className="flex-grow flex flex-col items-center justify-center text-center p-4">
-            <Card className="w-full max-w-sm">
-                <CardHeader className="items-center">
-                    {isPendingSenderView && <Send className="w-12 h-12 text-amber-500 mb-3" />}
-                    {isRejectedView && <MessageSquareX className="w-12 h-12 text-destructive mb-3" />}
-                    <CardTitle className={cn(isPendingSenderView && "text-amber-600", isRejectedView && "text-destructive")}>
-                        {isPendingSenderView && "Request Sent"}
-                        {isRejectedView && "Request Rejected"}
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {isPendingSenderView && <p className="text-sm text-muted-foreground">Your message request has been sent to {contact.name}. You'll be able to chat once they accept. <br/> <span className="italic mt-2 block">"{chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text) || ''}"</span></p>}
-                    {isRejectedView && (
-                        chatDetails.requesterId === currentUserId ?
-                        <p className="text-sm text-muted-foreground">Your chat request to {contact.name} was rejected.</p> :
-                        <p className="text-sm text-muted-foreground">You rejected the chat request from {contact.name}.</p>
-                    )}
-                </CardContent>
-                 {isPendingSenderView && (
-                    <CardFooter>
-                        <Button variant="outline" onClick={() => router.back()} className="w-full">
-                        Back to Chats
-                        </Button>
-                    </CardFooter>
-                )}
-            </Card>
-          </div>
-        )}
-
         {isChatActive && (
           <div ref={messageListContainerRef} className={cn("flex-grow overflow-y-auto hide-scrollbar pt-2 pb-2 px-2 space-y-2 min-h-0")}>
               {messages.map(msg => (
@@ -527,3 +534,4 @@ export default function ChatPage() {
     </div>
   );
 }
+
