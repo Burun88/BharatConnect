@@ -9,7 +9,7 @@ import HomeHeader from '@/components/home/home-header';
 import AuraBar from '@/components/home/aura-bar';
 import ChatList from '@/components/home/chat-list';
 import type { User, Chat, LocalUserProfile } from '@/types';
-import { mockCurrentUser, mockAuraBarItemsData, mockChats } from '@/lib/mock-data';
+import { mockCurrentUser, mockAuraBarItemsData, mockChats as initialMockChats } from '@/lib/mock-data'; // Renamed import for clarity
 import { Plus } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
@@ -43,6 +43,8 @@ export default function HomePage() {
       return;
     }
 
+    const currentUserId = userProfileLs.uid;
+
     setTimeout(() => {
       const currentUserName = userProfileLs?.displayName || 'User';
       const currentUserEmail = userProfileLs?.email || '';
@@ -75,7 +77,36 @@ export default function HomePage() {
       );
 
       setAuraBarItems(finalAuraItems as User[]);
-      setChats(mockChats);
+
+      const getChatSortPriority = (chat: Chat): number => {
+        if (chat.requestStatus === 'awaiting_action' && chat.requesterId !== currentUserId) {
+          return 0; // Highest priority: requests to accept/reject
+        }
+        if (chat.requestStatus === 'pending' && chat.requesterId === currentUserId) {
+          return 1; // Next priority: requests user has sent
+        }
+        // For accepted, rejected, or 'none' (legacy/default) statuses, use a lower priority
+        // We can further differentiate if needed, e.g., make 'rejected' even lower.
+        if (chat.requestStatus === 'rejected') {
+          return 3; 
+        }
+        return 2; // Default for active chats or chats with 'none' or 'accepted' status
+      };
+
+      const sortedChats = [...initialMockChats] // Use imported initialMockChats
+        .sort((a, b) => {
+          const priorityA = getChatSortPriority(a);
+          const priorityB = getChatSortPriority(b);
+
+          if (priorityA !== priorityB) {
+            return priorityA - priorityB; // Sort by priority first
+          }
+          // If priorities are the same (e.g., within active chats, or within pending requests),
+          // sort by last message timestamp (descending - most recent first)
+          return (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0);
+        });
+      
+      setChats(sortedChats);
       setIsPageDataLoading(false);
     }, 1500);
 
