@@ -441,6 +441,7 @@ export default function ChatPage() {
                   <AvatarFallback className="bg-muted"><UserCircle2 className="w-16 h-16 text-muted-foreground" /></AvatarFallback>
                 )}
               </Avatar>
+              <h3 className="text-xl font-semibold text-foreground mb-1">{contact.name}</h3>
             </div>
 
             {(chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text)) && (
