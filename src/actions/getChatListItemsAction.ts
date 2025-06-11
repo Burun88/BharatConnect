@@ -91,17 +91,47 @@ export async function getChatListItemsAction(currentUserId: string, currentUserD
     diagnosticsLog.push(`[getChatListItemsAction] Querying path: ${requestsReceivedPath} for status 'pending', orderBy 'timestamp' desc.`);
     const requestsReceivedRef = collection(firestore, requestsReceivedPath);
     const receivedQuery = query(requestsReceivedRef, where('status', '==', 'pending'), orderBy('timestamp', 'desc'));
-    const receivedSnapshot = await getDocs(receivedQuery);
-    diagnosticsLog.push(`[getChatListItemsAction] Found ${receivedSnapshot.size} received request(s).`);
+    
+    let receivedSnapshot;
+    try {
+      receivedSnapshot = await getDocs(receivedQuery);
+      diagnosticsLog.push(`[getChatListItemsAction] Successfully executed getDocs for receivedQuery. Found ${receivedSnapshot.size} received request(s).`);
+    } catch (queryError: any) {
+      diagnosticsLog.push(`[getChatListItemsAction CRITICAL] Error executing getDocs for receivedQuery: ${queryError.message}. Stack: ${queryError.stack}`);
+      console.error("[getChatListItemsAction CRITICAL] Error executing getDocs for receivedQuery:", queryError);
+      return { chats: fetchedChats, diagnostics: diagnosticsLog }; // Return already fetched sent requests and error
+    }
+
+    if (receivedSnapshot.empty) {
+        diagnosticsLog.push("[getChatListItemsAction] receivedSnapshot is empty. No documents matched the query for received requests.");
+    }
 
     receivedSnapshot.forEach(doc => {
       const data = doc.data();
       diagnosticsLog.push(`[getChatListItemsAction] Processing received request doc ID: ${doc.id}, Data: ${JSON.stringify(data)}`);
+      
+      if (!data) {
+        diagnosticsLog.push(`[getChatListItemsAction WARNING] Document data is undefined for received request doc ID: ${doc.id}. Skipping.`);
+        return; // continue to next iteration
+      }
+      if (data.status !== 'pending') {
+        diagnosticsLog.push(`[getChatListItemsAction INFO] Received request doc ID: ${doc.id} has status '${data.status}', not 'pending'. Skipping.`);
+        return; // continue to next iteration
+      }
+
       const requestTimestamp = timestampToMillis(data.timestamp);
+      if (data.timestamp === undefined) {
+        diagnosticsLog.push(`[getChatListItemsAction INFO] Received request doc ID: ${doc.id} has undefined data.timestamp. timestampToMillis will use Date.now().`);
+      }
+
 
       // For received requests, the document ID is the sender's UID
       // The 'from' field in data should also be the sender's UID
       const senderId = data.from || doc.id; 
+      if (!data.from) {
+        diagnosticsLog.push(`[getChatListItemsAction INFO] Received request doc ID: ${doc.id} is missing 'from' field. Using doc.id ('${doc.id}') as senderId.`);
+      }
+
 
       fetchedChats.push({
         id: `req_rec_${senderId}`, // Use senderId for unique chat ID
@@ -126,10 +156,11 @@ export async function getChatListItemsAction(currentUserId: string, currentUserD
         requesterId: senderId, // Requester is the sender
         firstMessageTextPreview: data.firstMessageTextPreview || "Wants to connect with you. Tap to respond.",
       });
+      diagnosticsLog.push(`[getChatListItemsAction] Successfully processed and pushed received request from senderId: ${senderId} (doc ID: ${doc.id}) to fetchedChats.`);
     });
 
   } catch (error: any) {
-    const errorMsg = `[getChatListItemsAction] Error during Firestore query or processing: ${error.message || JSON.stringify(error)}`;
+    const errorMsg = `[getChatListItemsAction] Error during Firestore query or processing (outer try-catch): ${error.message || JSON.stringify(error)}`;
     console.error(errorMsg, error);
     diagnosticsLog.push(errorMsg);
     if (error.stack) {
@@ -143,3 +174,5 @@ export async function getChatListItemsAction(currentUserId: string, currentUserD
   }
   return { chats: fetchedChats, diagnostics: diagnosticsLog };
 }
+
+    
