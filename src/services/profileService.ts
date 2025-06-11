@@ -4,8 +4,9 @@
 // You will need to re-implement profile service logic
 // if you re-integrate Firebase or another backend.
 
-import { firestore } from '@/lib/firebase';
+import { auth, firestore } from '@/lib/firebase'; // Ensure auth is imported
 import { doc, setDoc, serverTimestamp, getDoc, updateDoc, type Timestamp } from 'firebase/firestore';
+import { updateProfile } from 'firebase/auth'; // Import updateProfile
 
 export interface BharatConnectFirestoreUser {
   id: string; // Document ID (user's auth UID) is also stored as a field named 'id'
@@ -44,49 +45,73 @@ export async function createOrUpdateUserFullProfile(
     throw new Error("Firestore is not initialized. Profile cannot be saved.");
   }
 
-  // Use 'bharatConnectUsers' collection as per the new rules
   const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
 
-  const dataToWrite: Omit<BharatConnectFirestoreUser, 'createdAt' | 'updatedAt'> = {
-    id: uid, // Storing UID as 'id' field to match rule: request.resource.data.id == userId
+  // Data for Firestore
+  const firestoreData: Omit<BharatConnectFirestoreUser, 'createdAt' | 'updatedAt'> = {
+    id: uid, 
     email: profileData.email,
     displayName: profileData.displayName,
-    photoURL: profileData.photoURL || null,
-    phoneNumber: profileData.phoneNumber || null,
-    bio: profileData.bio || null,
-    onboardingComplete: profileData.onboardingComplete, // This should be true as per rule
+    photoURL: profileData.photoURL !== undefined ? profileData.photoURL : null, // Ensure null if undefined
+    phoneNumber: profileData.phoneNumber !== undefined ? profileData.phoneNumber : null,
+    bio: profileData.bio !== undefined ? profileData.bio : null,
+    onboardingComplete: profileData.onboardingComplete,
   };
 
+  // Data for Firebase Auth update
+  const authProfileUpdate: { displayName?: string; photoURL?: string | null } = {};
+  if (profileData.displayName) { // Only add if displayName is truthy (not null, undefined, or empty string)
+    authProfileUpdate.displayName = profileData.displayName;
+  }
+  // Allow explicit setting of photoURL to null, or a new URL
+  if (profileData.photoURL !== undefined) { 
+    authProfileUpdate.photoURL = profileData.photoURL;
+  }
+
+
   try {
+    // 1. Update Firestore document
     const docSnap = await getDoc(userDocRef);
+    const dataForFirestoreOperation = { ...firestoreData }; // Create a mutable copy
 
     if (!docSnap.exists()) {
-      // Document does not exist, create it with createdAt and updatedAt
       await setDoc(userDocRef, {
-        ...dataToWrite,
+        ...dataForFirestoreOperation,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
       console.log(`[SVC_PROF] User profile for ${uid} CREATED in Firestore collection 'bharatConnectUsers'.`);
     } else {
-      // Document exists, update it, ensuring updatedAt is fresh
-      // Fields that should not change on update (like id, email, createdAt) are checked by rules
+      // For updates, remove id and email from the direct update payload if they are not meant to be changed by this function
+      // or ensure rules prevent their modification if they are part of a general spread.
+      // However, spreading firestoreData (which includes id and email) is common for simplicity if rules handle immutability.
       await updateDoc(userDocRef, {
-        // Only update fields that are allowed to change
-        displayName: dataToWrite.displayName,
-        photoURL: dataToWrite.photoURL,
-        phoneNumber: dataToWrite.phoneNumber,
-        bio: dataToWrite.bio,
-        onboardingComplete: dataToWrite.onboardingComplete, // Rule enforces this must be true
-        // Other fields like languagePreference, status, currentAuraId could be updated here if needed
+        ...dataForFirestoreOperation, 
         updatedAt: serverTimestamp(),
       });
       console.log(`[SVC_PROF] User profile for ${uid} UPDATED in Firestore collection 'bharatConnectUsers'.`);
     }
-  } catch (error)
-{
-    console.error(`[SVC_PROF] Error saving profile for ${uid} to Firestore:`, error);
-    // Re-throw the error so the UI can catch it and display a message
+
+    // 2. Update Firebase Auth user profile
+    const currentUser = auth.currentUser;
+    if (currentUser && currentUser.uid === uid) {
+      // Determine if an Auth update is needed
+      const needsAuthUpdate = 
+        (authProfileUpdate.displayName && authProfileUpdate.displayName !== currentUser.displayName) ||
+        (authProfileUpdate.photoURL !== undefined && authProfileUpdate.photoURL !== currentUser.photoURL);
+
+      if (needsAuthUpdate) {
+        await updateProfile(currentUser, authProfileUpdate);
+        console.log(`[SVC_PROF] Firebase Auth profile updated for UID: ${uid}. Name: ${authProfileUpdate.displayName}, Photo: ${authProfileUpdate.photoURL}`);
+      } else {
+        console.log(`[SVC_PROF] Firebase Auth profile for UID: ${uid} already up-to-date or no changes requested for displayName/photoURL. No update call needed.`);
+      }
+    } else {
+      console.warn(`[SVC_PROF] Cannot update Firebase Auth profile: currentUser is null or UID mismatch. CurrentAuthUID: ${currentUser?.uid}, TargetUID: ${uid}`);
+    }
+
+  } catch (error) {
+    console.error(`[SVC_PROF] Error saving/updating profile for ${uid}:`, error);
     throw error;
   }
 }
@@ -104,7 +129,6 @@ export async function getUserFullProfile(
   if (!uid) return null;
 
   try {
-    // Use 'bharatConnectUsers' collection
     const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
     const docSnap = await getDoc(userDocRef);
     if (docSnap.exists()) {
