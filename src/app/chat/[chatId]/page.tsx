@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, type FormEvent, type ChangeEvent, useCallback } from 'react';
@@ -18,7 +17,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
 import { firestore } from '@/lib/firebase';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 
 export default function ChatPage() {
@@ -38,6 +37,7 @@ export default function ChatPage() {
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [isCancellingRequest, setIsCancellingRequest] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [isProcessingRequestAction, setIsProcessingRequestAction] = useState(false);
 
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -292,51 +292,80 @@ export default function ChatPage() {
     }
   };
 
-  const handleRequestAction = (action: 'accepted' | 'rejected') => {
-    if (!chatDetails || !contact) return;
-    setChatDetails(prev => prev ? { ...prev, requestStatus: action } : null);
-
-    const chatIndex = initialMockChats.findIndex(c => c.id === chatId);
-    if (chatIndex !== -1) {
-      initialMockChats[chatIndex].requestStatus = action;
-      if (action === 'accepted') {
-         initialMockChats[chatIndex].lastMessage = {
-            id: `sys_accepted_${Date.now()}`,
-            chatId: chatId,
-            senderId: 'system',
-            text: `Chat request accepted. You can now message ${contact.name}.`,
-            timestamp: Date.now(),
-            type: 'system'
-         };
-      }
-    } else if (action === 'accepted') {
-      const newAcceptedChat: Chat = {
-        ...chatDetails,
-        requestStatus: 'accepted',
-        lastMessage: {
-            id: `sys_accepted_${Date.now()}`,
-            chatId: chatId,
-            senderId: 'system',
-            text: `Chat request accepted. You can now message ${contact.name}.`,
-            timestamp: Date.now(),
-            type: 'system'
-        }
-      };
-      initialMockChats.push(newAcceptedChat);
+  const handleRequestAction = async (action: 'accepted' | 'rejected') => {
+    if (!chatDetails || !contact || !currentUserId) {
+      toast({ variant: "destructive", title: "Error", description: "Missing details for request action." });
+      return;
     }
 
+    setIsProcessingRequestAction(true);
 
-    toast({
-      title: `Request ${action === 'rejected' ? 'Ignored' : 'Accepted'}`,
-      description: `You have ${action === 'rejected' ? 'ignored' : 'accepted'} the chat request from ${contact.name}.`,
-    });
+    try {
+      const receivedRequestRef = doc(firestore, `bharatConnectUsers/${currentUserId}/requestsReceived`, contact.id);
+      const sentRequestRef = doc(firestore, `bharatConnectUsers/${contact.id}/requestsSent`, currentUserId);
 
-    if (action === 'accepted') {
-      setMessages(mockMessagesData[chatId] || []);
-    } else {
-      setMessages([]);
-      // Optionally navigate away or show a "request ignored" message if not already handled by isRejectedView
-      router.push('/');
+      const updateData = {
+        status: action,
+        timestamp: serverTimestamp()
+      };
+
+      await updateDoc(receivedRequestRef, updateData);
+      await updateDoc(sentRequestRef, updateData);
+      
+      // Update local state and mock data after successful Firestore update
+      setChatDetails(prev => prev ? { ...prev, requestStatus: action } : null);
+
+      const chatIndex = initialMockChats.findIndex(c => c.id === chatId);
+      if (chatIndex !== -1) {
+        initialMockChats[chatIndex].requestStatus = action;
+        if (action === 'accepted') {
+          initialMockChats[chatIndex].lastMessage = {
+              id: `sys_accepted_${Date.now()}`,
+              chatId: chatId,
+              senderId: 'system',
+              text: `Chat request accepted. You can now message ${contact.name}.`,
+              timestamp: Date.now(),
+              type: 'system'
+          };
+        }
+      } else if (action === 'accepted') {
+        const newAcceptedChat: Chat = {
+          ...chatDetails, // Spread existing chatDetails
+          requestStatus: 'accepted',
+          lastMessage: {
+              id: `sys_accepted_${Date.now()}`,
+              chatId: chatId,
+              senderId: 'system',
+              text: `Chat request accepted. You can now message ${contact.name}.`,
+              timestamp: Date.now(),
+              type: 'system'
+          }
+        };
+        initialMockChats.push(newAcceptedChat);
+      }
+
+      toast({
+        title: `Request ${action === 'rejected' ? 'Ignored' : 'Accepted'}!`,
+        description: `You have ${action === 'rejected' ? 'ignored' : 'accepted'} the chat request from ${contact.name}. Status updated on server.`,
+      });
+
+      if (action === 'accepted') {
+        setMessages(mockMessagesData[chatId] || []); // Load actual messages if accepted
+      } else {
+        setMessages([]); // Clear messages if rejected
+        // Optionally navigate away, or the UI will show the rejected state
+        router.push('/');
+      }
+
+    } catch (error: any) {
+      console.error(`Error ${action === 'accepted' ? 'accepting' : 'rejecting'} request in Firestore:`, error);
+      toast({
+        variant: "destructive",
+        title: "Action Failed",
+        description: `Could not ${action} the request on the server. Please try again. Error: ${error.message}`
+      });
+    } finally {
+      setIsProcessingRequestAction(false);
     }
   };
 
@@ -516,14 +545,34 @@ export default function ChatPage() {
               variant="outline"
               onClick={() => handleRequestAction('rejected')}
               className="w-full py-3 text-base border-muted-foreground/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+              disabled={isProcessingRequestAction}
             >
-              <X className="mr-2 h-4 w-4" /> Ignore
+              {isProcessingRequestAction && actionBeingProcessed === 'rejected' ? (
+                <>
+                 <svg className="animate-spin -ml-1 mr-3 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  Ignoring...
+                </>
+              ) : (
+                <>
+                  <X className="mr-2 h-4 w-4" /> Ignore
+                </>
+              )}
             </Button>
             <Button
               onClick={() => handleRequestAction('accepted')}
               className="w-full py-3 text-base bg-gradient-to-r from-green-500 to-green-700 text-primary-foreground hover:opacity-90"
+              disabled={isProcessingRequestAction}
             >
-              <Check className="mr-2 h-4 w-4" /> Accept
+               {isProcessingRequestAction && actionBeingProcessed === 'accepted' ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  Accepting...
+                </>
+              ) : (
+                <>
+                  <Check className="mr-2 h-4 w-4" /> Accept
+                </>
+              )}
             </Button>
           </CardFooter>
         </Card>
