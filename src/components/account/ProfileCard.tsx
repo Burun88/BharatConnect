@@ -9,13 +9,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { UserCircle2, Edit3, Save, X, Camera, Mail } from 'lucide-react';
+import { UserCircle2, Edit3, Save, X, Camera, Mail, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { LocalUserProfile } from '@/types';
 import type { BharatConnectFirestoreUser } from '@/services/profileService';
 import { createOrUpdateUserFullProfile } from '@/services/profileService';
-import { uploadProfileImage } from '@/services/storageService'; 
+import { uploadProfileImage } from '@/services/storageService';
 
 interface ProfileCardProps {
   initialProfileData: BharatConnectFirestoreUser | null;
@@ -35,9 +35,11 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
   const [profilePicFile, setProfilePicFile] = useState<File | null>(null); 
   const [isLoading, setIsLoading] = useState(false);
 
+  // Temporary states for editing
   const [tempName, setTempName] = useState('');
   const [tempBio, setTempBio] = useState('');
-  const [tempProfilePicPreview, setTempProfilePicPreview] = useState<string | null>(null); 
+  const [tempProfilePicPreview, setTempProfilePicPreview] = useState<string | null>(null);
+  const [originalPhotoURLForDeletion, setOriginalPhotoURLForDeletion] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -47,31 +49,50 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
       setBio(initialProfileData.bio || '');
       setProfilePicPreview(initialProfileData.photoURL || null); 
 
+      // Initialize temp states only if not currently editing or if initial data changes
       if (!isEditing) {
         setTempName(initialProfileData.displayName || '');
         setTempBio(initialProfileData.bio || '');
-        setTempProfilePicPreview(initialProfileData.photoURL || null); 
+        setTempProfilePicPreview(initialProfileData.photoURL || null);
+        setOriginalPhotoURLForDeletion(initialProfileData.photoURL || null);
       }
     } else {
+      // Fallback if initialProfileData is null
       setName('User');
       setEmail('Email not available');
       setBio('Bio not available');
       setProfilePicPreview(null);
+      if (!isEditing) {
+        setTempName('User');
+        setTempBio('Bio not available');
+        setTempProfilePicPreview(null);
+        setOriginalPhotoURLForDeletion(null);
+      }
     }
   }, [initialProfileData, isEditing]);
 
   const handleEditToggle = () => {
-    if (isEditing) { 
+    if (isEditing) { // Means "Cancel" was effectively clicked or edit mode is being exited
+      // Reset temp fields to current non-edit values
       setTempName(name);
       setTempBio(bio);
       setTempProfilePicPreview(profilePicPreview); 
-      setProfilePicFile(null); 
-    } else { 
+      setOriginalPhotoURLForDeletion(profilePicPreview); // Reset for next edit session
+      setProfilePicFile(null); // Clear any selected file
+    } else { // Means "Edit Profile" was clicked, entering edit mode
+      // Populate temp fields with current values
       setTempName(name);
       setTempBio(bio);
-      setTempProfilePicPreview(profilePicPreview); 
+      setTempProfilePicPreview(profilePicPreview);
+      setOriginalPhotoURLForDeletion(profilePicPreview); // Store the URL that was there when editing started
     }
     setIsEditing(!isEditing);
+  };
+
+  const handleRemoveProfilePic = () => {
+    setTempProfilePicPreview(null);
+    setProfilePicFile(null); // Also clear any newly selected file
+    toast({ title: "Profile picture marked for removal", description: "Save to apply changes." });
   };
 
   const handleSave = async () => {
@@ -85,17 +106,13 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
     }
     setIsLoading(true);
     
-    let finalPhotoURL = profilePicPreview; 
+    let finalPhotoURL = tempProfilePicPreview; // Start with the current preview (could be null if removed)
 
+    // If a new file was selected, upload it
     if (profilePicFile) { 
       try {
         console.log(`[ProfileCard] Preparing FormData for new profile picture. UID: ${authUid}`);
         const formData = new FormData();
-        if (!authUid) { // Redundant check, but good for safety before append
-            toast({ variant: 'destructive', title: "Critical Error", description: "Auth UID became null before FormData creation." });
-            setIsLoading(false);
-            return;
-        }
         formData.append('uid', authUid); 
         formData.append('profileImageFile', profilePicFile);
         
@@ -104,7 +121,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
           console.log(pair[0]+ ', ' + (pair[1] instanceof File ? `File: ${pair[1].name}, size: ${pair[1].size}, type: ${pair[1].type}` : pair[1]));
         }
         
-        finalPhotoURL = await uploadProfileImage(formData);
+        finalPhotoURL = await uploadProfileImage(formData); // This will be the new URL
         console.log(`[ProfileCard] New profile picture uploaded. URL: ${finalPhotoURL}`);
         toast({ title: "Profile picture uploaded!" });
       } catch (uploadError: any) {
@@ -113,12 +130,17 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
         setIsLoading(false);
         return;
       }
+    } else if (tempProfilePicPreview === null && originalPhotoURLForDeletion) {
+      // No new file, but picture was removed (tempProfilePicPreview is null) AND there was an original picture.
+      // Here, you might call a delete function for originalPhotoURLForDeletion if you had one.
+      // For now, finalPhotoURL is already null, which is correct for saving.
+      console.log(`[ProfileCard] Profile picture removed by user. Original URL was: ${originalPhotoURLForDeletion}`);
     }
     
     const profileDataToSave = {
       email: email, 
       displayName: tempName.trim(),
-      photoURL: finalPhotoURL, 
+      photoURL: finalPhotoURL, // This will be null if removed, or new URL if changed, or old URL if untouched.
       phoneNumber: initialProfileData?.phoneNumber || null, 
       bio: tempBio.trim() || null,
       onboardingComplete: true, 
@@ -128,10 +150,11 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
       console.log("[ProfileCard] Attempting to save profile to Firestore. Data:", JSON.stringify(profileDataToSave));
       await createOrUpdateUserFullProfile(authUid, profileDataToSave);
 
+      // Update main state from temp state
       setName(tempName.trim());
       setBio(tempBio.trim() || '');
       setProfilePicPreview(finalPhotoURL); 
-      setProfilePicFile(null); 
+      setProfilePicFile(null); // Clear selected file after save
 
       setUserProfileLs(prev => {
         if (!prev || prev.uid !== authUid) return prev; 
@@ -155,10 +178,12 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
   };
 
   const handleCancel = () => {
+    // Reset temp fields to current main state
     setTempName(name);
     setTempBio(bio);
     setTempProfilePicPreview(profilePicPreview); 
-    setProfilePicFile(null); 
+    setProfilePicFile(null); // Clear any selected file
+    setOriginalPhotoURLForDeletion(profilePicPreview); // Reset this too
     setIsEditing(false);
   };
 
@@ -206,6 +231,18 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
           <Input id="profile-pic-upload-account" type="file" accept="image/*,.heic,.heif" onChange={handleFileChange} className="hidden" disabled={!isEditing || isLoading} />
         </div>
         <CardTitle className="mt-4 text-xl">{isEditing ? tempName : name}</CardTitle>
+        {isEditing && tempProfilePicPreview && (
+          <Button
+            variant="link"
+            size="sm"
+            className="text-destructive hover:text-destructive/80 mt-1"
+            onClick={handleRemoveProfilePic}
+            disabled={isLoading}
+          >
+            <Trash2 className="w-3 h-3 mr-1" />
+            Remove Profile Picture
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
@@ -269,4 +306,4 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
     </Card>
   );
 }
-
+    
