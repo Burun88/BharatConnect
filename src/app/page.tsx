@@ -13,64 +13,60 @@ import { mockCurrentUser, mockAuraBarItemsData, mockChats } from '@/lib/mock-dat
 import { Plus } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
-const HEADER_HEIGHT_PX = 64; 
-const BOTTOM_NAV_HEIGHT_PX = 64; 
-const SCROLL_DELTA = 5; 
+const HEADER_HEIGHT_PX = 64;
+const BOTTOM_NAV_HEIGHT_PX = 64;
+const SCROLL_DELTA = 5;
 
 export default function HomePage() {
   const router = useRouter();
-  
-  const [isPageDataLoading, setIsPageDataLoading] = useState(true); 
-  
+
+  const [isPageDataLoading, setIsPageDataLoading] = useState(true);
+
   const [auraBarItems, setAuraBarItems] = useState<User[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
   const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  // const currentUserAuraId = userProfileLs?.currentAuraId || null; // Not used directly, mockCurrentUser is updated
+  const [currentUserAuraIdLs] = useLocalStorage<string | null>('currentUserAuraId', null); // Fetch current user's aura
 
   const scrollableContainerRef = useRef<HTMLDivElement>(null);
   const [isHeaderContentLoaded, setIsHeaderContentLoaded] = useState(true);
   const lastScrollYRef = useRef(0);
 
   useEffect(() => {
-    // Simplified guard logic as Firebase auth is removed
-    setIsPageDataLoading(true); 
+    setIsPageDataLoading(true);
 
     if (!userProfileLs || !userProfileLs.uid || !userProfileLs.onboardingComplete) {
       console.log(`[HomePage] User from LS not found or not fully onboarded. Redirecting to login.`);
-      router.replace('/login'); // Or '/profile-setup' if uid exists but not onboarded
+      router.replace('/login');
       return;
     }
 
-    // Proceed to load actual page data.
     setTimeout(() => {
       const currentUserName = userProfileLs?.displayName || 'User';
       const currentUserEmail = userProfileLs?.email || '';
-      // const currentUserAvatar = userProfileLs?.photoURL || mockCurrentUser.avatarUrl; // Use mockCurrentUser's default
 
-      const updatedCurrentUser: User = { 
-        ...mockCurrentUser, 
-        id: userProfileLs.uid, 
-        name: currentUserName, 
-        email: currentUserEmail, 
-        // currentAuraId: userProfileLs?.currentAuraId || null, // Handled by mockCurrentUser update below
-        // avatarUrl: currentUserAvatar // Handled by mockCurrentUser update below
+      const updatedCurrentUser: User = {
+        ...mockCurrentUser, // Base
+        id: userProfileLs.uid,
+        name: currentUserName,
+        email: currentUserEmail,
+        avatarUrl: userProfileLs.photoURL || undefined, // Use LS photoURL or undefined
+        currentAuraId: currentUserAuraIdLs, // Use aura from its LS item
       };
-      
+
       let allUsersFromMock = mockAuraBarItemsData().map(u =>
           u.id === updatedCurrentUser.id ? updatedCurrentUser : u
       );
       const currentUserInMockIndex = allUsersFromMock.findIndex(u => u.id === updatedCurrentUser.id);
-      
+
       if (currentUserInMockIndex === -1 && updatedCurrentUser.name) {
         allUsersFromMock.unshift(updatedCurrentUser);
       } else if (currentUserInMockIndex > 0) {
          const currentUserData = allUsersFromMock.splice(currentUserInMockIndex, 1)[0];
          allUsersFromMock.unshift(currentUserData);
       }
-      
-      // Update mockCurrentUser globally if needed, or just use updatedCurrentUser for AuraBar
+
       const finalMockCurrentUser = allUsersFromMock.find(u => u.id === userProfileLs.uid) || updatedCurrentUser;
 
       const finalAuraItems = allUsersFromMock.filter(
@@ -78,11 +74,11 @@ export default function HomePage() {
       );
 
       setAuraBarItems(finalAuraItems as User[]);
-      setChats(mockChats); 
-      setIsPageDataLoading(false); 
+      setChats(mockChats);
+      setIsPageDataLoading(false);
     }, 1500);
 
-  }, [userProfileLs, router]);
+  }, [userProfileLs, currentUserAuraIdLs, router]);
 
 
   const handleScroll = useCallback(() => {
@@ -139,7 +135,7 @@ export default function HomePage() {
     router.push('/aura-select');
   }, [router]);
 
-  if (isPageDataLoading) { // Simplified loading check
+  if (isPageDataLoading) {
     return (
       <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center">
         <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -163,13 +159,13 @@ export default function HomePage() {
         }}
       >
         <AuraBar
-          isLoading={isPageDataLoading} 
+          isLoading={isPageDataLoading}
           auraBarItems={isPageDataLoading ? [] : auraBarItems}
-          currentUserId={userProfileLs?.uid || mockCurrentUser.id} // Use LS UID or fallback
+          currentUserId={userProfileLs?.uid || mockCurrentUser.id}
           onCurrentUserAuraClick={handleCurrentUserAuraClick}
         />
         <ChatList
-          isLoading={isPageDataLoading} 
+          isLoading={isPageDataLoading}
           filteredChats={filteredChats}
           searchTerm={searchTerm}
         />

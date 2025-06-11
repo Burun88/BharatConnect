@@ -11,7 +11,6 @@ import StatusListItem from '@/components/status-list-item';
 import { mockCurrentUser, mockUsers, mockStatusUpdates } from '@/lib/mock-data';
 import type { StatusUpdate, User as BharatConnectUser, LocalUserProfile } from '@/types';
 import { QrCode, Search, MoreVertical, PlusCircle, Pencil, Camera, UserCircle2 } from 'lucide-react';
-// import { Skeleton } from '@/components/ui/skeleton'; // Not used after guard removal
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
@@ -24,14 +23,14 @@ export default function StatusPage() {
   const { toast } = useToast();
 
   const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
+  const [currentUserAuraIdLs] = useLocalStorage<string | null>('currentUserAuraId', null); // Fetch current user's aura
   const [isGuardLoading, setIsGuardLoading] = useState(true);
-  
+
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [myUser, setMyUser] = useState<BharatConnectUser | null>(null);
   const [recentStatusUpdates, setRecentStatusUpdates] = useState<StatusUpdateWithUser[]>([]);
 
   useEffect(() => {
-    // Simplified guard logic as Firebase auth is removed
     if (!userProfileLs || !userProfileLs.uid || !userProfileLs.onboardingComplete) {
       console.log(`[StatusPage] User from LS not found or not fully onboarded. Redirecting to login.`);
       router.replace('/login');
@@ -46,11 +45,12 @@ export default function StatusPage() {
     setIsPageLoading(true);
     setTimeout(() => {
       const currentAppUser = userProfileLs ? {
-        ...mockCurrentUser, 
+        ...mockCurrentUser, // Base on the global mock
         id: userProfileLs.uid,
         name: userProfileLs.displayName || 'You',
-        avatarUrl: userProfileLs.photoURL || mockCurrentUser.avatarUrl,
-      } : mockCurrentUser;
+        avatarUrl: userProfileLs.photoURL || undefined, // Use LS photoURL or undefined
+        currentAuraId: currentUserAuraIdLs, // Use aura from its LS item
+      } : { ...mockCurrentUser, currentAuraId: currentUserAuraIdLs }; // Fallback if no userProfileLs, still use current aura
       setMyUser(currentAppUser);
 
       const updatesWithUsers = mockStatusUpdates
@@ -59,12 +59,12 @@ export default function StatusPage() {
           return user ? { ...status, user } : null;
         })
         .filter((item): item is StatusUpdateWithUser => item !== null)
-        .sort((a, b) => b.timestamp - a.timestamp); 
+        .sort((a, b) => b.timestamp - a.timestamp);
 
       setRecentStatusUpdates(updatesWithUsers);
       setIsPageLoading(false);
     }, 1000);
-  }, [isGuardLoading, userProfileLs]);
+  }, [isGuardLoading, userProfileLs, currentUserAuraIdLs]);
 
   const showComingSoonToast = () => {
     toast({
@@ -72,7 +72,7 @@ export default function StatusPage() {
       description: "Our team is busy crafting this awesome feature for you. It'll be ready before your next chai break! Stay tuned with BharatConnect! 🇮🇳✨",
     });
   };
-  
+
   const handleAddStatus = () => {
     showComingSoonToast();
   };
@@ -106,7 +106,7 @@ export default function StatusPage() {
   return (
     <div className="flex flex-col h-screen bg-background">
       <PageHeader title="Status" actions={headerActions} />
-      
+
       <main className="flex-grow overflow-y-auto mb-16 hide-scrollbar">
         <div className="p-3">
           <div
@@ -140,12 +140,12 @@ export default function StatusPage() {
           {recentStatusUpdates.length > 0 && (
             <div className="mt-4">
               <h4 className="text-xs font-medium text-muted-foreground px-1 mb-1">Recent updates</h4>
-              <div className="space-y-px"> 
+              <div className="space-y-px">
                 {recentStatusUpdates.map((status) => (
-                  <StatusListItem 
-                    key={status.id} 
-                    statusUpdate={status} 
-                    user={status.user} 
+                  <StatusListItem
+                    key={status.id}
+                    statusUpdate={status}
+                    user={status.user}
                     onClick={showComingSoonToast}
                   />
                 ))}
@@ -154,20 +154,20 @@ export default function StatusPage() {
           )}
         </div>
       </main>
-      
+
       <div className="fixed bottom-20 right-4 space-y-3 z-20">
-         <Button 
-          variant="secondary" 
-          size="icon" 
+         <Button
+          variant="secondary"
+          size="icon"
           className="rounded-full w-12 h-12 shadow-lg bg-card hover:bg-card/80"
           aria-label="New text status"
           onClick={showComingSoonToast}
         >
           <Pencil className="w-5 h-5" />
         </Button>
-        <Button 
-          variant="default" 
-          size="icon" 
+        <Button
+          variant="default"
+          size="icon"
           className="rounded-full w-14 h-14 shadow-xl bg-gradient-to-br from-[hsl(var(--accent))] to-[hsl(var(--primary))] text-primary-foreground hover:opacity-90 transition-opacity"
           aria-label="New camera status"
           onClick={showComingSoonToast}
@@ -175,7 +175,7 @@ export default function StatusPage() {
           <Camera className="w-6 h-6" />
         </Button>
       </div>
-      
+
       <BottomNavigationBar />
     </div>
   );
