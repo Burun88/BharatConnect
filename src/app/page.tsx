@@ -14,6 +14,7 @@ import { Plus } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
 import { getChatListItemsAction } from '@/actions/getChatListItemsAction';
+import { useToast } from '@/hooks/use-toast';
 
 
 const HEADER_HEIGHT_PX = 64;
@@ -22,6 +23,7 @@ const SCROLL_DELTA = 5;
 
 export default function HomePage() {
   const router = useRouter();
+  const { toast } = useToast();
 
   const [isPageDataLoading, setIsPageDataLoading] = useState(true);
 
@@ -82,7 +84,19 @@ export default function HomePage() {
       setAuraBarItems(finalAuraItems as User[]);
 
       // Fetch live chat requests from Firestore
-      const liveRequests = await getChatListItemsAction(currentUserId, currentUserDisplayName, currentUserPhotoURL);
+      let liveRequests: Chat[] = [];
+      try {
+        console.log(`[HomePage] Calling getChatListItemsAction for user ${currentUserId}...`);
+        liveRequests = await getChatListItemsAction(currentUserId, currentUserDisplayName, currentUserPhotoURL);
+        console.log(`[HomePage] getChatListItemsAction returned ${liveRequests.length} live requests.`);
+      } catch (error) {
+        console.error("[HomePage] Error calling or processing getChatListItemsAction:", error);
+        toast({
+          variant: "destructive",
+          title: "Error Loading Requests",
+          description: "Could not fetch live chat requests. Please try again later.",
+        });
+      }
       
       // Get existing accepted/none status chats from mock data
       // In a real app, these would also be fetched from Firestore
@@ -122,7 +136,7 @@ export default function HomePage() {
 
     loadData();
 
-  }, [userProfileLs, currentUserAuraIdLs, router]);
+  }, [userProfileLs, currentUserAuraIdLs, router, toast]);
 
 
   const handleScroll = useCallback(() => {
