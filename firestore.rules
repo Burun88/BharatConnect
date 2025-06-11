@@ -7,82 +7,58 @@ service cloud.firestore {
     // Rules for the 'bharatConnectUsers' collection
     match /bharatConnectUsers/{userId} {
 
-      // MODIFIED FOR SEARCH: Allow any authenticated user to read any user's profile data.
-      // This covers 'get' for individual profile views and 'list' for queries/searching.
-      allow read: if request.auth != null;
+      // !!! WARNING: Temporarily allowing public read access for search functionality !!!
+      // This means anyone can read data from this collection.
+      // For production, secure this by using Firebase Admin SDK in server actions
+      // or a proper server-side authentication/authorization mechanism.
+      allow read: if true; // CHANGED FROM: if request.auth != null;
 
-      // Allow a user to create their own profile document.
+      // Allow a user to create their own profile document (with validation)
       allow create: if request.auth != null && request.auth.uid == userId
                     // --- Data Validation for Create ---
-                    // The 'id' field in the document must match the user's UID.
                     && request.resource.data.id == userId
-                    // The 'email' field must match the authenticated user's email (ensure it's the lowercase version from your service).
-                    // If your client sends the original case email and you store lowercase, this might need adjustment
-                    // or ensure client sends what's expected here. For now, assuming request.auth.token.email is reliable.
-                    && request.resource.data.email == request.auth.token.email.lower() // Match against lowercase
-                    // 'displayName' (lowercase version) must be a non-empty string.
-                    && request.resource.data.displayName is string
-                    && request.resource.data.displayName.size() > 0
-                    && request.resource.data.displayName.size() < 100 // Example: Max 100 chars
-                    // 'originalDisplayName' (original case version) must be a non-empty string.
-                    && request.resource.data.originalDisplayName is string
-                    && request.resource.data.originalDisplayName.size() > 0
-                    && request.resource.data.originalDisplayName.size() < 100
-                    // 'username' (lowercase version) must be a non-empty string and meet format.
-                    && request.resource.data.username is string
-                    && request.resource.data.username.size() >= 3
-                    && request.resource.data.username.size() <= 20
-                    && request.resource.data.username.matches("^[a-z0-9_]+$")
-                    // 'onboardingComplete' must be true when the profile is fully created.
+                    && request.resource.data.email.lower() == request.auth.token.email.lower() // Ensure comparing lowercase
+                    && request.resource.data.displayName is string && request.resource.data.displayName.size() > 0 && request.resource.data.displayName.size() < 100
+                    && request.resource.data.username is string && request.resource.data.username.size() >= 3 && request.resource.data.username.size() <= 20 && request.resource.data.username.matches("^[a-z0-9_]+$")
+                    && (request.resource.data.originalDisplayName == null || (request.resource.data.originalDisplayName is string && request.resource.data.originalDisplayName.size() > 0 && request.resource.data.originalDisplayName.size() < 100))
                     && request.resource.data.onboardingComplete == true
-                    // Optional fields: check type if they are provided.
                     && (request.resource.data.photoURL == null || request.resource.data.photoURL is string)
                     && (request.resource.data.phoneNumber == null || request.resource.data.phoneNumber is string)
                     && (request.resource.data.bio == null || request.resource.data.bio is string)
-                    // 'createdAt' and 'updatedAt' must be set to the server's request time.
                     && request.resource.data.createdAt == request.time
                     && request.resource.data.updatedAt == request.time;
 
-      // Allow a user to update their own profile document.
+      // Allow a user to update their own profile document (with validation)
       allow update: if request.auth != null && request.auth.uid == userId
                     // --- Data Validation for Update ---
-                    // Ensure immutable fields are not changed.
                     && request.resource.data.id == resource.data.id // 'id' field cannot change.
-                    && request.resource.data.email == resource.data.email // 'email' field (lowercase) cannot change.
+                    && request.resource.data.email.lower() == resource.data.email.lower() // 'email' field (already lowercase) cannot change.
                     && request.resource.data.createdAt == resource.data.createdAt // 'createdAt' timestamp cannot change.
-                    // Validate fields that can be updated.
-                    // 'displayName' (lowercase)
-                    && request.resource.data.displayName is string
-                    && request.resource.data.displayName.size() > 0
-                    && request.resource.data.displayName.size() < 100
-                    // 'originalDisplayName' (original case)
-                    && request.resource.data.originalDisplayName is string
-                    && request.resource.data.originalDisplayName.size() > 0
-                    && request.resource.data.originalDisplayName.size() < 100
-                    // 'username' (lowercase)
-                    && request.resource.data.username is string
-                    && request.resource.data.username.size() >= 3
-                    && request.resource.data.username.size() <= 20
-                    && request.resource.data.username.matches("^[a-z0-9_]+$")
-                    // 'onboardingComplete' must remain true.
+                    && request.resource.data.displayName is string && request.resource.data.displayName.size() > 0 && request.resource.data.displayName.size() < 100
+                    && request.resource.data.username is string && request.resource.data.username.size() >= 3 && request.resource.data.username.size() <= 20 && request.resource.data.username.matches("^[a-z0-9_]+$")
+                    && (request.resource.data.originalDisplayName == null || (request.resource.data.originalDisplayName is string && request.resource.data.originalDisplayName.size() > 0 && request.resource.data.originalDisplayName.size() < 100))
                     && request.resource.data.onboardingComplete == true
-                    // Optional fields: check type if they are provided.
                     && (request.resource.data.photoURL == null || request.resource.data.photoURL is string)
                     && (request.resource.data.phoneNumber == null || request.resource.data.phoneNumber is string)
                     && (request.resource.data.bio == null || request.resource.data.bio is string)
-                    // 'updatedAt' must be set to the server's request time for any update.
                     && request.resource.data.updatedAt == request.time;
       
       // Disallow client-side deletion of user profiles.
       allow delete: if false;
+
+      // Note: 'list' is covered by 'read'. Explicitly disallowing 'list' while allowing 'read'
+      // can be done, but 'allow read: if true;' allows get, list, and queries.
+      // If we wanted to allow get but not list, we would need separate rules:
+      // allow get: if true;
+      // allow list: if false; // Or some other condition
+      // For now, 'allow read: if true;' makes it simple for the search query.
     }
 
     // Default rule: Deny all reads and writes to any other collections/documents
     // not explicitly matched above. This is a crucial security measure.
+    // However, this rule will be overridden by the more specific rule for bharatConnectUsers.
     match /{document=**} {
       allow read, write: if false;
     }
   }
 }
-
-    
