@@ -5,7 +5,7 @@ import type { FC } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import Logo from '@/components/shared/Logo';
-import { Search, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react'; // Removed Search icon import
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { signOutUser } from '@/lib/firebase';
@@ -20,14 +20,6 @@ const HomeHeader: FC<HomeHeaderProps> = ({ isHeaderContentLoaded }) => {
   const { toast } = useToast();
   const router = useRouter();
   const [, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-
-
-  const showComingSoonToast = () => {
-    toast({
-      title: "Hold Tight, Connecting Soon! 🚀",
-      description: "Our team is busy crafting this awesome feature for you. It'll be ready before your next chai break! Stay tuned with BharatConnect! 🇮🇳✨",
-    });
-  };
 
   const handleLogout = async () => {
     try {
@@ -68,15 +60,7 @@ const HomeHeader: FC<HomeHeaderProps> = ({ isHeaderContentLoaded }) => {
           "flex items-center space-x-2 transition-all duration-300 ease-in-out"
         )}
       >
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          aria-label="Search" 
-          tabIndex={isHeaderContentLoaded ? 0 : -1}
-          onClick={showComingSoonToast}
-        >
-          <Search className="w-5 h-5" />
-        </Button>
+        {/* Search button removed */}
         <Button 
           variant="ghost" 
           size="icon" 
