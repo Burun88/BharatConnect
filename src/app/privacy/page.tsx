@@ -1,7 +1,17 @@
+
+"use client";
+
+import { useState, useEffect } from 'react';
 import PageHeader from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function PrivacyPage() {
+  const [lastUpdatedDate, setLastUpdatedDate] = useState('');
+
+  useEffect(() => {
+    setLastUpdatedDate(new Date().toLocaleDateString());
+  }, []);
+
   return (
     <div className="flex flex-col min-h-screen">
       <PageHeader title="Privacy Policy" />
@@ -11,7 +21,7 @@ export default function PrivacyPage() {
             <CardTitle className="text-2xl font-headline">Privacy Policy for BharatConnect</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-foreground/80">
-            <p>Last updated: {new Date().toLocaleDateString()}</p>
+            <p>Last updated: {lastUpdatedDate || 'Loading...'}</p>
             <p>BharatConnect ("us", "we", or "our") operates the BharatConnect mobile application (the "Service").</p>
             <p>This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use our Service and the choices you have associated with that data.</p>
             <p>We use your data to provide and improve the Service. By using the Service, you agree to the collection and use of information in accordance with this policy.</p>

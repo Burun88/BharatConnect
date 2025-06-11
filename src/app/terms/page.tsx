@@ -1,7 +1,17 @@
+
+"use client";
+
+import { useState, useEffect } from 'react';
 import PageHeader from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function TermsPage() {
+  const [lastUpdatedDate, setLastUpdatedDate] = useState('');
+
+  useEffect(() => {
+    setLastUpdatedDate(new Date().toLocaleDateString());
+  }, []);
+
   return (
     <div className="flex flex-col min-h-screen">
       <PageHeader title="Terms of Service" />
@@ -11,7 +21,7 @@ export default function TermsPage() {
             <CardTitle className="text-2xl font-headline">Terms of Service for BharatConnect</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-foreground/80">
-            <p>Last updated: {new Date().toLocaleDateString()}</p>
+            <p>Last updated: {lastUpdatedDate || 'Loading...'}</p>
             <p>Welcome to BharatConnect! These terms and conditions outline the rules and regulations for the use of BharatConnect's Application.</p>
             <p>By accessing this app we assume you accept these terms and conditions. Do not continue to use BharatConnect if you do not agree to take all of the terms and conditions stated on this page.</p>
             <h2 className="text-xl font-semibold pt-2">License</h2>
