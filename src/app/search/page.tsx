@@ -16,7 +16,7 @@ import { mockCurrentUser, mockChats as initialMockChats } from '@/lib/mock-data'
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
-import { searchUsersAction, type SearchUserActionResult } from '@/actions/searchUsersAction'; // Updated import
+import { searchUsersAction, type SearchUserActionResult, type SearchUserActionDiagnostics } from '@/actions/searchUsersAction'; 
 import type { BharatConnectFirestoreUser } from '@/services/profileService';
 
 type UserRequestStatus = 'idle' | 'request_sent' | 'chat_exists' | 'is_self';
@@ -35,6 +35,7 @@ export default function SearchPage() {
   const [searchResults, setSearchResults] = useState<SearchResultUser[]>([]);
   const [mockChats, setMockChats] = useState<Chat[]>(initialMockChats);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchDiagnostics, setSearchDiagnostics] = useState<SearchUserActionDiagnostics | null>(null);
 
   const currentUserId = userProfileLs?.uid || mockCurrentUser.id;
 
@@ -53,11 +54,13 @@ export default function SearchPage() {
     const performSearch = async () => {
       if (searchTerm.trim() === '') {
         setSearchResults([]);
+        setSearchDiagnostics(null);
         return;
       }
       if (!currentUserId) {
         console.warn("[SearchPage] Current user ID not available for search exclusion.");
         setSearchResults([]);
+        setSearchDiagnostics(null);
         return;
       }
 
@@ -65,14 +68,17 @@ export default function SearchPage() {
       try {
         console.log(`[SearchPage CLIENT] Calling searchUsersAction with term: "${searchTerm.trim()}" and excluding UID: "${currentUserId}"`);
         const result: SearchUserActionResult = await searchUsersAction(searchTerm.trim(), currentUserId);
+        setSearchDiagnostics(result.diagnostics);
         
         console.log("[SearchPage CLIENT] Diagnostics from searchUsersAction:");
-        result.diagnostics.log.forEach(logMsg => console.log(logMsg));
-        if (result.diagnostics.directFetchResult) console.log(`Direct Fetch: ${result.diagnostics.directFetchResult}`);
-        if (result.diagnostics.testQueryResult) console.log(`Test Query: ${result.diagnostics.testQueryResult}`);
-        if (result.diagnostics.nameQueryCount !== undefined) console.log(`Name Query Count: ${result.diagnostics.nameQueryCount}`);
-        if (result.diagnostics.emailQueryCount !== undefined) console.log(`Email Query Count: ${result.diagnostics.emailQueryCount}`);
-        if (result.diagnostics.usernameQueryCount !== undefined) console.log(`Username Query Count: ${result.diagnostics.usernameQueryCount}`);
+        if (result.diagnostics) {
+            result.diagnostics.log.forEach(logMsg => console.log(logMsg));
+            if (result.diagnostics.directFetchResult) console.log(`Direct Fetch: ${result.diagnostics.directFetchResult}`);
+            if (result.diagnostics.testQueryResult) console.log(`Test Query: ${result.diagnostics.testQueryResult}`);
+            if (result.diagnostics.nameQueryCount !== undefined) console.log(`Name Query Count: ${result.diagnostics.nameQueryCount}`);
+            if (result.diagnostics.emailQueryCount !== undefined) console.log(`Email Query Count: ${result.diagnostics.emailQueryCount}`);
+            if (result.diagnostics.usernameQueryCount !== undefined) console.log(`Username Query Count: ${result.diagnostics.usernameQueryCount}`);
+        }
 
 
         const firebaseUsers: BharatConnectFirestoreUser[] = result.users;
@@ -99,7 +105,7 @@ export default function SearchPage() {
             }
             return { 
                 id: fbUser.id,
-                name: fbUser.displayName, 
+                name: fbUser.originalDisplayName || fbUser.displayName, // Use originalDisplayName for display
                 username: fbUser.username, 
                 email: fbUser.email, 
                 avatarUrl: fbUser.photoURL || undefined,
@@ -216,7 +222,7 @@ export default function SearchPage() {
             <SearchIconLucide className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search by name, email, or username (case-insensitive prefix on lowercase data)"
+              placeholder="Search by name, email, or username"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-10 h-12 text-base rounded-xl shadow-sm focus-visible:focus-visible-gradient-border-apply"
@@ -250,17 +256,20 @@ export default function SearchPage() {
                 <div className="space-y-3">
                   {searchResults.map((user) => {
                     const buttonProps = getButtonProps(user);
+                    const showUsername = user.username && user.username.toLowerCase() !== 'n/a';
                     return (
                       <div key={user.id} className="flex items-center p-3 bg-card rounded-lg shadow hover:bg-muted/30 transition-colors">
                         <Avatar className="w-12 h-12 mr-4">
-                          <AvatarImage src={user.avatarUrl || `https://placehold.co/100x100.png?text=${user.name.charAt(0)}`} alt={user.name} data-ai-hint="person avatar" />
+                          <AvatarImage src={user.avatarUrl || ''} alt={user.name} data-ai-hint="person avatar" />
                           <AvatarFallback className="bg-muted text-muted-foreground">
-                            {user.name ? user.name.substring(0, 2).toUpperCase() : <UserCircle2 />}
+                            <UserCircle2 className="w-8 h-8" />
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-foreground truncate">{user.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">@{user.username || 'N/A'} &bull; {user.email || 'No email'}</p>
+                          {showUsername && (
+                            <p className="text-xs text-muted-foreground truncate">@{user.username}</p>
+                          )}
                         </div>
                         <Button
                           size="sm"
