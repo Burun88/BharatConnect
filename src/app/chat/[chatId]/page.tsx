@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import EmojiPicker from '@/components/emoji-picker';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { firestore } from '@/lib/firebase';
 import { doc, deleteDoc } from 'firebase/firestore';
 
@@ -324,14 +324,16 @@ export default function ChatPage() {
 
 
     toast({
-      title: `Request ${action}`,
-      description: `You have ${action} the chat request from ${contact.name}.`,
+      title: `Request ${action === 'rejected' ? 'Ignored' : 'Accepted'}`,
+      description: `You have ${action === 'rejected' ? 'ignored' : 'accepted'} the chat request from ${contact.name}.`,
     });
 
     if (action === 'accepted') {
       setMessages(mockMessagesData[chatId] || []);
     } else {
       setMessages([]);
+      // Optionally navigate away or show a "request ignored" message if not already handled by isRejectedView
+      router.push('/');
     }
   };
 
@@ -349,13 +351,12 @@ export default function ChatPage() {
       await deleteDoc(sentRequestRef);
       await deleteDoc(receivedRequestRef);
 
-      // Update local mock data state if it exists
       const chatIndex = initialMockChats.findIndex(c => c.id === chatId);
       if (chatIndex !== -1) {
-        initialMockChats.splice(chatIndex, 1); // Remove from mock chats
+        initialMockChats.splice(chatIndex, 1); 
       }
       
-      setChatDetails(prev => prev ? { ...prev, requestStatus: 'rejected' } : null); // Or some 'canceled' status
+      setChatDetails(prev => prev ? { ...prev, requestStatus: 'rejected' } : null); 
       setMessages([]);
 
 
@@ -388,21 +389,21 @@ export default function ChatPage() {
   if (!chatDetails || !contact) {
     return (
       <div className="flex flex-col h-dvh bg-background items-center justify-center p-4">
-        <Card className="w-full max-w-md shadow-lg">
-          <CardHeader className="items-center text-center">
+        <Card className="w-full max-w-md shadow-lg rounded-xl">
+          <CardHeader className="items-center text-center pt-8 pb-4">
             <MessageSquareX className="w-16 h-16 text-destructive mb-4" />
-            <CardTitle className="text-2xl">Chat Not Found</CardTitle>
+            <CardTitle className="text-2xl font-semibold">Chat Not Found</CardTitle>
           </CardHeader>
-          <CardContent className="text-center">
+          <CardContent className="text-center pt-0 pb-6">
             <p className="text-muted-foreground">
               The chat you are looking for doesn't exist or may have been removed.
             </p>
           </CardContent>
-          <CardFooter className="flex-col items-center space-y-3">
-            <Button onClick={() => router.push('/')} className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground">
+          <CardFooter className="flex-col items-center space-y-3 p-6 pt-0 border-t border-border">
+            <Button onClick={() => router.push('/')} className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground py-3 text-base">
               Go to Chats
             </Button>
-            <Button variant="outline" onClick={() => router.back()} className="w-full">
+            <Button variant="outline" onClick={() => router.back()} className="w-full py-3 text-base">
               Go Back
             </Button>
           </CardFooter>
@@ -421,24 +422,49 @@ export default function ChatPage() {
   if (isRequestView) {
     return (
       <div className="flex flex-col h-dvh bg-background items-center justify-center p-4">
-        <Card className="w-full max-w-md shadow-lg border-primary/50">
-          <CardHeader className="items-center text-center">
-            <Avatar className="w-16 h-16 mb-2">
-              {contact.avatarUrl ? <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar"/> : <AvatarFallback><UserCircle2 className="w-10 h-10" /></AvatarFallback>}
-            </Avatar>
-            <CardTitle>{contact.name} wants to connect!</CardTitle>
+        <Card className="w-full max-w-sm rounded-xl shadow-2xl overflow-hidden bg-card">
+          <CardHeader className="text-center pt-8 pb-4">
+            <h2 className="text-3xl font-semibold text-gradient-primary-accent mb-1">
+              Connection Request
+            </h2>
+            <CardDescription className="text-sm text-muted-foreground">
+              {contact.name} wants to connect with you.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="text-center space-y-2">
-            <p className="text-sm text-muted-foreground italic p-3 bg-muted/50 rounded-md">
-              "{chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text) || 'No message preview.'}"
-            </p>
-            <p className="text-xs text-muted-foreground pt-2">Accept this chat request to start messaging.</p>
+
+          <CardContent className="p-6 pt-2">
+            <div className="flex flex-col items-center text-center mb-6">
+              <Avatar className="w-24 h-24 mb-4 border-4 border-background shadow-lg">
+                {contact.avatarUrl ? (
+                  <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar"/>
+                ) : (
+                  <AvatarFallback className="bg-muted"><UserCircle2 className="w-16 h-16 text-muted-foreground" /></AvatarFallback>
+                )}
+              </Avatar>
+            </div>
+
+            {(chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text)) && (
+              <div className="mb-6">
+                <p className="text-sm text-center text-muted-foreground italic p-4 bg-muted/50 rounded-lg shadow-inner break-words">
+                  &ldquo;{chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text) || 'Tap to respond.'}&rdquo;
+                </p>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground text-center mb-6">Accept this chat request to start messaging.</p>
           </CardContent>
-          <CardFooter className="flex justify-center gap-3">
-            <Button variant="outline" onClick={() => handleRequestAction('rejected')} className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive">
-              <X className="mr-2 h-4 w-4" /> Reject
+
+          <CardFooter className="grid grid-cols-2 gap-4 p-6 bg-card border-t border-border">
+            <Button
+              variant="outline"
+              onClick={() => handleRequestAction('rejected')}
+              className="w-full py-3 text-base border-muted-foreground/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="mr-2 h-4 w-4" /> Ignore
             </Button>
-            <Button onClick={() => handleRequestAction('accepted')} className="bg-gradient-to-r from-green-500 to-green-700 text-primary-foreground">
+            <Button
+              onClick={() => handleRequestAction('accepted')}
+              className="w-full py-3 text-base bg-gradient-to-r from-green-500 to-green-700 text-primary-foreground hover:opacity-90"
+            >
               <Check className="mr-2 h-4 w-4" /> Accept
             </Button>
           </CardFooter>
@@ -450,21 +476,26 @@ export default function ChatPage() {
   if (isPendingSenderView) {
     return (
       <div className="flex flex-col h-dvh bg-background items-center justify-center p-4">
-        <Card className="w-full max-w-sm">
-            <CardHeader className="items-center text-center">
+        <Card className="w-full max-w-sm rounded-xl shadow-2xl overflow-hidden bg-card">
+            <CardHeader className="items-center text-center pt-8 pb-4">
                 <Send className="w-12 h-12 text-amber-500 mb-3" />
-                <CardTitle className="text-amber-600">
+                <CardTitle className="text-2xl font-semibold text-amber-600">
                     Request Sent
                 </CardTitle>
             </CardHeader>
-            <CardContent className="text-center">
-                <p className="text-sm text-muted-foreground">Your message request has been sent to {contact.name}. You'll be able to chat once they accept. <br/> <span className="italic mt-2 block">"{chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text) || ''}"</span></p>
+            <CardContent className="text-center p-6 pt-0">
+                <p className="text-sm text-muted-foreground">Your message request has been sent to {contact.name}. You'll be able to chat once they accept.</p>
+                {(chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text)) && (
+                  <p className="text-sm text-muted-foreground italic mt-4 p-3 bg-muted/50 rounded-lg shadow-inner break-words">
+                    &ldquo;{chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text)}&rdquo;
+                  </p>
+                )}
             </CardContent>
-            <CardFooter className="flex-col space-y-2">
+            <CardFooter className="flex-col space-y-3 p-6 border-t border-border">
                 <Button 
                   variant="destructive" 
                   onClick={handleCancelRequest} 
-                  className="w-full"
+                  className="w-full py-3 text-base"
                   disabled={isCancellingRequest}
                 >
                   {isCancellingRequest ? (
@@ -478,7 +509,7 @@ export default function ChatPage() {
                     </>
                   )}
                 </Button>
-                <Button variant="outline" onClick={() => router.push('/')} className="w-full" disabled={isCancellingRequest}>
+                <Button variant="outline" onClick={() => router.push('/')} className="w-full py-3 text-base" disabled={isCancellingRequest}>
                   Back to Chats
                 </Button>
             </CardFooter>
@@ -490,21 +521,21 @@ export default function ChatPage() {
   if (isRejectedView) {
     return (
       <div className="flex flex-col h-dvh bg-background items-center justify-center p-4">
-        <Card className="w-full max-w-sm">
-            <CardHeader className="items-center text-center">
+        <Card className="w-full max-w-sm rounded-xl shadow-2xl overflow-hidden bg-card">
+            <CardHeader className="items-center text-center pt-8 pb-4">
                 <MessageSquareX className="w-12 h-12 text-destructive mb-3" />
-                <CardTitle className="text-destructive">
-                    {chatDetails.requesterId === currentUserId ? "Request Rejected" : "Request Rejected"} 
+                <CardTitle className="text-2xl font-semibold text-destructive">
+                    {chatDetails.requesterId === currentUserId ? "Request Not Accepted" : "Request Ignored"} 
                 </CardTitle>
             </CardHeader>
-            <CardContent className="text-center">
+            <CardContent className="text-center p-6 pt-0">
                 {chatDetails.requesterId === currentUserId ?
-                    <p className="text-sm text-muted-foreground">{contact.name} rejected your chat request.</p> :
-                    <p className="text-sm text-muted-foreground">You rejected the chat request from {contact.name}.</p>
+                    <p className="text-sm text-muted-foreground">{contact.name} has not accepted your chat request.</p> :
+                    <p className="text-sm text-muted-foreground">You ignored the chat request from {contact.name}.</p>
                 }
             </CardContent>
-            <CardFooter>
-                <Button variant="outline" onClick={() => router.push('/')} className="w-full">
+            <CardFooter className="p-6 border-t border-border">
+                <Button variant="outline" onClick={() => router.push('/')} className="w-full py-3 text-base">
                 Back to Chats
                 </Button>
             </CardFooter>
