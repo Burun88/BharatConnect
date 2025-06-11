@@ -188,22 +188,14 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
     <Card className="rounded-2xl shadow-md bg-card">
       <CardHeader className="items-center text-center">
         <div className="relative">
-          {displayAvatarSrc ? (
-            <div className="p-1 rounded-full bg-gradient-to-br from-primary to-accent">
-              <Avatar className="w-[100px] h-[100px] border-2 border-background">
-                <AvatarImage src={displayAvatarSrc} alt="Profile Picture" key={displayAvatarSrc + "-img"} data-ai-hint="person avatar"/>
-                <AvatarFallback className="bg-muted">
-                  <UserCircle2 className="w-16 h-16 text-muted-foreground" />
-                </AvatarFallback>
-              </Avatar>
-            </div>
-          ) : (
-            <Avatar className="w-[100px] h-[100px] border-2 border-border">
-              <AvatarFallback className="bg-muted">
-                <UserCircle2 className="w-16 h-16 text-muted-foreground" />
-              </AvatarFallback>
-            </Avatar>
-          )}
+          <Avatar className="w-[100px] h-[100px] border-2 border-border">
+            {displayAvatarSrc ? (
+              <AvatarImage src={displayAvatarSrc} alt="Profile Picture" key={displayAvatarSrc + "-img"} data-ai-hint="person avatar"/>
+            ) : null}
+            <AvatarFallback className="bg-muted">
+              <UserCircle2 className="w-16 h-16 text-muted-foreground" />
+            </AvatarFallback>
+          </Avatar>
           {isEditing && (
             <Button
               variant="outline"
@@ -220,7 +212,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
         
         <CardTitle className="mt-4 text-xl">{isEditing ? tempName : name}</CardTitle>
         
-        {isEditing && displayAvatarSrc && ( // Show remove button only if there's a picture in edit mode
+        {isEditing && displayAvatarSrc && ( 
           <Button
             variant="link"
             size="sm"
