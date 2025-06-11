@@ -1,69 +1,51 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
     // BharatConnect User Profiles
     match /bharatConnectUsers/{userId} {
-      // Allow read if true for now for easier debugging of search. 
-      // For production, change to: allow read: if request.auth != null;
-      allow read: if true; 
-      allow create: if request.auth.uid == userId && 
-                       request.resource.data.id == userId &&
-                       request.resource.data.email == request.auth.token.email &&
-                       request.resource.data.username is string && request.resource.data.username.size() >= 3 && request.resource.data.username.size() <= 20 &&
-                       request.resource.data.displayName is string && request.resource.data.displayName.size() >= 1 &&
-                       request.resource.data.onboardingComplete == false; // Initially false during creation by signup/profile-setup start
-      allow update: if request.auth.uid == userId &&
-                       request.resource.data.id == userId &&
-                       // Allow email to be updated if it matches the auth token's email (should not change typically)
-                       (request.resource.data.email == request.auth.token.email || request.resource.data.email == resource.data.email) &&
-                       // Username can be updated, ensure it's valid.
-                       (request.resource.data.username is string && request.resource.data.username.size() >= 3 && request.resource.data.username.size() <= 20) &&
-                       // DisplayName can be updated.
-                       (request.resource.data.displayName is string && request.resource.data.displayName.size() >= 1) &&
-                       // onboardingComplete can be set to true.
-                       request.resource.data.onboardingComplete == true &&
-                       // Prevent changing createdAt
-                       request.resource.data.createdAt == resource.data.createdAt; 
-      // No delete rule for now, handle through admin or specific function
+      // Allow creating a profile if user is authenticated and UID matches
+      allow create: if request.auth.uid == userId;
+      // Allow reading if user is authenticated (broad for now for search debugging)
+      allow read: if true; // WARNING: Publicly readable for now. Change to `if request.auth != null;` for production.
+      // Allow updating own profile if authenticated
+      allow update: if request.auth.uid == userId;
+      // Allow deleting own profile (consider implications)
+      allow delete: if request.auth.uid == userId;
+
+      // Chat Requests - Sent
+      match /requestsSent/{requestId} { // requestId is usually the targetUserId
+        allow read: if request.auth.uid == userId; // User can read their own sent requests
+        allow write: if request.auth.uid == userId && request.resource.data.to == requestId; // User can write to their own sent requests
+        // Add basic validation for requestSent documents
+        // allow write: if request.auth.uid == userId && request.resource.data.to == requestId
+        //           && request.resource.data.status is string
+        //           && request.resource.data.timestamp is timestamp;
+        //           // Add other fields like name, photoURL if you want to validate them
+      }
+
+      // Chat Requests - Received
+      match /requestsReceived/{requestId} { // requestId is usually the senderId
+        allow read: if request.auth.uid == userId; // User can read their own received requests
+        // Sender writes to receiver's subcollection. Receiver updates it.
+        allow write: if (request.auth.uid == requestId && request.resource.data.from == request.auth.uid) // Sender creating the request
+                      || (request.auth.uid == userId); // Receiver updating the request (e.g., status)
+        // Add basic validation for requestsReceived documents
+        // allow write: if (request.auth.uid == requestId && request.resource.data.from == request.auth.uid) // Sender
+        //               || (request.auth.uid == userId) // Receiver
+        //           && request.resource.data.status is string
+        //           && request.resource.data.timestamp is timestamp;
+        //           // Add other fields like name, photoURL if you want to validate them
+      }
     }
 
-    // Chat Requests - Sent
-    match /bharatConnectUsers/{senderId}/requestsSent/{receiverId} {
-      allow read: if request.auth.uid == senderId;
-      allow create: if request.auth.uid == senderId &&
-                       request.resource.data.to == receiverId &&
-                       request.resource.data.status == 'pending' &&
-                       request.resource.data.name is string &&
-                       request.resource.data.timestamp == request.time;
-      // Add update/delete rules if needed (e.g., for cancelling requests)
-      allow update: if request.auth.uid == senderId && 
-                       (request.resource.data.status == 'cancelled' || request.resource.data.status == 'accepted_by_receiver'); // Example update rule
-      allow delete: if request.auth.uid == senderId; // User can delete their sent request entry
-    }
-
-    // Chat Requests - Received
-    match /bharatConnectUsers/{receiverId}/requestsReceived/{senderId} {
-      allow read: if request.auth.uid == receiverId;
-      allow create: if request.auth.uid == senderId && // Sender creates this record in receiver's subcollection
-                       request.resource.data.from == senderId &&
-                       request.resource.data.status == 'pending' &&
-                       request.resource.data.name is string &&
-                       request.resource.data.timestamp == request.time;
-      // Allow receiver to update status (e.g., to 'accepted', 'rejected')
-      allow update: if request.auth.uid == receiverId &&
-                       (request.resource.data.status == 'accepted' || request.resource.data.status == 'rejected');
-      // Allow receiver to delete the received request entry after action
-      allow delete: if request.auth.uid == receiverId;
-    }
-
-    // Placeholder for actual chat messages (more complex rules would be needed)
-    match /chats/{chatId} {
-      allow read, write: if request.auth != null; // Very permissive for now
-    }
-    match /chats/{chatId}/messages/{messageId} {
-      allow read, write: if request.auth != null; // Very permissive for now
-    }
+    // Placeholder for future collections like actual chat messages
+    // match /chats/{chatId} {
+    //   allow read, write: if request.auth.uid in resource.data.participants;
+    //   match /messages/{messageId} {
+    //     allow read, write: if request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+    //   }
+    // }
   }
 }
