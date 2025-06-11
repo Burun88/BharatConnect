@@ -5,47 +5,32 @@ service cloud.firestore {
 
     // BharatConnect User Profiles
     match /bharatConnectUsers/{userId} {
-      // Allow creating a profile if user is authenticated and UID matches
       allow create: if request.auth.uid == userId;
-      // Allow reading if user is authenticated (broad for now for search debugging)
       allow read: if true; // WARNING: Publicly readable for now. Change to `if request.auth != null;` for production.
-      // Allow updating own profile if authenticated
       allow update: if request.auth.uid == userId;
-      // Allow deleting own profile (consider implications)
       allow delete: if request.auth.uid == userId;
 
       // Chat Requests - Sent
-      match /requestsSent/{requestId} { // requestId is usually the targetUserId
-        allow read: if request.auth.uid == userId; // User can read their own sent requests
-        allow write: if request.auth.uid == userId && request.resource.data.to == requestId; // User can write to their own sent requests
-        // Add basic validation for requestSent documents
+      match /requestsSent/{requestId} {
+        allow read: if true; // WARNING: Temporarily public for diagnostics
+        allow write: if request.auth.uid == userId && request.resource.data.to == requestId;
+        // TODO: Add validation for requestSent documents:
         // allow write: if request.auth.uid == userId && request.resource.data.to == requestId
         //           && request.resource.data.status is string
         //           && request.resource.data.timestamp is timestamp;
-        //           // Add other fields like name, photoURL if you want to validate them
       }
 
       // Chat Requests - Received
-      match /requestsReceived/{requestId} { // requestId is usually the senderId
-        allow read: if request.auth.uid == userId; // User can read their own received requests
-        // Sender writes to receiver's subcollection. Receiver updates it.
-        allow write: if (request.auth.uid == requestId && request.resource.data.from == request.auth.uid) // Sender creating the request
-                      || (request.auth.uid == userId); // Receiver updating the request (e.g., status)
-        // Add basic validation for requestsReceived documents
-        // allow write: if (request.auth.uid == requestId && request.resource.data.from == request.auth.uid) // Sender
-        //               || (request.auth.uid == userId) // Receiver
+      match /requestsReceived/{requestId} {
+        allow read: if true; // WARNING: Temporarily public for diagnostics
+        allow write: if (request.auth.uid == requestId && request.resource.data.from == request.auth.uid) // Sender creating
+                      || (request.auth.uid == userId); // Receiver updating
+        // TODO: Add validation for requestsReceived documents:
+        // allow write: if ((request.auth.uid == requestId && request.resource.data.from == request.auth.uid)
+        //               || (request.auth.uid == userId))
         //           && request.resource.data.status is string
         //           && request.resource.data.timestamp is timestamp;
-        //           // Add other fields like name, photoURL if you want to validate them
       }
     }
-
-    // Placeholder for future collections like actual chat messages
-    // match /chats/{chatId} {
-    //   allow read, write: if request.auth.uid in resource.data.participants;
-    //   match /messages/{messageId} {
-    //     allow read, write: if request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
-    //   }
-    // }
   }
 }
