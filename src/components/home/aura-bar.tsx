@@ -6,6 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import AuraItem from '@/components/aura-item';
 import type { User } from '@/types';
+import { cn } from '@/lib/utils';
 
 interface AuraBarProps {
   isLoading: boolean;
@@ -16,7 +17,10 @@ interface AuraBarProps {
 
 const AuraBar: FC<AuraBarProps> = ({ isLoading, auraBarItems, currentUserId, onCurrentUserAuraClick }) => {
   return (
-    <div className="px-2 py-3 bg-background aura-horizontal-scroll">
+    <div 
+      className={cn("px-2 py-3 bg-background aura-horizontal-scroll")}
+      data-no-page-swipe="true" // Attribute to identify this component
+    >
       <ScrollArea className="w-full">
         <div className="flex space-x-1 pb-2 whitespace-nowrap">
           {isLoading ? (
@@ -43,3 +47,4 @@ const AuraBar: FC<AuraBarProps> = ({ isLoading, auraBarItems, currentUserId, onC
 };
 
 export default AuraBar;
+

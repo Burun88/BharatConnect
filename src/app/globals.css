@@ -159,19 +159,18 @@
   background: hsl(var(--foreground) / 0.8);
 }
 
+/* Allow horizontal scrolling in AuraBar and hide the scrollbar */
 .aura-horizontal-scroll div[data-radix-scroll-area-viewport] {
-  overflow-x: hidden !important; /* Changed from auto to hidden */
+  overflow-x: auto; 
   overflow-y: hidden !important;
-  /* padding-bottom: 8px; /* Removed as horizontal scrollbar is hidden */
+  scrollbar-width: none; /* For Firefox */
+  -ms-overflow-style: none;  /* For Internet Explorer and Edge */
 }
 
 .aura-horizontal-scroll div[data-radix-scroll-area-viewport]::-webkit-scrollbar {
-  display: none;
+  display: none; /* For Chrome, Safari, and Opera */
 }
-.aura-horizontal-scroll div[data-radix-scroll-area-viewport] {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
+
 
 .hide-vertical-scrollbar > div[data-radix-scroll-area-viewport]::-webkit-scrollbar {
   display: none;

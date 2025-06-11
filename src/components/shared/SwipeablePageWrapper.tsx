@@ -22,21 +22,49 @@ export default function SwipeablePageWrapper({ children, className }: SwipeableP
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+  // const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null); // Not directly used for animation classes on current page anymore
 
   const handleTouchStart = (e: TouchEvent<HTMLDivElement>) => {
     if (isTransitioning) return;
+
+    // Check if the touch target or its parents have data-no-page-swipe
+    let targetElement = e.target as HTMLElement;
+    let disablePageSwipe = false;
+    if (wrapperRef.current) { // Ensure wrapperRef.current exists before checking parentage
+        while (targetElement && targetElement !== wrapperRef.current) {
+            if (targetElement.dataset.noPageSwipe === 'true') {
+            disablePageSwipe = true;
+            break;
+            }
+            if (!targetElement.parentElement) break; // Stop if no parent
+            targetElement = targetElement.parentElement as HTMLElement;
+        }
+        // Check the wrapperRef.current itself if the loop didn't find it (e.g., touch on direct child)
+        if (!disablePageSwipe && targetElement === wrapperRef.current && targetElement.dataset.noPageSwipe === 'true') {
+             disablePageSwipe = true;
+        }
+    }
+
+
+    if (disablePageSwipe) {
+      touchStartXRef.current = null; // Effectively disable page swipe for this touch
+      touchEndXRef.current = null;
+      return;
+    }
+
     touchStartXRef.current = e.targetTouches[0].clientX;
     touchEndXRef.current = null; // Reset endX
   };
 
   const handleTouchMove = (e: TouchEvent<HTMLDivElement>) => {
-    if (isTransitioning || touchStartXRef.current === null) return;
+    if (isTransitioning || touchStartXRef.current === null) return; // Also check if page swipe is disabled for this touch
     touchEndXRef.current = e.targetTouches[0].clientX;
   };
 
   const handleTouchEnd = () => {
     if (isTransitioning || touchStartXRef.current === null || touchEndXRef.current === null) {
+      // If touchStartXRef is null, it means page swipe was disabled for this touch sequence.
+      // Reset start and end for the next potential touch, but don't process a swipe.
       touchStartXRef.current = null;
       touchEndXRef.current = null;
       return;
@@ -44,7 +72,6 @@ export default function SwipeablePageWrapper({ children, className }: SwipeableP
 
     const deltaX = touchEndXRef.current - touchStartXRef.current;
     const currentIndex = navItems.findIndex(item => {
-        // Handle root path '/' specially for 'Chats'
         if (item.href === '/') return pathname === '/';
         return pathname.startsWith(item.href);
     });
@@ -52,66 +79,71 @@ export default function SwipeablePageWrapper({ children, className }: SwipeableP
     if (currentIndex === -1) {
         touchStartXRef.current = null;
         touchEndXRef.current = null;
-        return; // Current path not in navItems
+        return; 
     }
 
     let targetPath: string | null = null;
+    let detectedSwipeDirection: 'left' | 'right' | null = null;
 
-    if (deltaX > SWIPE_THRESHOLD) { // Swipe Right (previous page)
+    if (deltaX > SWIPE_THRESHOLD) { 
       if (currentIndex > 0) {
         targetPath = navItems[currentIndex - 1].href;
-        setSwipeDirection('right');
+        detectedSwipeDirection = 'right';
       }
-    } else if (deltaX < -SWIPE_THRESHOLD) { // Swipe Left (next page)
+    } else if (deltaX < -SWIPE_THRESHOLD) { 
       if (currentIndex < navItems.length - 1) {
         targetPath = navItems[currentIndex + 1].href;
-        setSwipeDirection('left');
+        detectedSwipeDirection = 'left';
       }
     }
     
     touchStartXRef.current = null;
     touchEndXRef.current = null;
 
-    if (targetPath) {
+    if (targetPath && detectedSwipeDirection) {
       setIsTransitioning(true);
-      // Apply animation class before navigation
       if (wrapperRef.current) {
-        const directionClass = deltaX > 0 ? 'swipe-out-right' : 'swipe-out-left';
+        const directionClass = detectedSwipeDirection === 'right' ? 'swipe-out-right' : 'swipe-out-left';
         wrapperRef.current.classList.add(directionClass);
       }
+      
+      // Store swipe direction for next page's animation
+      // This part is tricky and often better handled by state management or animation libraries
+      // For a simple approach, we could try using sessionStorage or history.state
+      // if (typeof window !== 'undefined') {
+      //   const nextState = { ...window.history.state, incomingSwipeDirection: detectedSwipeDirection === 'left' ? 'right' : 'left' };
+      //   window.history.pushState(nextState, '', targetPath); // This changes URL, which might not be what router.push does
+      // }
+
 
       setTimeout(() => {
         router.push(targetPath!);
-        // Note: We can't easily control the incoming page's animation from here
-        // without a more complex layout-level animation system.
-        // Resetting transition state is now handled by useEffect on pathname change.
-      }, SWIPE_ANIMATION_DURATION / 2); // Navigate midway through animation
+      }, SWIPE_ANIMATION_DURATION / 2); 
     }
   };
   
-  // Reset transition state when path changes (new page loads)
   useEffect(() => {
     setIsTransitioning(false);
-    setSwipeDirection(null);
+    // setSwipeDirection(null); // Keep for potential future use
     if (wrapperRef.current) {
         wrapperRef.current.classList.remove('swipe-out-left', 'swipe-out-right', 'swipe-in-left', 'swipe-in-right');
     }
+
+    // Attempt to apply incoming animation based on history state (experimental)
+    // This logic is more complex to get right reliably without a dedicated animation library
+    // if (typeof window !== 'undefined' && window.history.state && window.history.state.incomingSwipeDirection) {
+    //   const incomingDirection = window.history.state.incomingSwipeDirection;
+    //   if (wrapperRef.current) {
+    //     if (incomingDirection === 'left') wrapperRef.current.classList.add('swipe-in-left');
+    //     if (incomingDirection === 'right') wrapperRef.current.classList.add('swipe-in-right');
+    //   }
+    //   // Clear the state to prevent re-animation on refresh
+    //   const { incomingSwipeDirection, ...newState } = window.history.state;
+    //   window.history.replaceState(newState, '');
+    // }
+
+
   }, [pathname]);
-
-
-  // Determine initial animation for incoming page
-  // This is a simplified approach. More robust solutions use libraries like Framer Motion.
-  let initialAnimationClass = '';
-  if (typeof window !== 'undefined' && window.history.state && window.history.state.swipeDirection) {
-      if (window.history.state.swipeDirection === 'left') {
-          initialAnimationClass = 'swipe-in-left';
-      } else if (window.history.state.swipeDirection === 'right') {
-          initialAnimationClass = 'swipe-in-right';
-      }
-      // Clear it so it doesn't re-apply on refresh
-      const { swipeDirection, ...newStateWithoutSwipe } = window.history.state;
-      window.history.replaceState(newStateWithoutSwipe, '');
-  }
 
 
   return (
@@ -121,13 +153,13 @@ export default function SwipeablePageWrapper({ children, className }: SwipeableP
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       className={cn(
-        "swipeable-page-content", // Base class for transitions
-        initialAnimationClass,
+        "swipeable-page-content", 
         className
       )}
-      style={{ touchAction: 'pan-y' }} // Allow vertical scroll, prioritize horizontal for swipe
+      style={{ touchAction: 'pan-y' }} 
     >
       {children}
     </div>
   );
 }
+
