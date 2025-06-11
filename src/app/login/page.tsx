@@ -70,11 +70,11 @@ export default function LoginPageHub() {
     } catch (err: any) {
       console.error("[Login Hub] Firebase SignIn Error:", err);
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        setError('Incorrect email or password. New user? Please sign up.');
+        setError('Incorrect email or password. If you\'re new, please Sign Up!');
         toast({
             variant: 'destructive',
-            title: 'Login Failed',
-            description: 'Incorrect email or password. New user? Please sign up.',
+            title: "Hmm, Let's Check Those Details...",
+            description: "We couldn't find an account with that email and password. If you're new to BharatConnect, please 'Sign Up' below! Otherwise, try re-entering your details.",
         });
       } else if (err.code === 'auth/invalid-email') {
         setError('Invalid email format. Please check your email address.');
