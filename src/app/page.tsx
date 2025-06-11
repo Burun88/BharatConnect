@@ -12,6 +12,7 @@ import type { User, Chat, LocalUserProfile } from '@/types';
 import { mockCurrentUser, mockAuraBarItemsData, mockChats } from '@/lib/mock-data';
 import { Plus } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
 
 const HEADER_HEIGHT_PX = 64;
 const BOTTOM_NAV_HEIGHT_PX = 64;
@@ -150,26 +151,28 @@ export default function HomePage() {
   return (
     <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background">
       <HomeHeader isHeaderContentLoaded={isHeaderContentLoaded} />
-      <main
-        ref={scrollableContainerRef}
-        className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar min-h-0"
-        style={{
-          paddingTop: `${HEADER_HEIGHT_PX}px`,
-          paddingBottom: `${BOTTOM_NAV_HEIGHT_PX}px`
-        }}
-      >
-        <AuraBar
-          isLoading={isPageDataLoading}
-          auraBarItems={isPageDataLoading ? [] : auraBarItems}
-          currentUserId={userProfileLs?.uid || mockCurrentUser.id}
-          onCurrentUserAuraClick={handleCurrentUserAuraClick}
-        />
-        <ChatList
-          isLoading={isPageDataLoading}
-          filteredChats={filteredChats}
-          searchTerm={searchTerm}
-        />
-      </main>
+      <SwipeablePageWrapper className="flex-grow flex flex-col bg-background overflow-hidden min-h-0">
+        <main
+          ref={scrollableContainerRef}
+          className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar min-h-0 w-full"
+          style={{
+            paddingTop: `${HEADER_HEIGHT_PX}px`,
+            paddingBottom: `${BOTTOM_NAV_HEIGHT_PX}px`
+          }}
+        >
+          <AuraBar
+            isLoading={isPageDataLoading}
+            auraBarItems={isPageDataLoading ? [] : auraBarItems}
+            currentUserId={userProfileLs?.uid || mockCurrentUser.id}
+            onCurrentUserAuraClick={handleCurrentUserAuraClick}
+          />
+          <ChatList
+            isLoading={isPageDataLoading}
+            filteredChats={filteredChats}
+            searchTerm={searchTerm}
+          />
+        </main>
+      </SwipeablePageWrapper>
       <Button
         variant="default"
         size="icon"

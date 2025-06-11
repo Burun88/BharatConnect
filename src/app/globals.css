@@ -319,6 +319,42 @@
     background-clip: padding-box, border-box; /* Inner bg clips to padding, gradient clips to border */
     /* border-radius is inherited from the component's `rounded-md` class */
   }
-}
 
-    
+  /* Swipe Animations */
+  .swipeable-page-content {
+    transition: transform 0.3s ease-out;
+    width: 100%;
+    height: 100%;
+    will-change: transform;
+  }
+  .swipe-out-left {
+    animation: swipeOutLeft 0.3s ease-out forwards;
+  }
+  .swipe-out-right {
+    animation: swipeOutRight 0.3s ease-out forwards;
+  }
+  /* For incoming page, if we can control it */
+  .swipe-in-left {
+    animation: swipeInLeft 0.3s ease-out forwards;
+  }
+  .swipe-in-right {
+    animation: swipeInRight 0.3s ease-out forwards;
+  }
+
+  @keyframes swipeOutLeft {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(-100%); opacity: 0; }
+  }
+  @keyframes swipeOutRight {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+  }
+  @keyframes swipeInLeft {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes swipeInRight {
+    from { transform: translateX(-100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+}

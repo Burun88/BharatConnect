@@ -12,7 +12,8 @@ type NavItem = {
   icon: React.ElementType;
 };
 
-const navItems: NavItem[] = [
+// Export navItems to be used by swipe navigation logic
+export const navItems: NavItem[] = [
   { href: '/', label: 'Chats', icon: MessagesSquare },
   { href: '/status', label: 'Status', icon: Clapperboard }, // Changed icon here
   { href: '/calls', label: 'Calls', icon: PhoneCall },

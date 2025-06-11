@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Phone } from "lucide-react";
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { LocalUserProfile } from '@/types';
+import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
 
 export default function CallsPage() {
   const router = useRouter();
@@ -41,24 +42,24 @@ export default function CallsPage() {
       <header className="p-4 border-b sticky top-0 bg-background z-10">
         <h1 className="text-xl font-semibold text-gradient-primary-accent">Calls</h1>
       </header>
-      
-      <main className="flex-grow flex flex-col items-center justify-center p-4 text-center overflow-auto mb-16">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <div className="flex justify-center mb-4">
-              <Phone className="w-16 h-16 text-muted-foreground" />
-            </div>
-            <CardTitle className="text-2xl font-headline">Calling Feature Coming Soon</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              Soon you'll be able to make voice and video calls directly from BharatConnect.
-              We're working hard to bring this feature to you!
-            </p>
-          </CardContent>
-        </Card>
-      </main>
-      
+      <SwipeablePageWrapper className="flex-grow overflow-hidden">
+        <main className="h-full flex flex-col items-center justify-center p-4 text-center overflow-auto mb-16">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex justify-center mb-4">
+                <Phone className="w-16 h-16 text-muted-foreground" />
+              </div>
+              <CardTitle className="text-2xl font-headline">Calling Feature Coming Soon</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Soon you'll be able to make voice and video calls directly from BharatConnect.
+                We're working hard to bring this feature to you!
+              </p>
+            </CardContent>
+          </Card>
+        </main>
+      </SwipeablePageWrapper>
       <BottomNavigationBar />
     </div>
   );

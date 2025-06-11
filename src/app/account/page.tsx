@@ -18,6 +18,7 @@ import type { BharatConnectFirestoreUser } from '@/services/profileService';
 import { getUserFullProfile } from '@/services/profileService';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
 
 
 export default function AccountPage() {
@@ -108,27 +109,27 @@ export default function AccountPage() {
   return (
     <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background">
       <PageHeader title="Account Centre" showBackButton={false} />
-      
-      <main className="flex-grow overflow-y-auto pb-20 pt-4 px-4 space-y-6 hide-scrollbar">
-        {fetchError && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error Loading Profile</AlertTitle>
-            <AlertDescription>{fetchError}</AlertDescription>
-          </Alert>
-        )}
-        <ProfileCard 
-          initialProfileData={firestoreProfile} 
-          authUid={userProfileLs?.uid || null} 
-        />
-        <PrivacySettingsCard />
-        <ThemeSettingsCard />
-        <LanguageSettingsCard />
-        <SecuritySettingsCard />
-        <LinkedAppsCard />
-        <AdvancedOptionsCard />
-      </main>
-      
+      <SwipeablePageWrapper className="flex-grow overflow-hidden">
+        <main className="h-full overflow-y-auto pb-20 pt-4 px-4 space-y-6 hide-scrollbar">
+          {fetchError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error Loading Profile</AlertTitle>
+              <AlertDescription>{fetchError}</AlertDescription>
+            </Alert>
+          )}
+          <ProfileCard 
+            initialProfileData={firestoreProfile} 
+            authUid={userProfileLs?.uid || null} 
+          />
+          <PrivacySettingsCard />
+          <ThemeSettingsCard />
+          <LanguageSettingsCard />
+          <SecuritySettingsCard />
+          <LinkedAppsCard />
+          <AdvancedOptionsCard />
+        </main>
+      </SwipeablePageWrapper>
       <BottomNavigationBar />
     </div>
   );

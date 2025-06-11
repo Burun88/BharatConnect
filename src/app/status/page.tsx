@@ -13,6 +13,9 @@ import type { StatusUpdate, User as BharatConnectUser, LocalUserProfile } from '
 import { QrCode, Search, MoreVertical, PlusCircle, Pencil, Camera, UserCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
+import { cn } from '@/lib/utils';
+
 
 interface StatusUpdateWithUser extends StatusUpdate {
   user: BharatConnectUser;
@@ -23,12 +26,14 @@ export default function StatusPage() {
   const { toast } = useToast();
 
   const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  const [currentUserAuraIdLs] = useLocalStorage<string | null>('currentUserAuraId', null); // Fetch current user's aura
+  const [currentUserAuraIdLs] = useLocalStorage<string | null>('currentUserAuraId', null);
   const [isGuardLoading, setIsGuardLoading] = useState(true);
 
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [myUser, setMyUser] = useState<BharatConnectUser | null>(null);
   const [recentStatusUpdates, setRecentStatusUpdates] = useState<StatusUpdateWithUser[]>([]);
+  const [currentUserHasImageStatus, setCurrentUserHasImageStatus] = useState(false);
+
 
   useEffect(() => {
     if (!userProfileLs || !userProfileLs.uid || !userProfileLs.onboardingComplete) {
@@ -45,13 +50,18 @@ export default function StatusPage() {
     setIsPageLoading(true);
     setTimeout(() => {
       const currentAppUser = userProfileLs ? {
-        ...mockCurrentUser, // Base on the global mock
+        ...mockCurrentUser,
         id: userProfileLs.uid,
         name: userProfileLs.displayName || 'You',
-        avatarUrl: userProfileLs.photoURL || undefined, // Use LS photoURL or undefined
-        currentAuraId: currentUserAuraIdLs, // Use aura from its LS item
-      } : { ...mockCurrentUser, currentAuraId: currentUserAuraIdLs }; // Fallback if no userProfileLs, still use current aura
+        avatarUrl: userProfileLs.photoURL || undefined,
+        currentAuraId: currentUserAuraIdLs,
+      } : { ...mockCurrentUser, currentAuraId: currentUserAuraIdLs };
       setMyUser(currentAppUser);
+
+      const latestUserStatus = mockStatusUpdates
+        .filter(s => s.userId === currentAppUser.id)
+        .sort((a,b) => b.timestamp - a.timestamp)[0];
+      setCurrentUserHasImageStatus(!!(latestUserStatus && latestUserStatus.imageUrl));
 
       const updatesWithUsers = mockStatusUpdates
         .map(status => {
@@ -106,54 +116,58 @@ export default function StatusPage() {
   return (
     <div className="flex flex-col h-screen bg-background">
       <PageHeader title="Status" actions={headerActions} />
-
-      <main className="flex-grow overflow-y-auto mb-16 hide-scrollbar">
-        <div className="p-3">
-          <div
-            className="flex items-center space-x-3 py-3 cursor-pointer hover:bg-muted/30 rounded-lg"
-            onClick={handleAddStatus}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleAddStatus()}
-            aria-label="Add new status"
-          >
-            <div className="relative">
-              <Avatar className="w-14 h-14">
-                {myUser?.avatarUrl ? (
-                  <AvatarImage src={myUser.avatarUrl} alt={myUser.name || 'User'} data-ai-hint="person avatar" />
-                ) : (
-                  <AvatarFallback className="bg-muted text-muted-foreground">
-                    <UserCircle2 className="w-10 h-10" />
-                  </AvatarFallback>
-                )}
-              </Avatar>
-              <div className="absolute bottom-0 right-0 bg-gradient-to-br from-[hsl(var(--accent))] to-[hsl(var(--primary))] text-accent-foreground rounded-full w-6 h-6 flex items-center justify-center border-2 border-background transform translate-x-1/4 translate-y-1/4">
-                <PlusCircle className="w-3 h-3" />
+      <SwipeablePageWrapper className="flex-grow overflow-hidden">
+        <main className="h-full overflow-y-auto mb-16 hide-scrollbar">
+          <div className="p-3">
+            <div
+              className="flex items-center space-x-3 py-3 cursor-pointer hover:bg-muted/30 rounded-lg"
+              onClick={handleAddStatus}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleAddStatus()}
+              aria-label="Add new status"
+            >
+              <div className="relative">
+                <Avatar className="w-14 h-14">
+                  {myUser?.avatarUrl ? (
+                    <AvatarImage src={myUser.avatarUrl} alt={myUser.name || 'User'} data-ai-hint="person avatar" />
+                  ) : (
+                    <AvatarFallback className="bg-muted text-muted-foreground">
+                      <UserCircle2 className="w-10 h-10" />
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <div className={cn(
+                  "absolute bottom-0 right-0 rounded-full w-6 h-6 flex items-center justify-center border-2 border-background transform translate-x-1/4 translate-y-1/4",
+                  currentUserHasImageStatus ? "bg-gradient-to-br from-[hsl(var(--accent))] to-[hsl(var(--primary))] text-accent-foreground" : "bg-muted text-muted-foreground"
+                )}>
+                  <PlusCircle className={cn("w-3 h-3", currentUserHasImageStatus ? "text-accent-foreground" : "text-muted-foreground")} />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">My status</h3>
+                <p className="text-xs text-muted-foreground">Add to my status</p>
               </div>
             </div>
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">My status</h3>
-              <p className="text-xs text-muted-foreground">Add to my status</p>
-            </div>
+
+            {recentStatusUpdates.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-xs font-medium text-muted-foreground px-1 mb-1">Recent updates</h4>
+                <div className="space-y-px">
+                  {recentStatusUpdates.map((status) => (
+                    <StatusListItem
+                      key={status.id}
+                      statusUpdate={status}
+                      user={status.user}
+                      onClick={showComingSoonToast}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-
-          {recentStatusUpdates.length > 0 && (
-            <div className="mt-4">
-              <h4 className="text-xs font-medium text-muted-foreground px-1 mb-1">Recent updates</h4>
-              <div className="space-y-px">
-                {recentStatusUpdates.map((status) => (
-                  <StatusListItem
-                    key={status.id}
-                    statusUpdate={status}
-                    user={status.user}
-                    onClick={showComingSoonToast}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </main>
+        </main>
+      </SwipeablePageWrapper>
 
       <div className="fixed bottom-20 right-4 space-y-3 z-20">
          <Button
