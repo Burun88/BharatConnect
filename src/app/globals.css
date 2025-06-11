@@ -159,16 +159,11 @@
   background: hsl(var(--foreground) / 0.8);
 }
 
-/* Allow horizontal scrolling in AuraBar and hide the scrollbar */
+/* Styling for AuraBar horizontal scroll */
 .aura-horizontal-scroll div[data-radix-scroll-area-viewport] {
-  overflow-x: auto; 
-  overflow-y: hidden !important;
-  scrollbar-width: none; /* For Firefox */
-  -ms-overflow-style: none;  /* For Internet Explorer and Edge */
-}
-
-.aura-horizontal-scroll div[data-radix-scroll-area-viewport]::-webkit-scrollbar {
-  display: none; /* For Chrome, Safari, and Opera */
+  overflow-x: auto !important; /* Ensure horizontal scroll is possible */
+  /* Let Radix/browser defaults handle overflow-y for the viewport */
+  /* Scrollbar hiding will be added back if this step works */
 }
 
 
@@ -358,5 +353,7 @@
   }
 }
 
+
+    
 
     
