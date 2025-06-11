@@ -160,9 +160,9 @@
 }
 
 .aura-horizontal-scroll div[data-radix-scroll-area-viewport] {
-  overflow-x: auto !important;
+  overflow-x: hidden !important; /* Changed from auto to hidden */
   overflow-y: hidden !important;
-  padding-bottom: 8px;
+  /* padding-bottom: 8px; /* Removed as horizontal scrollbar is hidden */
 }
 
 .aura-horizontal-scroll div[data-radix-scroll-area-viewport]::-webkit-scrollbar {
@@ -358,3 +358,6 @@
     to { transform: translateX(0); opacity: 1; }
   }
 }
+
+
+    
