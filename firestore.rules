@@ -4,22 +4,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Rules for the 'bharatConnectUsers' collection
     match /bharatConnectUsers/{userId} {
+      // Allow reading user profiles if authenticated (for search and profile viewing)
+      // Individual profile get was previously: allow get: if request.auth != null && request.auth.uid == userId;
+      allow read: if true; // Temporarily public for search debugging, revert to authenticated read later.
 
-      // !!! WARNING: Temporarily allowing public read access for search functionality !!!
-      // This means anyone can read data from this collection.
-      // For production, secure this by using Firebase Admin SDK in server actions
-      // or a proper server-side authentication/authorization mechanism.
-      allow read: if true; // CHANGED FROM: if request.auth != null;
-
-      // Allow a user to create their own profile document (with validation)
+      // Allow a user to create their own profile document.
       allow create: if request.auth != null && request.auth.uid == userId
                     // --- Data Validation for Create ---
                     && request.resource.data.id == userId
-                    && request.resource.data.email.lower() == request.auth.token.email.lower() // Ensure comparing lowercase
+                    && request.resource.data.email.lower() == request.auth.token.email.lower() // Compare lowercase
                     && request.resource.data.displayName is string && request.resource.data.displayName.size() > 0 && request.resource.data.displayName.size() < 100
-                    && request.resource.data.username is string && request.resource.data.username.size() >= 3 && request.resource.data.username.size() <= 20 && request.resource.data.username.matches("^[a-z0-9_]+$")
+                    && request.resource.data.username is string && request.resource.data.username.size() >= 3 && request.resource.data.username.size() <= 20 && request.resource.data.username.matches('^[a-z0-9_]+$')
                     && (request.resource.data.originalDisplayName == null || (request.resource.data.originalDisplayName is string && request.resource.data.originalDisplayName.size() > 0 && request.resource.data.originalDisplayName.size() < 100))
                     && request.resource.data.onboardingComplete == true
                     && (request.resource.data.photoURL == null || request.resource.data.photoURL is string)
@@ -28,35 +24,55 @@ service cloud.firestore {
                     && request.resource.data.createdAt == request.time
                     && request.resource.data.updatedAt == request.time;
 
-      // Allow a user to update their own profile document (with validation)
+      // Allow a user to update their own profile document.
       allow update: if request.auth != null && request.auth.uid == userId
                     // --- Data Validation for Update ---
-                    && request.resource.data.id == resource.data.id // 'id' field cannot change.
-                    && request.resource.data.email.lower() == resource.data.email.lower() // 'email' field (already lowercase) cannot change.
-                    && request.resource.data.createdAt == resource.data.createdAt // 'createdAt' timestamp cannot change.
+                    && request.resource.data.id == resource.data.id
+                    && request.resource.data.email == resource.data.email // email stored in Firestore is already lowercase
+                    && request.resource.data.createdAt == resource.data.createdAt
                     && request.resource.data.displayName is string && request.resource.data.displayName.size() > 0 && request.resource.data.displayName.size() < 100
-                    && request.resource.data.username is string && request.resource.data.username.size() >= 3 && request.resource.data.username.size() <= 20 && request.resource.data.username.matches("^[a-z0-9_]+$")
+                    && request.resource.data.username is string && request.resource.data.username.size() >= 3 && request.resource.data.username.size() <= 20 && request.resource.data.username.matches('^[a-z0-9_]+$')
                     && (request.resource.data.originalDisplayName == null || (request.resource.data.originalDisplayName is string && request.resource.data.originalDisplayName.size() > 0 && request.resource.data.originalDisplayName.size() < 100))
                     && request.resource.data.onboardingComplete == true
                     && (request.resource.data.photoURL == null || request.resource.data.photoURL is string)
                     && (request.resource.data.phoneNumber == null || request.resource.data.phoneNumber is string)
                     && (request.resource.data.bio == null || request.resource.data.bio is string)
                     && request.resource.data.updatedAt == request.time;
-      
-      // Disallow client-side deletion of user profiles.
-      allow delete: if false;
 
-      // Note: 'list' is covered by 'read'. Explicitly disallowing 'list' while allowing 'read'
-      // can be done, but 'allow read: if true;' allows get, list, and queries.
-      // If we wanted to allow get but not list, we would need separate rules:
-      // allow get: if true;
-      // allow list: if false; // Or some other condition
-      // For now, 'allow read: if true;' makes it simple for the search query.
+      allow delete: if false; // Disallow client-side deletion
+
+      // Subcollection for requests sent by this user {userId}
+      match /requestsSent/{receiverDocId} {
+        allow create: if request.auth != null && request.auth.uid == userId // Only the sender {userId} can create their own sent request
+                      && request.resource.data.to == receiverDocId           // 'to' field must match the document ID
+                      && request.resource.data.status == 'pending'
+                      && request.resource.data.name is string && request.resource.data.name.size() > 0
+                      && (request.resource.data.photoURL == null || request.resource.data.photoURL is string)
+                      && request.resource.data.timestamp == request.time;
+
+        allow read: if request.auth != null && request.auth.uid == userId; // Sender can read their sent requests
+        allow update: if request.auth != null && request.auth.uid == userId; // Sender can update (e.g., cancel) their sent requests
+        allow delete: if request.auth != null && request.auth.uid == userId; // Sender can delete their sent requests
+        allow list: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Subcollection for requests received by this user {userId}
+      match /requestsReceived/{senderDocId} {
+        allow create: if request.auth != null && request.auth.uid == senderDocId // Only the actual sender {senderDocId} can write to the receiver's {userId} "received" list
+                      && request.resource.data.from == senderDocId              // 'from' field must match the document ID (and authenticated sender)
+                      && request.resource.data.status == 'pending'
+                      && request.resource.data.name is string && request.resource.data.name.size() > 0
+                      && (request.resource.data.photoURL == null || request.resource.data.photoURL is string)
+                      && request.resource.data.timestamp == request.time;
+
+        allow read: if request.auth != null && request.auth.uid == userId;   // Receiver {userId} can read their received requests
+        allow update: if request.auth != null && request.auth.uid == userId; // Receiver {userId} can update (accept/reject) received requests
+        allow delete: if request.auth != null && request.auth.uid == userId; // Receiver {userId} can delete received requests
+        allow list: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     // Default rule: Deny all reads and writes to any other collections/documents
-    // not explicitly matched above. This is a crucial security measure.
-    // However, this rule will be overridden by the more specific rule for bharatConnectUsers.
     match /{document=**} {
       allow read, write: if false;
     }

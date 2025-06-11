@@ -16,8 +16,10 @@ import { mockCurrentUser, mockChats as initialMockChats } from '@/lib/mock-data'
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
-import { searchUsersAction, type SearchUserActionResult, type SearchUserActionDiagnostics } from '@/actions/searchUsersAction'; 
+import { searchUsersAction, type SearchUserActionResult, type SearchUserActionDiagnostics } from '@/actions/searchUsersAction';
 import type { BharatConnectFirestoreUser } from '@/services/profileService';
+import { firestore } from '@/lib/firebase'; // Import firestore
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'; // Import firestore functions
 
 type UserRequestStatus = 'idle' | 'request_sent' | 'chat_exists' | 'is_self';
 
@@ -36,8 +38,12 @@ export default function SearchPage() {
   const [mockChats, setMockChats] = useState<Chat[]>(initialMockChats);
   const [isSearching, setIsSearching] = useState(false);
   const [searchDiagnostics, setSearchDiagnostics] = useState<SearchUserActionDiagnostics | null>(null);
+  const [sendingRequestId, setSendingRequestId] = useState<string | null>(null);
 
   const currentUserId = userProfileLs?.uid || mockCurrentUser.id;
+  const currentUserDisplayName = userProfileLs?.displayName || 'User';
+  const currentUserPhotoURL = userProfileLs?.photoURL || null;
+
 
   useEffect(() => {
     if (!userProfileLs || !userProfileLs.uid || !userProfileLs.onboardingComplete) {
@@ -66,57 +72,51 @@ export default function SearchPage() {
 
       setIsSearching(true);
       try {
-        console.log(`[SearchPage CLIENT] Calling searchUsersAction with term: "${searchTerm.trim()}" and excluding UID: "${currentUserId}"`);
         const result: SearchUserActionResult = await searchUsersAction(searchTerm.trim(), currentUserId);
         setSearchDiagnostics(result.diagnostics);
-        
-        console.log("[SearchPage CLIENT] Diagnostics from searchUsersAction:");
-        if (result.diagnostics) {
-            result.diagnostics.log.forEach(logMsg => console.log(logMsg));
-            if (result.diagnostics.directFetchResult) console.log(`Direct Fetch: ${result.diagnostics.directFetchResult}`);
-            if (result.diagnostics.testQueryResult) console.log(`Test Query: ${result.diagnostics.testQueryResult}`);
-            if (result.diagnostics.nameQueryCount !== undefined) console.log(`Name Query Count: ${result.diagnostics.nameQueryCount}`);
-            if (result.diagnostics.emailQueryCount !== undefined) console.log(`Email Query Count: ${result.diagnostics.emailQueryCount}`);
-            if (result.diagnostics.usernameQueryCount !== undefined) console.log(`Username Query Count: ${result.diagnostics.usernameQueryCount}`);
+
+        if (result.diagnostics?.log) {
+          console.log("[SearchPage CLIENT] Diagnostics from searchUsersAction:");
+          result.diagnostics.log.forEach(logMsg => console.log(logMsg));
         }
+        if (result.diagnostics?.directFetchResult) console.log("Direct Fetch:", result.diagnostics.directFetchResult);
+        if (result.diagnostics?.testQueryResult) console.log("Test Query:", result.diagnostics.testQueryResult);
 
 
         const firebaseUsers: BharatConnectFirestoreUser[] = result.users;
         console.log(`[SearchPage CLIENT] searchUsersAction returned ${firebaseUsers.length} users.`);
-        firebaseUsers.forEach(u => console.log(`  [SearchPage CLIENT] User from action: ID=${u.id}, DisplayName='${u.displayName}', Username='${u.username}', Email='${u.email}'`));
 
 
         const uiResults: SearchResultUser[] = firebaseUsers
           .map(fbUser => {
-            const existingChat = mockChats.find(chat => 
+            const existingChat = mockChats.find(chat =>
               chat.contactUserId === fbUser.id || (chat.participants.some(p => p.id === fbUser.id) && chat.participants.some(p => p.id === currentUserId))
             );
-            
+
             let requestUiStatus: UserRequestStatus = 'idle';
-            
+
             if (existingChat) {
               if (existingChat.requestStatus === 'pending' && existingChat.requesterId === currentUserId) {
                 requestUiStatus = 'request_sent';
               } else if (existingChat.requestStatus === 'awaiting_action' && existingChat.requesterId === fbUser.id) {
-                 requestUiStatus = 'request_sent'; 
+                 requestUiStatus = 'request_sent';
               } else if (existingChat.requestStatus === 'accepted' || existingChat.requestStatus === 'none' || !existingChat.requestStatus) {
                 requestUiStatus = 'chat_exists';
               }
             }
-            return { 
+            return {
                 id: fbUser.id,
-                name: fbUser.originalDisplayName || fbUser.displayName, // Use originalDisplayName for display
-                username: fbUser.username, 
-                email: fbUser.email, 
+                name: fbUser.originalDisplayName || fbUser.displayName,
+                username: fbUser.username,
+                email: fbUser.email,
                 avatarUrl: fbUser.photoURL || undefined,
                 currentAuraId: fbUser.currentAuraId || null,
                 status: fbUser.status || 'Offline',
                 hasViewedStatus: false,
-                requestUiStatus 
+                requestUiStatus
             };
           });
         console.log(`[SearchPage CLIENT] Mapped results for UI: ${uiResults.length} users.`);
-        uiResults.forEach(u => console.log(`  [SearchPage CLIENT] UI User: ID=${u.id}, Name='${u.name}', Username='${u.username}', Email='${u.email}'`));
         setSearchResults(uiResults);
       } catch (error) {
         console.error("[SearchPage CLIENT] Failed to search users:", error);
@@ -135,44 +135,68 @@ export default function SearchPage() {
 
   }, [searchTerm, isGuardLoading, currentUserId, mockChats, toast]);
 
-  const handleSendRequest = (targetUser: SearchResultUser) => {
-    if (!userProfileLs) return;
+  const handleSendRequest = async (targetUser: SearchResultUser) => {
+    if (!userProfileLs || !currentUserId || !currentUserDisplayName) {
+        toast({ variant: 'destructive', title: "Error", description: "Current user data not found." });
+        return;
+    }
+    if (targetUser.id === currentUserId) {
+        toast({ variant: 'destructive', title: "Error", description: "You cannot send a request to yourself." });
+        return;
+    }
 
-    setSearchResults(prevResults => 
-      prevResults.map(u => 
-        u.id === targetUser.id ? { ...u, requestUiStatus: 'request_sent' } : u
-      )
-    );
+    setSendingRequestId(targetUser.id); // For disabling the specific button
 
-    toast({
-      title: 'Request Sent (Simulated)',
-      description: `Your chat request has been sent to ${targetUser.name}.`,
-    });
+    try {
+      const senderRef = doc(firestore, `bharatConnectUsers/${currentUserId}/requestsSent`, targetUser.id);
+      const receiverRef = doc(firestore, `bharatConnectUsers/${targetUser.id}/requestsReceived`, currentUserId);
 
-    const newChatId = `chat_req_${currentUserId}_${targetUser.id}`;
-    const existingChatIndex = mockChats.findIndex(c => c.id === newChatId || (c.contactUserId === targetUser.id && c.participants.some(p => p.id === currentUserId)));
-
-    if (existingChatIndex === -1) {
-      const newRequestChat: Chat = {
-        id: newChatId,
-        type: 'individual',
-        name: targetUser.name, 
-        contactUserId: targetUser.id,
-        participants: [
-          { id: currentUserId, name: userProfileLs.displayName || 'You', username: userProfileLs.username || 'you', avatarUrl: userProfileLs.photoURL || undefined },
-          targetUser 
-        ],
-        lastMessage: null,
-        unreadCount: 0,
-        avatarUrl: targetUser.avatarUrl,
-        requestStatus: 'pending',
-        requesterId: currentUserId,
-        firstMessageTextPreview: `Hi ${targetUser.name}, I'd like to connect!`,
+      const sentRequestData = {
+        to: targetUser.id,
+        name: targetUser.name,
+        photoURL: targetUser.avatarUrl || null,
+        status: 'pending',
+        timestamp: serverTimestamp()
       };
-      setMockChats(prevChats => [newRequestChat, ...prevChats]);
+
+      const receivedRequestData = {
+        from: currentUserId,
+        name: currentUserDisplayName,
+        photoURL: currentUserPhotoURL || null,
+        status: 'pending',
+        timestamp: serverTimestamp()
+      };
+
+      await setDoc(senderRef, sentRequestData);
+      await setDoc(receiverRef, receivedRequestData);
+
+      setSearchResults(prevResults =>
+        prevResults.map(u =>
+          u.id === targetUser.id ? { ...u, requestUiStatus: 'request_sent' } : u
+        )
+      );
+
+      toast({
+        title: 'Request Sent!',
+        description: `Your chat request has been sent to ${targetUser.name}.`,
+      });
+
+      // Optionally, update mockChats or a local state representing requests
+      // For simplicity, we're relying on UI update and Firestore for persistence
+      // This part would be more complex if we were fully managing chat state client-side from requests
+
+    } catch (error) {
+      console.error("Error sending chat request:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Request Failed',
+        description: 'Could not send chat request. Please try again.',
+      });
+    } finally {
+      setSendingRequestId(null);
     }
   };
-  
+
   const handleOpenChat = (chatId: string) => {
     router.push(`/chat/${chatId}`);
   };
@@ -181,17 +205,19 @@ export default function SearchPage() {
     if (user.requestUiStatus === 'is_self') {
         return { text: 'This is you', onClick: () => {}, disabled: true, variant: "secondary" };
     }
+    const isButtonSending = sendingRequestId === user.id;
+
     switch (user.requestUiStatus) {
       case 'request_sent':
         return { text: 'Request Sent', onClick: () => {}, disabled: true, variant: "secondary" };
       case 'chat_exists':
-         const existingChat = mockChats.find(chat => 
+         const existingChat = mockChats.find(chat =>
           chat.contactUserId === user.id || (chat.participants.some(p => p.id === user.id) && chat.participants.some(p => p.id === currentUserId))
         );
-        return { text: 'Chat Open', onClick: () => existingChat && handleOpenChat(existingChat.id), disabled: false, variant: "outline" };
+        return { text: 'Chat Open', onClick: () => existingChat && handleOpenChat(existingChat.id), disabled: isButtonSending, variant: "outline" };
       case 'idle':
       default:
-        return { text: 'Send Request', onClick: () => handleSendRequest(user), disabled: false, variant: "default" };
+        return { text: isButtonSending ? 'Sending...' : 'Send Request', onClick: () => handleSendRequest(user), disabled: isButtonSending, variant: "default" };
     }
   };
 
@@ -238,7 +264,7 @@ export default function SearchPage() {
               </Button>
             )}
           </div>
-          
+
           {isSearching && (
              <div className="flex flex-col items-center justify-center text-center text-muted-foreground py-10">
                 <svg className="animate-spin h-8 w-8 text-primary mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -278,7 +304,7 @@ export default function SearchPage() {
                           disabled={buttonProps.disabled}
                           className={cn(
                             "ml-3 px-3 py-1.5 h-auto text-xs shrink-0",
-                            buttonProps.variant === 'default' && "bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90",
+                            buttonProps.variant === 'default' && !buttonProps.disabled && "bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90",
                             buttonProps.variant === 'secondary' && "bg-muted text-muted-foreground hover:bg-muted/80",
                             buttonProps.variant === 'outline' && "border-primary text-primary hover:bg-primary/10"
                           )}
@@ -308,4 +334,3 @@ export default function SearchPage() {
     </div>
   );
 }
-
