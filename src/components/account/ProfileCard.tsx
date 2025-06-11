@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { UserCircle2, Edit3, Save, X, Camera, Mail, Trash2 } from 'lucide-react';
+import { UserCircle2, Edit3, Save, X, Camera, Mail, Trash2, AtSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { LocalUserProfile } from '@/types';
@@ -29,6 +29,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
   const [isEditing, setIsEditing] = useState(false);
   
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState(''); 
   const [bio, setBio] = useState('');
   const [profilePicPreview, setProfilePicPreview] = useState<string | null>(null); 
@@ -37,31 +38,37 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
 
   // Temporary states for editing
   const [tempName, setTempName] = useState('');
+  const [tempUsername, setTempUsername] = useState('');
   const [tempBio, setTempBio] = useState('');
   const [tempProfilePicPreview, setTempProfilePicPreview] = useState<string | null>(null);
   const [originalPhotoURLForDeletion, setOriginalPhotoURLForDeletion] = useState<string | null>(null);
+  const [usernameError, setUsernameError] = useState('');
 
 
   useEffect(() => {
     if (initialProfileData) {
-      setName(initialProfileData.displayName || '');
+      setName(initialProfileData.originalDisplayName || initialProfileData.displayName || '');
+      setUsername(initialProfileData.username || '');
       setEmail(initialProfileData.email || '');
       setBio(initialProfileData.bio || '');
       setProfilePicPreview(initialProfileData.photoURL || null); 
 
       if (!isEditing) {
-        setTempName(initialProfileData.displayName || '');
+        setTempName(initialProfileData.originalDisplayName || initialProfileData.displayName || '');
+        setTempUsername(initialProfileData.username || '');
         setTempBio(initialProfileData.bio || '');
         setTempProfilePicPreview(initialProfileData.photoURL || null);
         setOriginalPhotoURLForDeletion(initialProfileData.photoURL || null);
       }
     } else {
       setName('User');
+      setUsername('username');
       setEmail('Email not available');
       setBio('Bio not available');
       setProfilePicPreview(null);
       if (!isEditing) {
         setTempName('User');
+        setTempUsername('username');
         setTempBio('Bio not available');
         setTempProfilePicPreview(null);
         setOriginalPhotoURLForDeletion(null);
@@ -72,12 +79,15 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
   const handleEditToggle = () => {
     if (isEditing) { 
       setTempName(name);
+      setTempUsername(username);
       setTempBio(bio);
       setTempProfilePicPreview(profilePicPreview); 
       setOriginalPhotoURLForDeletion(profilePicPreview); 
       setProfilePicFile(null); 
+      setUsernameError('');
     } else { 
       setTempName(name);
+      setTempUsername(username);
       setTempBio(bio);
       setTempProfilePicPreview(profilePicPreview);
       setOriginalPhotoURLForDeletion(profilePicPreview); 
@@ -91,6 +101,21 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
     toast({ title: "Profile picture marked for removal", description: "Save to apply changes." });
   };
 
+  const validateUsername = (val: string): boolean => {
+    setUsernameError('');
+    const usernameRegex = /^[a-z0-9_]{3,20}$/;
+    if (!val.trim()) {
+      setUsernameError('Username is required.');
+      return false;
+    }
+    if (!usernameRegex.test(val)) {
+      setUsernameError('Username must be 3-20 characters, lowercase letters, numbers, or underscores only.');
+      return false;
+    }
+    // TODO: Implement server-side uniqueness check here in a real app (if username changed)
+    return true;
+  };
+
   const handleSave = async () => {
     if (!authUid) {
       toast({ variant: 'destructive', title: "Error", description: "User ID not found. Cannot save." });
@@ -100,6 +125,10 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
         toast({ variant: 'destructive', title: "Validation Error", description: "Name cannot be empty."});
         return;
     }
+    if (!validateUsername(tempUsername)) {
+        return;
+    }
+
     setIsLoading(true);
     
     let finalPhotoURL = tempProfilePicPreview; 
@@ -124,6 +153,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
     
     const profileDataToSave = {
       email: email, 
+      username: tempUsername.trim(),
       displayName: tempName.trim(),
       photoURL: finalPhotoURL, 
       phoneNumber: initialProfileData?.phoneNumber || null, 
@@ -135,6 +165,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
       await createOrUpdateUserFullProfile(authUid, profileDataToSave);
 
       setName(tempName.trim());
+      setUsername(tempUsername.trim());
       setBio(tempBio.trim() || '');
       setProfilePicPreview(finalPhotoURL); 
       setProfilePicFile(null); 
@@ -144,6 +175,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
         return {
           ...prev,
           displayName: tempName.trim(),
+          username: tempUsername.trim(),
           photoURL: finalPhotoURL,
           bio: tempBio.trim() || null,
           onboardingComplete: true,
@@ -151,6 +183,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
       });
 
       setIsEditing(false);
+      setUsernameError('');
       toast({ title: "Profile Updated", description: "Your changes have been saved to the server." });
     } catch (error: any) {
       console.error("[ProfileCard] Error saving profile to Firestore:", error);
@@ -162,10 +195,12 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
 
   const handleCancel = () => {
     setTempName(name);
+    setTempUsername(username);
     setTempBio(bio);
     setTempProfilePicPreview(profilePicPreview); 
     setProfilePicFile(null); 
     setOriginalPhotoURLForDeletion(profilePicPreview); 
+    setUsernameError('');
     setIsEditing(false);
   };
 
@@ -227,7 +262,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <Label htmlFor="name-account" className="text-muted-foreground">Name</Label>
+          <Label htmlFor="name-account" className="text-muted-foreground">Display Name</Label>
           {isEditing ? (
             <Input
               id="name-account"
@@ -240,6 +275,34 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
             <p className="mt-1 text-foreground min-h-[2.5rem] flex items-center px-3 py-2 rounded-md border border-transparent"> 
               {name || <span className="text-muted-foreground italic">Not set</span>}
             </p>
+          )}
+        </div>
+        <div>
+          <Label htmlFor="username-account" className="text-muted-foreground">Username</Label>
+          {isEditing ? (
+            <>
+            <div className="relative mt-1">
+              <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                id="username-account"
+                value={tempUsername}
+                onChange={(e) => {
+                  setTempUsername(e.target.value.toLowerCase());
+                  validateUsername(e.target.value.toLowerCase());
+                }}
+                onBlur={() => validateUsername(tempUsername)}
+                className="bg-input pl-10"
+                disabled={isLoading}
+                aria-describedby="username-edit-error-msg"
+              />
+            </div>
+            {usernameError && <p id="username-edit-error-msg" className="text-xs text-destructive pt-1">{usernameError}</p>}
+            </>
+          ) : (
+            <div className="flex items-center space-x-2 mt-1 p-2.5 rounded-md border border-transparent text-foreground">
+              <AtSign className="w-4 h-4 text-muted-foreground" />
+              <span className="flex-1 text-sm">{username || <span className="text-muted-foreground italic">Not set</span>}</span>
+            </div>
           )}
         </div>
         <div>
@@ -287,4 +350,3 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
     </Card>
   );
 }
-    

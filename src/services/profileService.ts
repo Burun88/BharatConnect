@@ -11,6 +11,7 @@ import { updateProfile } from 'firebase/auth'; // Import updateProfile
 export interface BharatConnectFirestoreUser {
   id: string; // Document ID (user's auth UID) is also stored as a field named 'id'
   email: string; // Stored in lowercase for searching
+  username: string; // Unique username, stored in lowercase for searching
   displayName: string; // Stored in lowercase for searching
   originalDisplayName?: string | null; // Optional: Store original casing for display
   photoURL?: string | null;
@@ -28,6 +29,7 @@ export async function createOrUpdateUserFullProfile(
   uid: string, // This is the auth UID, and will be the document ID
   profileData: {
     email: string; // Original casing email
+    username: string; // Original casing username
     displayName: string; // Original casing displayName
     onboardingComplete: boolean;
     photoURL?: string | null;
@@ -41,6 +43,10 @@ export async function createOrUpdateUserFullProfile(
     console.error("[SVC_PROF] UID is missing in createOrUpdateUserFullProfile.");
     throw new Error("UID is required to create or update user profile.");
   }
+   if (!profileData.username) {
+    console.error("[SVC_PROF] Username is missing in createOrUpdateUserFullProfile.");
+    throw new Error("Username is required to create or update user profile.");
+  }
   if (!firestore) {
     console.error("[SVC_PROF] Firestore instance is NOT AVAILABLE in createOrUpdateUserFullProfile!");
     throw new Error("Firestore is not initialized. Profile cannot be saved.");
@@ -52,6 +58,7 @@ export async function createOrUpdateUserFullProfile(
   const firestoreData: Omit<BharatConnectFirestoreUser, 'createdAt' | 'updatedAt' | 'id'> & { id: string } = {
     id: uid,
     email: profileData.email.toLowerCase(), // Store email in lowercase
+    username: profileData.username.toLowerCase(), // Store username in lowercase
     displayName: profileData.displayName.toLowerCase(), // Store displayName in lowercase
     originalDisplayName: profileData.displayName, // Keep original for display
     photoURL: profileData.photoURL !== undefined ? profileData.photoURL : null,
@@ -81,13 +88,13 @@ export async function createOrUpdateUserFullProfile(
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      console.log(`[SVC_PROF] User profile for ${uid} CREATED in Firestore collection 'bharatConnectUsers'. Email: ${firestoreData.email}, DisplayName: ${firestoreData.displayName}`);
+      console.log(`[SVC_PROF] User profile for ${uid} CREATED in Firestore. Email: ${firestoreData.email}, Username: ${firestoreData.username}, DisplayName: ${firestoreData.displayName}`);
     } else {
       await updateDoc(userDocRef, {
         ...dataForFirestoreOperation,
         updatedAt: serverTimestamp(),
       });
-      console.log(`[SVC_PROF] User profile for ${uid} UPDATED in Firestore collection 'bharatConnectUsers'. Email: ${firestoreData.email}, DisplayName: ${firestoreData.displayName}`);
+      console.log(`[SVC_PROF] User profile for ${uid} UPDATED in Firestore. Email: ${firestoreData.email}, Username: ${firestoreData.username}, DisplayName: ${firestoreData.displayName}`);
     }
 
     // 2. Update Firebase Auth user profile

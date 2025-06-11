@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserCircle2, Camera, Mail } from 'lucide-react';
+import { UserCircle2, Camera, Mail, AtSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import Logo from '@/components/shared/Logo';
@@ -26,6 +26,7 @@ function ProfileSetupContent() {
   const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
 
   const [displayName, setDisplayName] = useState('');
+  const [username, setUsername] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [bio, setBio] = useState('');
   const [profilePicPreview, setProfilePicPreview] = useState<string | null>(null);
@@ -35,6 +36,7 @@ function ProfileSetupContent() {
   const [authEmail, setAuthEmail] = useState<string>('');
 
   const [error, setError] = useState('');
+  const [usernameError, setUsernameError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(true);
 
@@ -64,6 +66,9 @@ function ProfileSetupContent() {
           setDisplayName('');
         }
       }
+      if (username === '' && currentLocalProfile.username) {
+        setUsername(currentLocalProfile.username);
+      }
 
       if (profilePicPreview === null && currentLocalProfile.photoURL) {
         setProfilePicPreview(currentLocalProfile.photoURL);
@@ -80,7 +85,7 @@ function ProfileSetupContent() {
       console.warn("[ProfileSetupPage] No UID in local profile or LS is null. Redirecting to login.");
       router.replace('/login');
     }
-  }, [userProfileLs, router, displayName, profilePicPreview, phoneNumber, bio]);
+  }, [userProfileLs, router, displayName, username, profilePicPreview, phoneNumber, bio]);
 
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -96,9 +101,25 @@ function ProfileSetupContent() {
     }
   };
 
+  const validateUsername = (val: string): boolean => {
+    setUsernameError('');
+    const usernameRegex = /^[a-z0-9_]{3,20}$/;
+    if (!val.trim()) {
+      setUsernameError('Username is required.');
+      return false;
+    }
+    if (!usernameRegex.test(val)) {
+      setUsernameError('Username must be 3-20 characters, lowercase letters, numbers, or underscores only.');
+      return false;
+    }
+    // TODO: Implement server-side uniqueness check here in a real app
+    return true;
+  };
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
+    setUsernameError('');
     setIsLoading(true);
 
     if (!authUid || !authEmail) {
@@ -113,6 +134,10 @@ function ProfileSetupContent() {
       setError('Please enter your display name.');
       setIsLoading(false);
       return;
+    }
+    if (!validateUsername(username)) {
+        setIsLoading(false);
+        return;
     }
     if (phoneNumber && !/^\+?\d{10,15}$/.test(phoneNumber.replace(/\s+/g, ''))) {
       setError('Please enter a valid phone number (e.g., 10 digits or international format like +919876543210).');
@@ -148,6 +173,7 @@ function ProfileSetupContent() {
     
     const profileDataToSave = {
       email: authEmail,
+      username: username.trim(),
       displayName: displayName.trim(),
       photoURL: finalPhotoURL,
       phoneNumber: phoneNumber.trim() || null,
@@ -164,6 +190,7 @@ function ProfileSetupContent() {
       const updatedProfileForLs: LocalUserProfile = {
         uid: authUid,
         email: authEmail,
+        username: username.trim(),
         displayName: displayName.trim(),
         photoURL: finalPhotoURL,
         phoneNumber: phoneNumber.trim() || null,
@@ -270,6 +297,30 @@ function ProfileSetupContent() {
             </div>
 
             <div className="space-y-1">
+              <Label htmlFor="username">Username</Label>
+              <div className="relative">
+                <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="your_unique_username"
+                  value={username}
+                  onChange={(e) => {
+                    setUsername(e.target.value.toLowerCase());
+                    validateUsername(e.target.value.toLowerCase());
+                  }}
+                  onBlur={() => validateUsername(username)}
+                  required
+                  className="pl-10"
+                  aria-describedby="username-error-msg"
+                />
+              </div>
+              {usernameError && <p id="username-error-msg" className="text-xs text-destructive pt-1">{usernameError}</p>}
+              {!usernameError && <p className="text-xs text-muted-foreground pt-1">Unique, lowercase, no spaces, 3-20 characters (letters, numbers, underscores).</p>}
+            </div>
+
+
+            <div className="space-y-1">
               <Label htmlFor="phoneNumber">Phone Number (Optional)</Label>
               <div className="flex items-center space-x-2">
                  <span className="p-2.5 rounded-md border bg-muted text-muted-foreground text-sm">+91</span>
@@ -329,5 +380,3 @@ export default function ProfileSetupPage() {
     </div>
   )
 }
-
-    

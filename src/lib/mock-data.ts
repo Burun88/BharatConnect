@@ -5,6 +5,7 @@ import { AURA_OPTIONS } from '@/types';
 export const mockCurrentUser: User = {
   id: 'currentUser',
   name: 'You',
+  username: 'currentuser',
   avatarUrl: undefined, // Ensures AvatarFallback is used
   currentAuraId: null,
   hasViewedStatus: true, 
@@ -14,6 +15,7 @@ export const mockUsers: User[] = [
   {
     id: 'user1',
     name: 'Priya Sharma',
+    username: 'priyasharma',
     avatarUrl: 'https://picsum.photos/seed/user1/100/100',
     currentAuraId: 'happy',
     status: 'Online',
@@ -22,6 +24,7 @@ export const mockUsers: User[] = [
   {
     id: 'user2',
     name: 'Rahul Kumar',
+    username: 'rahulkumar',
     avatarUrl: 'https://picsum.photos/seed/user2/100/100', 
     currentAuraId: 'focused',
     status: 'Last seen yesterday at 10:30 PM',
@@ -30,6 +33,7 @@ export const mockUsers: User[] = [
   {
     id: 'user3',
     name: 'Anjali Singh',
+    username: 'anjalisingh',
     avatarUrl: 'https://picsum.photos/seed/user3/100/100', 
     currentAuraId: null,
     status: 'Typing...',
@@ -38,6 +42,7 @@ export const mockUsers: User[] = [
   {
     id: 'user4',
     name: 'Vikram Patel',
+    username: 'vikrampatel',
     avatarUrl: 'https://picsum.photos/seed/user4/100/100', 
     currentAuraId: 'chill',
     status: 'Feeling Chill 😎',
@@ -46,6 +51,7 @@ export const mockUsers: User[] = [
   {
     id: 'user5',
     name: 'Deepika Iyer',
+    username: 'deepika_iyer',
     avatarUrl: 'https://picsum.photos/seed/user5/100/100', 
     currentAuraId: 'energetic',
     status: 'Ready to go!',
@@ -54,6 +60,7 @@ export const mockUsers: User[] = [
   {
     id: 'user6',
     name: 'Arjun Reddy',
+    username: 'arjunreddy',
     avatarUrl: 'https://picsum.photos/seed/user6/100/100', 
     currentAuraId: null,
     status: 'Away',
@@ -62,6 +69,7 @@ export const mockUsers: User[] = [
   {
     id: 'user7',
     name: 'Sneha Kapoor',
+    username: 'snehakapoor',
     avatarUrl: 'https://picsum.photos/seed/user7/100/100', 
     currentAuraId: 'playful',
     status: 'Feeling playful! 🎉',
@@ -70,6 +78,7 @@ export const mockUsers: User[] = [
   { // New user for chat request demonstration
     id: 'user8RequestSender',
     name: 'Rajesh Gupta (Wants to Connect)',
+    username: 'rajesh_g',
     avatarUrl: 'https://picsum.photos/seed/user8/100/100',
     currentAuraId: 'calm',
     status: 'Exploring BharatConnect',
@@ -77,6 +86,7 @@ export const mockUsers: User[] = [
   { // New user for chat request demonstration (sender perspective)
     id: 'user9RequestRecipient',
     name: 'Meera Iyer (Request Sent)',
+    username: 'meera_iyer9',
     avatarUrl: 'https://picsum.photos/seed/user9/100/100',
     currentAuraId: null,
     status: 'Online',
@@ -84,6 +94,7 @@ export const mockUsers: User[] = [
    { // New user for rejected request demonstration
     id: 'user10RejectedBy',
     name: 'Amit Verma (Rejected You)',
+    username: 'amit_v',
     avatarUrl: 'https://picsum.photos/seed/user10/100/100',
     currentAuraId: 'sad',
     status: 'Offline',
@@ -91,6 +102,7 @@ export const mockUsers: User[] = [
   { // New user for current user to reject
     id: 'user11ToReject',
     name: 'Sunita Rao (Wants to Connect)',
+    username: 'sunita_rao11',
     avatarUrl: 'https://picsum.photos/seed/user11/100/100',
     currentAuraId: 'focused',
     status: 'Online',

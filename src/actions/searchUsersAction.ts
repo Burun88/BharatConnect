@@ -36,6 +36,16 @@ export async function searchUsersAction(searchTerm: string, currentUserIdToExclu
     limit(resultsLimit)
   );
 
+  // Query by username (which is stored as lowercase)
+  console.log(`[SearchAction] Preparing usernameQuery. orderBy('username'), startAt('${lowerSearchTerm}'), endAt('${lowerSearchTerm}\\uf8ff')`);
+  const usernameQuery = query(
+    usersRef,
+    orderBy('username'),
+    startAt(lowerSearchTerm),
+    endAt(lowerSearchTerm + '\uf8ff'),
+    limit(resultsLimit)
+  );
+
   try {
     console.log(`[SearchAction] Executing nameQuery against 'displayName' (expected lowercase) with term: "${lowerSearchTerm}"`);
     const nameSnapshot = await getDocs(nameQuery);
@@ -51,33 +61,33 @@ export async function searchUsersAction(searchTerm: string, currentUserIdToExclu
       console.log(`[SearchAction] Raw data from EMAIL query for doc ${doc.id}:`, JSON.stringify(doc.data()));
     });
 
+    console.log(`[SearchAction] Executing usernameQuery against 'username' (expected lowercase) with term: "${lowerSearchTerm}"`);
+    const usernameSnapshot = await getDocs(usernameQuery);
+    console.log(`[SearchAction] Username query returned ${usernameSnapshot.size} documents.`);
+    usernameSnapshot.forEach(doc => {
+      console.log(`[SearchAction] Raw data from USERNAME query for doc ${doc.id}:`, JSON.stringify(doc.data()));
+    });
+
+
     const usersMap = new Map<string, BharatConnectFirestoreUser>();
 
-    nameSnapshot.forEach((doc) => {
-      const userData = doc.data() as BharatConnectFirestoreUser;
-      console.log(`[SearchAction] Processing NAME result for ${doc.id}. UserData before map modification:`, JSON.stringify(userData));
-      if (userData.id !== currentUserIdToExclude) {
-        usersMap.set(userData.id, { ...userData, displayName: userData.originalDisplayName || userData.displayName });
-        console.log(`[SearchAction] Added/Updated user ${doc.id} from NAME query into usersMap. Current displayName in map: "${userData.originalDisplayName || userData.displayName}"`);
-      } else {
-        console.log(`[SearchAction] Skipped user ${doc.id} from NAME query (is current user).`);
-      }
-    });
+    const processSnapshot = (snapshot: any, queryType: string) => {
+      snapshot.forEach((doc: any) => {
+        const userData = doc.data() as BharatConnectFirestoreUser;
+        console.log(`[SearchAction] Processing ${queryType} result for ${doc.id}. UserData before map modification:`, JSON.stringify(userData));
+        if (userData.id !== currentUserIdToExclude) {
+           // Ensure displayName uses originalDisplayName for the map, then fallback to potentially lowercase displayName from DB
+          usersMap.set(userData.id, { ...userData, displayName: userData.originalDisplayName || userData.displayName });
+          console.log(`[SearchAction] Added/Updated user ${doc.id} from ${queryType} query into usersMap. Current displayName in map: "${userData.originalDisplayName || userData.displayName}"`);
+        } else {
+          console.log(`[SearchAction] Skipped user ${doc.id} from ${queryType} query (is current user).`);
+        }
+      });
+    };
 
-    emailSnapshot.forEach((doc) => {
-      const userData = doc.data() as BharatConnectFirestoreUser;
-      console.log(`[SearchAction] Processing EMAIL result for ${doc.id}. UserData before map modification:`, JSON.stringify(userData));
-      if (userData.id !== currentUserIdToExclude && !usersMap.has(userData.id)) {
-        usersMap.set(userData.id, { ...userData, displayName: userData.originalDisplayName || userData.displayName });
-        console.log(`[SearchAction] Added user ${doc.id} from EMAIL query into usersMap. Current displayName in map: "${userData.originalDisplayName || userData.displayName}"`);
-      } else {
-         if (usersMap.has(userData.id)) {
-            console.log(`[SearchAction] User ${doc.id} from EMAIL query already in map. Skipping.`);
-         } else if (userData.id === currentUserIdToExclude) {
-            console.log(`[SearchAction] Skipped user ${doc.id} from EMAIL query (is current user).`);
-         }
-      }
-    });
+    processSnapshot(nameSnapshot, "NAME");
+    processSnapshot(emailSnapshot, "EMAIL");
+    processSnapshot(usernameSnapshot, "USERNAME");
     
     console.log(`[SearchAction] UsersMap before converting to array (size ${usersMap.size}):`);
     usersMap.forEach((value, key) => {
@@ -86,7 +96,7 @@ export async function searchUsersAction(searchTerm: string, currentUserIdToExclu
 
     const finalResults = Array.from(usersMap.values()).slice(0, resultsLimit);
     console.log(`[SearchAction] Combined and filtered results count for UI: ${finalResults.length}`);
-    console.log(`[SearchAction] Final results being returned:`, JSON.stringify(finalResults.map(u => ({id: u.id, displayName: u.displayName, email: u.email, originalDisplayName: u.originalDisplayName })))); // Log key fields
+    console.log(`[SearchAction] Final results being returned:`, JSON.stringify(finalResults.map(u => ({id: u.id, displayName: u.displayName, email: u.email, username: u.username, originalDisplayName: u.originalDisplayName })))); // Log key fields
     return finalResults;
 
   } catch (error) {

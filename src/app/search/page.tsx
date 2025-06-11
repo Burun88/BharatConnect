@@ -87,7 +87,8 @@ export default function SearchPage() {
             // The server action now ensures this.
             return { 
                 id: fbUser.id,
-                name: fbUser.displayName, // This should be original casing if available
+                name: fbUser.originalDisplayName || fbUser.displayName, // Prioritize originalDisplayName
+                username: fbUser.username, // Username (stored lowercase)
                 email: fbUser.email, // This will be the lowercase email from Firestore
                 avatarUrl: fbUser.photoURL || undefined,
                 currentAuraId: fbUser.currentAuraId || null,
@@ -138,7 +139,7 @@ export default function SearchPage() {
         name: targetUser.name, // Use the (potentially original cased) name for the chat
         contactUserId: targetUser.id,
         participants: [
-          { id: currentUserId, name: userProfileLs.displayName || 'You', avatarUrl: userProfileLs.photoURL || undefined },
+          { id: currentUserId, name: userProfileLs.displayName || 'You', username: userProfileLs.username || 'you', avatarUrl: userProfileLs.photoURL || undefined },
           targetUser 
         ],
         lastMessage: null,
@@ -201,7 +202,7 @@ export default function SearchPage() {
             <SearchIconLucide className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search by name or email (case-insensitive prefix)"
+              placeholder="Search by name, email, or username (case-insensitive prefix)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-10 h-12 text-base rounded-xl shadow-sm focus-visible:focus-visible-gradient-border-apply"
@@ -235,9 +236,7 @@ export default function SearchPage() {
                 <div className="space-y-3">
                   {searchResults.map((user) => {
                     const buttonProps = getButtonProps(user);
-                    // Use user.name for display which should be original casing if available
-                    // User.email will be the lowercase version (as that's what's stored in Firestore for search)
-                    // If you need original case email for display, it should be fetched/stored separately.
+                    // user.name should be originalDisplayName, user.email is lowercase, user.username is lowercase
                     return (
                       <div key={user.id} className="flex items-center p-3 bg-card rounded-lg shadow hover:bg-muted/30 transition-colors">
                         <Avatar className="w-12 h-12 mr-4">
@@ -248,7 +247,7 @@ export default function SearchPage() {
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-foreground truncate">{user.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{user.email || 'No email available'}</p>
+                          <p className="text-xs text-muted-foreground truncate">@{user.username || 'N/A'} &bull; {user.email || 'No email'}</p>
                         </div>
                         <Button
                           size="sm"
@@ -278,7 +277,7 @@ export default function SearchPage() {
              <div className="flex flex-col items-center justify-center text-center text-muted-foreground pt-10">
                 <SearchIconLucide className="w-16 h-16 mb-4"/>
                 <p className="text-lg">Search for People</p>
-                <p className="text-sm">Find and connect with others on BharatConnect by name or email.</p>
+                <p className="text-sm">Find and connect with others on BharatConnect by name, email, or username.</p>
              </div>
           )}
         </main>

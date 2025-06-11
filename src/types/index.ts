@@ -11,6 +11,7 @@ export type UserAura = {
 export type User = {
   id: string; // Firebase UID
   name: string; // Display Name (can be original casing for display)
+  username?: string; // Unique username, stored lowercase
   email?: string; // User's email (can be original casing for display, or lowercase if that's what's primarily stored/used)
   phone?: string; // Optional phone number
   avatarUrl?: string; // Placeholder or initials if not available
@@ -71,6 +72,7 @@ export type StatusUpdate = {
 export interface LocalUserProfile {
   uid: string;
   email: string; // Original casing email
+  username?: string | null; // Unique username, stored lowercase
   displayName?: string | null; // Original casing display name
   photoURL?: string | null;
   phoneNumber?: string | null;
