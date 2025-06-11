@@ -9,10 +9,12 @@ import HomeHeader from '@/components/home/home-header';
 import AuraBar from '@/components/home/aura-bar';
 import ChatList from '@/components/home/chat-list';
 import type { User, Chat, LocalUserProfile } from '@/types';
-import { mockCurrentUser, mockAuraBarItemsData, mockChats as initialMockChats } from '@/lib/mock-data'; // Renamed import for clarity
+import { mockCurrentUser, mockAuraBarItemsData, mockChats as initialMockChats } from '@/lib/mock-data';
 import { Plus } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
+import { getChatListItemsAction } from '@/actions/getChatListItemsAction';
+
 
 const HEADER_HEIGHT_PX = 64;
 const BOTTOM_NAV_HEIGHT_PX = 64;
@@ -25,10 +27,10 @@ export default function HomePage() {
 
   const [auraBarItems, setAuraBarItems] = useState<User[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(''); // Not used on this page, but ChatList might expect it
 
   const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  const [currentUserAuraIdLs] = useLocalStorage<string | null>('currentUserAuraId', null); // Fetch current user's aura
+  const [currentUserAuraIdLs] = useLocalStorage<string | null>('currentUserAuraId', null);
 
   const scrollableContainerRef = useRef<HTMLDivElement>(null);
   const [isHeaderContentLoaded, setIsHeaderContentLoaded] = useState(true);
@@ -44,71 +46,81 @@ export default function HomePage() {
     }
 
     const currentUserId = userProfileLs.uid;
+    const currentUserDisplayName = userProfileLs.displayName || 'You';
+    const currentUserPhotoURL = userProfileLs.photoURL;
 
-    setTimeout(() => {
-      const currentUserName = userProfileLs?.displayName || 'User';
-      const currentUserEmail = userProfileLs?.email || '';
 
-      const updatedCurrentUser: User = {
-        ...mockCurrentUser, // Base
+    const loadData = async () => {
+      // Fetch Aura Bar Items (mock for now, can be dynamic later)
+      const currentUserNameForAura = userProfileLs?.displayName || 'User';
+      const currentUserEmailForAura = userProfileLs?.email || '';
+
+      const updatedCurrentUserForAura: User = {
+        ...mockCurrentUser,
         id: userProfileLs.uid,
-        name: currentUserName,
-        email: currentUserEmail,
-        avatarUrl: userProfileLs.photoURL || undefined, // Use LS photoURL or undefined
-        currentAuraId: currentUserAuraIdLs, // Use aura from its LS item
+        name: currentUserNameForAura,
+        email: currentUserEmailForAura,
+        avatarUrl: userProfileLs.photoURL || undefined,
+        currentAuraId: currentUserAuraIdLs,
       };
 
       let allUsersFromMock = mockAuraBarItemsData().map(u =>
-          u.id === updatedCurrentUser.id ? updatedCurrentUser : u
+          u.id === updatedCurrentUserForAura.id ? updatedCurrentUserForAura : u
       );
-      const currentUserInMockIndex = allUsersFromMock.findIndex(u => u.id === updatedCurrentUser.id);
+      const currentUserInMockIndex = allUsersFromMock.findIndex(u => u.id === updatedCurrentUserForAura.id);
 
-      if (currentUserInMockIndex === -1 && updatedCurrentUser.name) {
-        allUsersFromMock.unshift(updatedCurrentUser);
+      if (currentUserInMockIndex === -1 && updatedCurrentUserForAura.name) {
+        allUsersFromMock.unshift(updatedCurrentUserForAura);
       } else if (currentUserInMockIndex > 0) {
          const currentUserData = allUsersFromMock.splice(currentUserInMockIndex, 1)[0];
          allUsersFromMock.unshift(currentUserData);
       }
-
-      const finalMockCurrentUser = allUsersFromMock.find(u => u.id === userProfileLs.uid) || updatedCurrentUser;
-
+      const finalMockCurrentUser = allUsersFromMock.find(u => u.id === userProfileLs.uid) || updatedCurrentUserForAura;
       const finalAuraItems = allUsersFromMock.filter(
           u => u.id === finalMockCurrentUser.id || u.currentAuraId
       );
-
       setAuraBarItems(finalAuraItems as User[]);
 
+      // Fetch live chat requests from Firestore
+      const liveRequests = await getChatListItemsAction(currentUserId, currentUserDisplayName, currentUserPhotoURL);
+      
+      // Get existing accepted/none status chats from mock data
+      // In a real app, these would also be fetched from Firestore
+      const existingAcceptedChats = initialMockChats.filter(
+        chat => (chat.requestStatus === 'accepted' || !chat.requestStatus || chat.requestStatus === 'none') &&
+                !liveRequests.some(lr => lr.contactUserId === chat.contactUserId) // Avoid duplicates if mock data has pending ones
+      );
+
+      const combinedChats = [...liveRequests, ...existingAcceptedChats];
+
+      // Sort chats: received requests > sent requests > other chats by timestamp
       const getChatSortPriority = (chat: Chat): number => {
         if (chat.requestStatus === 'awaiting_action' && chat.requesterId !== currentUserId) {
-          return 0; // Highest priority: requests to accept/reject
+          return 0; // Highest: requests to accept/reject
         }
         if (chat.requestStatus === 'pending' && chat.requesterId === currentUserId) {
-          return 1; // Next priority: requests user has sent
+          return 1; // Next: requests user has sent
         }
-        // For accepted, rejected, or 'none' (legacy/default) statuses, use a lower priority
-        // We can further differentiate if needed, e.g., make 'rejected' even lower.
         if (chat.requestStatus === 'rejected') {
           return 3; 
         }
-        return 2; // Default for active chats or chats with 'none' or 'accepted' status
+        return 2; // Default for active/none/accepted
       };
 
-      const sortedChats = [...initialMockChats] // Use imported initialMockChats
-        .sort((a, b) => {
-          const priorityA = getChatSortPriority(a);
-          const priorityB = getChatSortPriority(b);
-
-          if (priorityA !== priorityB) {
-            return priorityA - priorityB; // Sort by priority first
-          }
-          // If priorities are the same (e.g., within active chats, or within pending requests),
-          // sort by last message timestamp (descending - most recent first)
-          return (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0);
-        });
+      const sortedChats = combinedChats.sort((a, b) => {
+        const priorityA = getChatSortPriority(a);
+        const priorityB = getChatSortPriority(b);
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB;
+        }
+        return (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0);
+      });
       
       setChats(sortedChats);
       setIsPageDataLoading(false);
-    }, 1500);
+    };
+
+    loadData();
 
   }, [userProfileLs, currentUserAuraIdLs, router]);
 
@@ -159,9 +171,9 @@ export default function HomePage() {
     };
   }, [isPageDataLoading, chats, searchTerm, handleScroll, userProfileLs?.onboardingComplete]);
 
-  const filteredChats = chats.filter(chat =>
-    chat.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Search term is not used on this page, but ChatList might expect it.
+  // For homepage, we usually show all chats without filtering by search term here.
+  const filteredChats = chats; // No search filtering on homepage list itself.
 
   const handleCurrentUserAuraClick = useCallback(() => {
     router.push('/aura-select');
@@ -194,13 +206,14 @@ export default function HomePage() {
           <AuraBar
             isLoading={isPageDataLoading}
             auraBarItems={isPageDataLoading ? [] : auraBarItems}
-            currentUserId={userProfileLs?.uid || mockCurrentUser.id}
+            currentUserId={userProfileLs?.uid || ''} // Pass actual currentUserId
             onCurrentUserAuraClick={handleCurrentUserAuraClick}
           />
           <ChatList
             isLoading={isPageDataLoading}
             filteredChats={filteredChats}
             searchTerm={searchTerm}
+            currentUserId={userProfileLs?.uid || ''} // Pass currentUserId
           />
         </main>
       </SwipeablePageWrapper>

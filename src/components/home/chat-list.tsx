@@ -10,12 +10,13 @@ interface ChatListProps {
   isLoading: boolean;
   filteredChats: Chat[];
   searchTerm: string;
+  currentUserId: string; // Added currentUserId
 }
 
-const ChatList: FC<ChatListProps> = ({ isLoading, filteredChats, searchTerm }) => {
+const ChatList: FC<ChatListProps> = ({ isLoading, filteredChats, searchTerm, currentUserId }) => {
   return (
     <div className="bg-background">
-      <div className=""> {/* This div was previously used for padding, can be adjusted if needed */}
+      <div className="">
         {isLoading ? (
           Array.from({ length: 10 }).map((_, index) => (
             <div key={index} className="flex items-center p-3">
@@ -28,7 +29,7 @@ const ChatList: FC<ChatListProps> = ({ isLoading, filteredChats, searchTerm }) =
           ))
         ) : filteredChats.length > 0 ? (
           filteredChats.map(chat => (
-            <ChatItem key={chat.id} chat={chat} />
+            <ChatItem key={chat.id} chat={chat} currentUserId={currentUserId} /> // Pass currentUserId
           ))
         ) : (
           <div className="text-center py-10 text-muted-foreground">
