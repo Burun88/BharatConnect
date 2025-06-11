@@ -83,52 +83,71 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (isGuardLoading) return;
-    const mcEl = mainContentRef.current;
-    const bbEl = bottomBarRef.current;
-    const visualViewport = window.visualViewport;
+    const mcEl = mainContentRef.current; // Main content area (contains message list)
+    const bbEl = bottomBarRef.current;  // Bottom bar (input + emoji picker)
+    const vp = window.visualViewport;
 
-    if (!mcEl || !bbEl || !visualViewport) return;
+    if (!mcEl || !bbEl || !vp) return;
 
     let lastKeyboardHeight = 0;
-    let lastBottomBarOffsetHeight = bbEl.offsetHeight;
+    let lastBottomBarActualHeight = bbEl.offsetHeight;
 
     const updateLayout = () => {
-      const currentBottomBarOffsetHeight = bbEl.offsetHeight;
-      let keyboardHeight = 0;
-      const isKeyboardEffectivelyOpen = window.innerHeight > visualViewport.height + 50;
-      if (isKeyboardEffectivelyOpen && !isEmojiPickerOpen) {
-        keyboardHeight = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
-      }
-      
-      bbEl.style.bottom = `${isEmojiPickerOpen ? 0 : keyboardHeight}px`;
-      // Corrected padding: Main content area only needs padding for the input bar's height.
-      // The keyboard's space is accounted for by the browser's viewport adjustments (h-dvh and flex).
-      mcEl.style.paddingBottom = `${currentBottomBarOffsetHeight}px`;
+      const currentInputBarActualHeight = bbEl.offsetHeight; // Actual height of the input bar (may include emoji picker)
+      let physicalKeyboardHeight = 0; // Height of the OS keyboard if visible and emoji picker is not open
 
-      if (keyboardHeight > 0 && keyboardHeight !== lastKeyboardHeight && document.activeElement === textareaRef.current) {
+      // isKeyboardEffectivelyOpen: Check if keyboard is visually taking up space.
+      // vp.height is the visual viewport height. window.innerHeight is the layout viewport height.
+      // If keyboard is open, vp.height < window.innerHeight.
+      // vp.offsetTop will be non-zero when keyboard is up.
+      const isKeyboardEffectivelyOpen = vp.height < window.innerHeight - 50; // 50px threshold
+
+      if (isKeyboardEffectivelyOpen && !isEmojiPickerOpen) {
+        // Keyboard is open, and emoji picker is NOT.
+        // physicalKeyboardHeight is the space taken by the keyboard.
+        physicalKeyboardHeight = window.innerHeight - vp.offsetTop - vp.height;
+      }
+      // If emoji picker is open, physicalKeyboardHeight remains 0 because emoji picker is part of bbEl.
+      // If neither keyboard nor emoji picker is open, physicalKeyboardHeight remains 0.
+
+      // Position the bottom bar (bbEl):
+      // It should sit 'physicalKeyboardHeight' from the bottom of the screen.
+      bbEl.style.bottom = `${physicalKeyboardHeight}px`;
+
+      // Pad the main content area (mcEl):
+      // mcEl uses flex-1 within an h-dvh container. Its height is already viewport-aware.
+      // The paddingBottom on mcEl is ONLY to prevent its *scrollable content* (messageListContainerRef)
+      // from being obscured by the input bar (bbEl).
+      // So, mcEl's paddingBottom should be equal to the actual height of bbEl.
+      mcEl.style.paddingBottom = `${currentInputBarActualHeight}px`;
+      
+      // Auto-scroll when keyboard appears/changes height and textarea is focused
+      if (physicalKeyboardHeight > 0 && physicalKeyboardHeight !== lastKeyboardHeight && document.activeElement === textareaRef.current) {
         if (messageListContainerRef.current) {
            messageListContainerRef.current.scrollTop = messageListContainerRef.current.scrollHeight;
         }
       }
-      lastKeyboardHeight = keyboardHeight;
-      lastBottomBarOffsetHeight = currentBottomBarOffsetHeight;
+      lastKeyboardHeight = physicalKeyboardHeight;
+      lastBottomBarActualHeight = currentInputBarActualHeight;
     };
 
-    visualViewport.addEventListener('resize', updateLayout);
+    vp.addEventListener('resize', updateLayout);
     const resizeObserver = new ResizeObserver(() => {
-        if(bbEl.offsetHeight !== lastBottomBarOffsetHeight) {
+        // Update layout if the bottom bar's actual height changes (e.g., emoji picker toggled)
+        if(bbEl.offsetHeight !== lastBottomBarActualHeight) {
             updateLayout();
         }
     });
     resizeObserver.observe(bbEl);
-    updateLayout(); 
+    
+    updateLayout(); // Initial call to set layout
 
     return () => {
-      visualViewport.removeEventListener('resize', updateLayout);
+      vp.removeEventListener('resize', updateLayout);
       resizeObserver.disconnect();
-      // Reset styles on cleanup, though typically page navigation will handle this
-      bbEl.style.bottom = '0px';
-      mcEl.style.paddingBottom = `${lastBottomBarOffsetHeight}px`; // Use the last known height of the bar
+      // Optionally reset styles on cleanup, though page navigation usually handles this.
+      // bbEl.style.bottom = '0px';
+      // mcEl.style.paddingBottom = `${lastBottomBarActualHeight}px`; 
     };
   }, [isEmojiPickerOpen, textareaRef, isGuardLoading]);
 
@@ -360,7 +379,11 @@ export default function ChatPage() {
       </div>
 
       {showInputArea && (
-        <div ref={bottomBarRef} className={cn("fixed left-0 right-0 z-10 bg-background border-t", "pb-[env(safe-area-inset-bottom)]")} style={{ bottom: '0px', transform: 'translateZ(0px)' }}>
+        <div 
+          ref={bottomBarRef} 
+          className={cn("fixed left-0 right-0 z-10 bg-background border-t", "pb-[env(safe-area-inset-bottom)]")} 
+          style={{ bottom: '0px', transform: 'translateZ(0px)' }} // Added transformZ here
+        >
           <footer className="flex items-end space-x-2 p-2.5 flex-shrink-0">
             <Button variant="ghost" size="icon" type="button" className={cn("hover:bg-transparent", isEmojiPickerOpen && "bg-accent/20 text-primary")} onClick={toggleEmojiPicker} aria-pressed={isEmojiPickerOpen} aria-label="Toggle emoji picker">
               <SmilePlus className={cn("w-5 h-5 text-muted-foreground", isEmojiPickerOpen && "text-primary")} />
@@ -378,7 +401,7 @@ export default function ChatPage() {
               rows={1}
               className={cn(
                 "flex-1", 
-                "resize-none min-h-[40px] max-h-[100px] rounded-full px-6 py-2.5 leading-tight hide-scrollbar"
+                "resize-none min-h-[40px] max-h-[100px] rounded-full px-6 py-2.5 leading-tight hide-scrollbar focus-visible:focus-visible-gradient-border-apply"
               )}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -413,3 +436,5 @@ export default function ChatPage() {
   );
 }
 
+
+    
