@@ -24,28 +24,43 @@ export default function LoginPageHub() {
 
   const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
   const [isLoadingPage, setIsLoadingPage] = useState(true); 
+  const [loginProcessComplete, setLoginProcessComplete] = useState(false);
   
   useEffect(() => {
-    console.log("[Login Hub] useEffect triggered. userProfileLs:", userProfileLs); // Enhanced logging
-    if (userProfileLs) { 
-      if (userProfileLs.uid && userProfileLs.onboardingComplete) {
-        console.log(`[Login Hub] User ${userProfileLs.uid} from LS is onboarded. Redirecting to /`);
+    console.log("[Login Hub] useEffect triggered. userProfileLs:", userProfileLs, "loginProcessComplete:", loginProcessComplete);
+
+    if (loginProcessComplete && userProfileLs?.uid) {
+      if (userProfileLs.onboardingComplete) {
+        toast({
+          title: 'Login Successful!',
+          description: `Welcome back, ${userProfileLs.displayName || userProfileLs.email || 'user'}! Redirecting...`,
+        });
         router.replace('/');
-        return; 
-      } else if (userProfileLs.uid && !userProfileLs.onboardingComplete) {
-        console.log(`[Login Hub] User ${userProfileLs.uid} from LS is logged in but NOT onboarded. Redirecting to /profile-setup`);
+      } else {
+        // User logged in but not onboarded, redirect to profile setup
+        // No specific "welcome" toast here, as they are new or continuing setup
         router.replace('/profile-setup');
-        return;
       }
-      // If userProfileLs exists but doesn't meet above conditions (e.g. no UID, though unlikely after successful login)
-      // we still consider loading done for the login page itself.
-      console.log("[Login Hub] userProfileLs exists but conditions for redirect not fully met. Login page will render.");
-      setIsLoadingPage(false);
-    } else {
-      console.log("[Login Hub] userProfileLs is null. Login page will render.");
-      setIsLoadingPage(false); 
+      setLoginProcessComplete(false); // Reset flag after handling
+      return; // Prevent further processing in this effect run
     }
-  }, [userProfileLs, router]);
+
+    // This handles initial load or if user navigates back to login while already logged in (but not via a fresh login action)
+    if (!loginProcessComplete && userProfileLs?.uid) {
+      if (userProfileLs.onboardingComplete) {
+        console.log(`[Login Hub] User ${userProfileLs.uid} from LS is already onboarded (not a new login action). Redirecting to /`);
+        router.replace('/');
+      } else {
+        console.log(`[Login Hub] User ${userProfileLs.uid} from LS is logged in but NOT onboarded (not a new login action). Redirecting to /profile-setup`);
+        router.replace('/profile-setup');
+      }
+      return;
+    }
+    
+    // If no userProfileLs or not meeting redirect conditions, and not a login process, finish loading page
+    setIsLoadingPage(false);
+
+  }, [userProfileLs, router, loginProcessComplete, toast]);
 
   const handleContinue = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -67,13 +82,10 @@ export default function LoginPageHub() {
       const userCredential = await signInUser(auth, email, password);
       console.log("[Login Hub] Firebase SignIn Success:", userCredential.user.uid);
       
-      const welcomeName = userCredential.user.displayName || userCredential.user.email || 'user';
-      toast({
-        title: 'Login Successful!',
-        description: `Welcome back, ${welcomeName}! Redirecting...`,
-      });
+      // Don't show toast here directly. Set flag for useEffect to handle.
+      setLoginProcessComplete(true);
       // FirebaseAuthObserver will handle setting LocalStorage.
-      // Redirection is handled by the useEffect hook listening to userProfileLs changes.
+      // Redirection and toast are handled by the useEffect hook listening to userProfileLs and loginProcessComplete changes.
     } catch (err: any) {
       console.error("[Login Hub] Firebase SignIn Error:", err);
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
@@ -130,7 +142,7 @@ export default function LoginPageHub() {
     }
   };
 
-  if (isLoadingPage) {
+  if (isLoadingPage && !loginProcessComplete) { // Only show loading if not in midst of login process
     return (
       <div className="flex flex-col h-screen bg-background items-center justify-center">
         <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
