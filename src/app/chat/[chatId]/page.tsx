@@ -99,8 +99,12 @@ export default function ChatPage() {
       if (isKeyboardEffectivelyOpen && !isEmojiPickerOpen) {
         keyboardHeight = window.innerHeight - visualViewport.offsetTop - visualViewport.height;
       }
+      
       bbEl.style.bottom = `${isEmojiPickerOpen ? 0 : keyboardHeight}px`;
-      mcEl.style.paddingBottom = `${currentBottomBarOffsetHeight + (isEmojiPickerOpen ? 0 : keyboardHeight)}px`;
+      // Corrected padding: Main content area only needs padding for the input bar's height.
+      // The keyboard's space is accounted for by the browser's viewport adjustments (h-dvh and flex).
+      mcEl.style.paddingBottom = `${currentBottomBarOffsetHeight}px`;
+
       if (keyboardHeight > 0 && keyboardHeight !== lastKeyboardHeight && document.activeElement === textareaRef.current) {
         if (messageListContainerRef.current) {
            messageListContainerRef.current.scrollTop = messageListContainerRef.current.scrollHeight;
@@ -122,8 +126,9 @@ export default function ChatPage() {
     return () => {
       visualViewport.removeEventListener('resize', updateLayout);
       resizeObserver.disconnect();
+      // Reset styles on cleanup, though typically page navigation will handle this
       bbEl.style.bottom = '0px';
-      mcEl.style.paddingBottom = `${lastBottomBarOffsetHeight}px`;
+      mcEl.style.paddingBottom = `${lastBottomBarOffsetHeight}px`; // Use the last known height of the bar
     };
   }, [isEmojiPickerOpen, textareaRef, isGuardLoading]);
 
@@ -333,11 +338,11 @@ export default function ChatPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {isPendingSenderView && <p className="text-sm text-muted-foreground">Your message request has been sent to {contact.name}. You'll be able to chat once they accept.</p>}
+                    {isPendingSenderView && <p className="text-sm text-muted-foreground">Your message request has been sent to ${contact.name}. You'll be able to chat once they accept.</p>}
                     {isRejectedView && (
                         chatDetails.requesterId === currentUserId ?
-                        <p className="text-sm text-muted-foreground">Your chat request to {contact.name} was rejected.</p> :
-                        <p className="text-sm text-muted-foreground">You rejected the chat request from {contact.name}.</p>
+                        <p className="text-sm text-muted-foreground">Your chat request to ${contact.name} was rejected.</p> :
+                        <p className="text-sm text-muted-foreground">You rejected the chat request from ${contact.name}.</p>
                     )}
                 </CardContent>
             </Card>
@@ -372,10 +377,8 @@ export default function ChatPage() {
               onFocus={() => { if(isEmojiPickerOpen) setIsEmojiPickerOpen(false); }}
               rows={1}
               className={cn(
-                "flex-1", // Ensures Textarea takes up available space
+                "flex-1", 
                 "resize-none min-h-[40px] max-h-[100px] rounded-full px-6 py-2.5 leading-tight hide-scrollbar"
-                // The chat-input-sweep-border-textarea class is removed
-                // The default focus-visible:focus-visible-gradient-border-apply from components/ui/textarea.tsx will now apply
               )}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -409,3 +412,4 @@ export default function ChatPage() {
     </div>
   );
 }
+
