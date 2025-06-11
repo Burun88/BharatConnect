@@ -80,10 +80,8 @@ export default function SignupPage() {
         bio: null, 
       });
 
-      toast({
-        title: 'Account Created!',
-        description: "We're taking you to setup your profile.",
-      });
+      // The "Account Created!" toast has been removed from here.
+      
       router.push('/profile-setup'); 
     } catch (err: any) {
       console.error("[Signup Page] Firebase Signup Error:", err);
