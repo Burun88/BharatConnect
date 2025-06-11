@@ -49,7 +49,6 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
       setBio(initialProfileData.bio || '');
       setProfilePicPreview(initialProfileData.photoURL || null); 
 
-      // Initialize temp states only if not currently editing or if initial data changes
       if (!isEditing) {
         setTempName(initialProfileData.displayName || '');
         setTempBio(initialProfileData.bio || '');
@@ -57,7 +56,6 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
         setOriginalPhotoURLForDeletion(initialProfileData.photoURL || null);
       }
     } else {
-      // Fallback if initialProfileData is null
       setName('User');
       setEmail('Email not available');
       setBio('Bio not available');
@@ -72,26 +70,24 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
   }, [initialProfileData, isEditing]);
 
   const handleEditToggle = () => {
-    if (isEditing) { // Means "Cancel" was effectively clicked or edit mode is being exited
-      // Reset temp fields to current non-edit values
+    if (isEditing) { 
       setTempName(name);
       setTempBio(bio);
       setTempProfilePicPreview(profilePicPreview); 
-      setOriginalPhotoURLForDeletion(profilePicPreview); // Reset for next edit session
-      setProfilePicFile(null); // Clear any selected file
-    } else { // Means "Edit Profile" was clicked, entering edit mode
-      // Populate temp fields with current values
+      setOriginalPhotoURLForDeletion(profilePicPreview); 
+      setProfilePicFile(null); 
+    } else { 
       setTempName(name);
       setTempBio(bio);
       setTempProfilePicPreview(profilePicPreview);
-      setOriginalPhotoURLForDeletion(profilePicPreview); // Store the URL that was there when editing started
+      setOriginalPhotoURLForDeletion(profilePicPreview); 
     }
     setIsEditing(!isEditing);
   };
 
   const handleRemoveProfilePic = () => {
     setTempProfilePicPreview(null);
-    setProfilePicFile(null); // Also clear any newly selected file
+    setProfilePicFile(null); 
     toast({ title: "Profile picture marked for removal", description: "Save to apply changes." });
   };
 
@@ -106,23 +102,14 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
     }
     setIsLoading(true);
     
-    let finalPhotoURL = tempProfilePicPreview; // Start with the current preview (could be null if removed)
+    let finalPhotoURL = tempProfilePicPreview; 
 
-    // If a new file was selected, upload it
     if (profilePicFile) { 
       try {
-        console.log(`[ProfileCard] Preparing FormData for new profile picture. UID: ${authUid}`);
         const formData = new FormData();
         formData.append('uid', authUid); 
         formData.append('profileImageFile', profilePicFile);
-        
-        console.log("[ProfileCard] FormData entries before calling server action:");
-        for (let pair of formData.entries()) {
-          console.log(pair[0]+ ', ' + (pair[1] instanceof File ? `File: ${pair[1].name}, size: ${pair[1].size}, type: ${pair[1].type}` : pair[1]));
-        }
-        
-        finalPhotoURL = await uploadProfileImage(formData); // This will be the new URL
-        console.log(`[ProfileCard] New profile picture uploaded. URL: ${finalPhotoURL}`);
+        finalPhotoURL = await uploadProfileImage(formData); 
         toast({ title: "Profile picture uploaded!" });
       } catch (uploadError: any) {
         console.error("[ProfileCard] Error uploading profile picture:", uploadError);
@@ -131,30 +118,26 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
         return;
       }
     } else if (tempProfilePicPreview === null && originalPhotoURLForDeletion) {
-      // No new file, but picture was removed (tempProfilePicPreview is null) AND there was an original picture.
-      // Here, you might call a delete function for originalPhotoURLForDeletion if you had one.
-      // For now, finalPhotoURL is already null, which is correct for saving.
       console.log(`[ProfileCard] Profile picture removed by user. Original URL was: ${originalPhotoURLForDeletion}`);
+      // finalPhotoURL is already null if tempProfilePicPreview is null
     }
     
     const profileDataToSave = {
       email: email, 
       displayName: tempName.trim(),
-      photoURL: finalPhotoURL, // This will be null if removed, or new URL if changed, or old URL if untouched.
+      photoURL: finalPhotoURL, 
       phoneNumber: initialProfileData?.phoneNumber || null, 
       bio: tempBio.trim() || null,
       onboardingComplete: true, 
     };
 
     try {
-      console.log("[ProfileCard] Attempting to save profile to Firestore. Data:", JSON.stringify(profileDataToSave));
       await createOrUpdateUserFullProfile(authUid, profileDataToSave);
 
-      // Update main state from temp state
       setName(tempName.trim());
       setBio(tempBio.trim() || '');
       setProfilePicPreview(finalPhotoURL); 
-      setProfilePicFile(null); // Clear selected file after save
+      setProfilePicFile(null); 
 
       setUserProfileLs(prev => {
         if (!prev || prev.uid !== authUid) return prev; 
@@ -178,12 +161,11 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
   };
 
   const handleCancel = () => {
-    // Reset temp fields to current main state
     setTempName(name);
     setTempBio(bio);
     setTempProfilePicPreview(profilePicPreview); 
-    setProfilePicFile(null); // Clear any selected file
-    setOriginalPhotoURLForDeletion(profilePicPreview); // Reset this too
+    setProfilePicFile(null); 
+    setOriginalPhotoURLForDeletion(profilePicPreview); 
     setIsEditing(false);
   };
 
@@ -206,17 +188,22 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
     <Card className="rounded-2xl shadow-md bg-card">
       <CardHeader className="items-center text-center">
         <div className="relative">
-          <div className="p-1 rounded-full bg-gradient-to-br from-primary to-accent">
-            <Avatar className="w-[100px] h-[100px] border-2 border-background">
-              {displayAvatarSrc ? (
-                 <AvatarImage src={displayAvatarSrc} alt="Profile Picture" key={displayAvatarSrc} data-ai-hint="person avatar"/> 
-              ) : (
+          {displayAvatarSrc ? (
+            <div className="p-1 rounded-full bg-gradient-to-br from-primary to-accent">
+              <Avatar className="w-[100px] h-[100px] border-2 border-background">
+                <AvatarImage src={displayAvatarSrc} alt="Profile Picture" key={displayAvatarSrc + "-img"} data-ai-hint="person avatar"/>
                 <AvatarFallback className="bg-muted">
                   <UserCircle2 className="w-16 h-16 text-muted-foreground" />
                 </AvatarFallback>
-              )}
+              </Avatar>
+            </div>
+          ) : (
+            <Avatar className="w-[100px] h-[100px] border-2 border-border">
+              <AvatarFallback className="bg-muted">
+                <UserCircle2 className="w-16 h-16 text-muted-foreground" />
+              </AvatarFallback>
             </Avatar>
-          </div>
+          )}
           {isEditing && (
             <Button
               variant="outline"
@@ -228,10 +215,12 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
               <Camera className="w-4 h-4" />
             </Button>
           )}
-          <Input id="profile-pic-upload-account" type="file" accept="image/*,.heic,.heif" onChange={handleFileChange} className="hidden" disabled={!isEditing || isLoading} />
         </div>
+        <Input id="profile-pic-upload-account" type="file" accept="image/*,.heic,.heif" onChange={handleFileChange} className="hidden" disabled={!isEditing || isLoading} />
+        
         <CardTitle className="mt-4 text-xl">{isEditing ? tempName : name}</CardTitle>
-        {isEditing && tempProfilePicPreview && (
+        
+        {isEditing && displayAvatarSrc && ( // Show remove button only if there's a picture in edit mode
           <Button
             variant="link"
             size="sm"
