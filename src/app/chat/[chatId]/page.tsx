@@ -8,8 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import MessageBubble from '@/components/message-bubble';
 import type { Message, User, Chat, LocalUserProfile, ChatRequestStatus } from '@/types'; 
-import { AURA_OPTIONS, mockCurrentUser } from '@/types'; 
-import { mockMessagesData, mockUsers, mockChats as initialMockChats } from '@/lib/mock-data';
+import { AURA_OPTIONS } from '@/types'; 
+import { mockMessagesData, mockUsers, mockChats as initialMockChats, mockCurrentUser } from '@/lib/mock-data'; // Corrected import
 import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera, UserCircle2, Check, X, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -435,6 +435,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
-
-    
