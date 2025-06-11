@@ -63,8 +63,11 @@ export default function SearchPage() {
 
       setIsSearching(true);
       try {
-        // Server action now handles lowercasing the search term and querying lowercase fields
+        console.log(`[SearchPage] Calling searchUsersAction with term: "${searchTerm.trim()}" and excluding UID: "${currentUserId}"`);
         const firebaseUsers: BharatConnectFirestoreUser[] = await searchUsersAction(searchTerm.trim(), currentUserId);
+        console.log(`[SearchPage] searchUsersAction returned ${firebaseUsers.length} users.`);
+        firebaseUsers.forEach(u => console.log(`  [SearchPage] User from action: ID=${u.id}, DisplayName='${u.displayName}', Username='${u.username}', Email='${u.email}'`));
+
 
         const results: SearchResultUser[] = firebaseUsers
           .map(fbUser => {
@@ -83,13 +86,12 @@ export default function SearchPage() {
                 requestUiStatus = 'chat_exists';
               }
             }
-            // fbUser.displayName here will be the originalDisplayName if available, or the lowercase one.
-            // The server action now ensures this.
+            // fbUser.displayName here SHOULD be the originalDisplayName if available, due to action's mapping.
             return { 
                 id: fbUser.id,
-                name: fbUser.originalDisplayName || fbUser.displayName, // Prioritize originalDisplayName
-                username: fbUser.username, // Username (stored lowercase)
-                email: fbUser.email, // This will be the lowercase email from Firestore
+                name: fbUser.displayName, // This should be originalDisplayName from action
+                username: fbUser.username, // Username (should be lowercase from action)
+                email: fbUser.email, // This will be the lowercase email from action
                 avatarUrl: fbUser.photoURL || undefined,
                 currentAuraId: fbUser.currentAuraId || null,
                 status: fbUser.status || 'Offline',
@@ -97,9 +99,11 @@ export default function SearchPage() {
                 requestUiStatus 
             };
           });
+        console.log(`[SearchPage] Mapped results for UI: ${results.length} users.`);
+        results.forEach(u => console.log(`  [SearchPage] UI User: ID=${u.id}, Name='${u.name}', Username='${u.username}', Email='${u.email}'`));
         setSearchResults(results);
       } catch (error) {
-        console.error("Failed to search users:", error);
+        console.error("[SearchPage] Failed to search users:", error);
         toast({ variant: 'destructive', title: "Search Error", description: "Could not perform search." });
         setSearchResults([]);
       } finally {
@@ -136,7 +140,7 @@ export default function SearchPage() {
       const newRequestChat: Chat = {
         id: newChatId,
         type: 'individual',
-        name: targetUser.name, // Use the (potentially original cased) name for the chat
+        name: targetUser.name, 
         contactUserId: targetUser.id,
         participants: [
           { id: currentUserId, name: userProfileLs.displayName || 'You', username: userProfileLs.username || 'you', avatarUrl: userProfileLs.photoURL || undefined },
@@ -202,7 +206,7 @@ export default function SearchPage() {
             <SearchIconLucide className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search by name, email, or username (case-insensitive prefix)"
+              placeholder="Search by name, email, or username (case-insensitive prefix on lowercase data)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-10 h-12 text-base rounded-xl shadow-sm focus-visible:focus-visible-gradient-border-apply"
@@ -236,7 +240,8 @@ export default function SearchPage() {
                 <div className="space-y-3">
                   {searchResults.map((user) => {
                     const buttonProps = getButtonProps(user);
-                    // user.name should be originalDisplayName, user.email is lowercase, user.username is lowercase
+                    // user.name should be originalDisplayName from the action
+                    // user.email and user.username are lowercase from the action
                     return (
                       <div key={user.id} className="flex items-center p-3 bg-card rounded-lg shadow hover:bg-muted/30 transition-colors">
                         <Avatar className="w-12 h-12 mr-4">
@@ -277,7 +282,7 @@ export default function SearchPage() {
              <div className="flex flex-col items-center justify-center text-center text-muted-foreground pt-10">
                 <SearchIconLucide className="w-16 h-16 mb-4"/>
                 <p className="text-lg">Search for People</p>
-                <p className="text-sm">Find and connect with others on BharatConnect by name, email, or username.</p>
+                <p className="text-sm">Find and connect with others on BharatConnect.</p>
              </div>
           )}
         </main>
