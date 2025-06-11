@@ -66,20 +66,22 @@ export default function LoginPageHub() {
     try {
       const userCredential = await signInUser(auth, email, password);
       console.log("[Login Hub] Firebase SignIn Success:", userCredential.user.uid);
-      // FirebaseAuthObserver will handle setting LocalStorage.
-      // Redirection is handled by the useEffect hook listening to userProfileLs changes.
+      
+      const welcomeName = userCredential.user.displayName || userCredential.user.email || 'user';
       toast({
         title: 'Login Successful!',
-        description: `Welcome back, ${userCredential.user.email || 'user'}! Redirecting...`,
+        description: `Welcome back, ${welcomeName}! Redirecting...`,
       });
+      // FirebaseAuthObserver will handle setting LocalStorage.
+      // Redirection is handled by the useEffect hook listening to userProfileLs changes.
     } catch (err: any) {
       console.error("[Login Hub] Firebase SignIn Error:", err);
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         setError('Incorrect email or password. If you\'re new, please Sign Up!');
         toast({
             variant: 'destructive',
-            title: "Hmm, Let's Check Those Details...",
-            description: "We couldn't find an account with that email and password. If you're new to BharatConnect, please 'Sign Up' below! Otherwise, try re-entering your details.",
+            title: "👋 Whoops! New to BharatConnect?",
+            description: "That email & password combo didn't match our records. If you're new here, tap 'Sign Up' below. Otherwise, double-check your details!",
         });
       } else if (err.code === 'auth/invalid-email') {
         setError('Invalid email format. Please check your email address.');
@@ -215,3 +217,4 @@ export default function LoginPageHub() {
     </div>
   );
 }
+
