@@ -7,15 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import MessageBubble from '@/components/message-bubble';
-import type { Message, User, Chat, LocalUserProfile, ChatRequestStatus } from '@/types';
+import type { Message, User, Chat, LocalUserProfile } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 import { mockMessagesData, mockUsers, mockChats as initialMockChats, mockCurrentUser } from '@/lib/mock-data';
-import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera, UserCircle2, Check, X, Info, MessageSquareX, Trash2 } from 'lucide-react';
+import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera, UserCircle2, Check, X, Info, MessageSquareX, Trash2, Quote, Eye, Mail, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import EmojiPicker from '@/components/emoji-picker';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
 import { firestore } from '@/lib/firebase';
 import { doc, deleteDoc } from 'firebase/firestore';
 
@@ -36,6 +37,8 @@ export default function ChatPage() {
   const [newMessage, setNewMessage] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [isCancellingRequest, setIsCancellingRequest] = useState(false);
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -422,39 +425,93 @@ export default function ChatPage() {
   if (isRequestView) {
     return (
       <div className="flex flex-col h-dvh bg-background items-center justify-center p-4">
-        <Card className="w-full max-w-sm rounded-xl shadow-2xl overflow-hidden bg-card">
-          <CardHeader className="text-center pt-8 pb-4">
+        <Card className="w-full max-w-md rounded-xl shadow-2xl overflow-hidden bg-card hover:shadow-primary/20 transition-shadow duration-300">
+          <CardHeader className="text-center pt-6 pb-2">
             <h2 className="text-3xl font-semibold text-gradient-primary-accent mb-1 sr-only">
               Connection Request
             </h2>
-            <CardDescription className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {contact.name} wants to connect with you.
-            </CardDescription>
+            </p>
           </CardHeader>
 
-          <CardContent className="p-6 pt-2">
-            <div className="flex flex-col items-center text-center mb-6">
-              <Avatar className="w-24 h-24 mb-4 border-4 border-background shadow-lg">
+          <CardContent className="p-6 pt-4 space-y-6">
+            <div className="flex items-center space-x-4">
+              <Avatar className="w-16 h-16 border-2 border-border shadow-md">
                 {contact.avatarUrl ? (
-                  <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar"/>
+                  <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar" />
                 ) : (
-                  <AvatarFallback className="bg-muted"><UserCircle2 className="w-16 h-16 text-muted-foreground" /></AvatarFallback>
+                  <AvatarFallback className="bg-muted"><UserCircle2 className="w-10 h-10 text-muted-foreground" /></AvatarFallback>
                 )}
               </Avatar>
-              <h3 className="text-xl font-semibold text-foreground mb-1">{contact.name}</h3>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-semibold text-foreground truncate">{contact.name}</h3>
+                {contact.username && <p className="text-xs text-muted-foreground truncate">@{contact.username}</p>}
+                 <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="link" size="sm" className="px-0 h-auto text-primary hover:text-primary/80 -ml-0.5 mt-0.5">
+                      <Eye className="w-3.5 h-3.5 mr-1" /> View Profile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle className="text-center text-xl">{contact.name}</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                      <div className="flex items-start space-x-4">
+                        <Avatar className="w-20 h-20">
+                          {contact.avatarUrl ? (
+                            <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar" />
+                          ) : (
+                            <AvatarFallback className="bg-muted"><UserCircle2 className="w-12 h-12 text-muted-foreground" /></AvatarFallback>
+                          )}
+                        </Avatar>
+                        <div className="pt-1">
+                           <h3 className="text-lg font-semibold text-foreground">{contact.name}</h3>
+                           {contact.username && <p className="text-sm text-muted-foreground">@{contact.username}</p>}
+                        </div>
+                      </div>
+                      {contact.bio && (
+                        <div>
+                          <h4 className="text-xs font-medium text-muted-foreground mb-1">BIO</h4>
+                          <p className="text-sm text-foreground bg-muted/30 p-3 rounded-md shadow-inner">{contact.bio}</p>
+                        </div>
+                      )}
+                       {contact.email && (
+                        <div>
+                          <h4 className="text-xs font-medium text-muted-foreground mb-1">EMAIL</h4>
+                          <div className="flex items-center space-x-2 p-2.5 rounded-md border bg-muted/30 text-muted-foreground">
+                            <Mail className="w-4 h-4" />
+                            <span className="text-sm text-foreground">{contact.email}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <Button type="button" variant="outline">Close</Button>
+                      </DialogClose>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
-
+            
             {(chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text)) && (
-              <div className="mb-6">
-                <p className="text-sm text-center text-muted-foreground italic p-4 bg-muted/50 rounded-lg shadow-inner break-words">
-                  &ldquo;{chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text) || 'Tap to respond.'}&rdquo;
-                </p>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground font-medium">Their message:</p>
+                <div className="relative text-sm italic p-4 bg-muted/50 rounded-lg shadow-inner border border-border/50 break-words">
+                  <Quote className="absolute top-2 left-2 w-4 h-4 text-muted-foreground/50 transform -scale-x-100" />
+                  <p className="ml-2">
+                    {chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text) || 'Tap to respond.'}
+                  </p>
+                </div>
               </div>
             )}
-            <p className="text-xs text-muted-foreground text-center mb-6">Accept this chat request to start messaging.</p>
+            <p className="text-xs text-muted-foreground text-center pt-2">Accept this chat request to start messaging.</p>
           </CardContent>
 
-          <CardFooter className="grid grid-cols-2 gap-4 p-6 bg-card border-t border-border">
+          <CardFooter className="grid grid-cols-2 gap-3 p-4 bg-card border-t border-border">
             <Button
               variant="outline"
               onClick={() => handleRequestAction('rejected')}
@@ -638,4 +695,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
