@@ -9,13 +9,15 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import MessageBubble from '@/components/message-bubble';
 import type { Message, User, Chat, LocalUserProfile, ChatRequestStatus } from '@/types';
 import { AURA_OPTIONS } from '@/types';
-import { mockMessagesData, mockUsers, mockChats as initialMockChats, mockCurrentUser } from '@/lib/mock-data'; // Corrected import
-import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera, UserCircle2, Check, X, Info, MessageSquareX } from 'lucide-react';
+import { mockMessagesData, mockUsers, mockChats as initialMockChats, mockCurrentUser } from '@/lib/mock-data';
+import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera, UserCircle2, Check, X, Info, MessageSquareX, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import EmojiPicker from '@/components/emoji-picker';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { firestore } from '@/lib/firebase';
+import { doc, deleteDoc } from 'firebase/firestore';
 
 
 export default function ChatPage() {
@@ -33,6 +35,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [isCancellingRequest, setIsCancellingRequest] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -107,7 +110,7 @@ export default function ChatPage() {
         if (currentChat.requestStatus === 'accepted' || !currentChat.requestStatus || currentChat.requestStatus === 'none') {
             setMessages(mockMessagesData[chatId] || []);
         } else if (currentChat.requestStatus === 'awaiting_action' && currentChat.requesterId !== currentUserId) {
-            const previewMsgText = currentChat.firstMessageTextPreview || "Wants to connect with you.";
+            const previewMsgText = currentChat.firstMessageTextPreview || (mockMessagesData[chatId]?.[0]?.text) || "Wants to connect with you.";
              if (contactUser) {
                 setMessages([{
                     id: `preview_${chatId}`,
@@ -121,7 +124,7 @@ export default function ChatPage() {
                  setMessages([]);
              }
         } else if (currentChat.requestStatus === 'pending' && currentChat.requesterId === currentUserId) {
-            const previewMsgText = currentChat.firstMessageTextPreview || "Request sent. Waiting for approval...";
+            const previewMsgText = currentChat.firstMessageTextPreview || (mockMessagesData[chatId]?.[0]?.text) || "Request sent. Waiting for approval...";
             setMessages([{
                 id: `preview_pending_${chatId}`,
                 chatId: chatId,
@@ -142,7 +145,7 @@ export default function ChatPage() {
       }
       setIsChatDataLoading(false);
     }, 300);
-  }, [chatId, isGuardLoading, currentUserId, userProfileLs]); // userProfileLs ensures reconstruction logic has access to current user's details
+  }, [chatId, isGuardLoading, currentUserId, userProfileLs]);
 
   useEffect(() => {
     if (messageListContainerRef.current && (chatDetails?.requestStatus === 'accepted' || !chatDetails?.requestStatus || chatDetails?.requestStatus === 'none')) {
@@ -303,7 +306,7 @@ export default function ChatPage() {
             type: 'system'
          };
       }
-    } else if (action === 'accepted') { // Also handle if the chat was reconstructed and not in initialMockChats
+    } else if (action === 'accepted') {
       const newAcceptedChat: Chat = {
         ...chatDetails,
         requestStatus: 'accepted',
@@ -316,9 +319,7 @@ export default function ChatPage() {
             type: 'system'
         }
       };
-      // This part is tricky with mock data; ideally, this state update would propagate differently
-      // For now, we rely on local setChatDetails and hope HomePage re-fetches or has its own logic
-      initialMockChats.push(newAcceptedChat); // Add to mock for potential future consistency if list is re-read
+      initialMockChats.push(newAcceptedChat);
     }
 
 
@@ -331,6 +332,40 @@ export default function ChatPage() {
       setMessages(mockMessagesData[chatId] || []);
     } else {
       setMessages([]);
+    }
+  };
+
+  const handleCancelRequest = async () => {
+    if (!chatDetails || !contact || !currentUserId) {
+      toast({ variant: "destructive", title: "Error", description: "Cannot cancel request: missing details." });
+      return;
+    }
+
+    setIsCancellingRequest(true);
+    try {
+      const sentRequestRef = doc(firestore, `bharatConnectUsers/${currentUserId}/requestsSent`, contact.id);
+      const receivedRequestRef = doc(firestore, `bharatConnectUsers/${contact.id}/requestsReceived`, currentUserId);
+
+      await deleteDoc(sentRequestRef);
+      await deleteDoc(receivedRequestRef);
+
+      // Update local mock data state if it exists
+      const chatIndex = initialMockChats.findIndex(c => c.id === chatId);
+      if (chatIndex !== -1) {
+        initialMockChats.splice(chatIndex, 1); // Remove from mock chats
+      }
+      
+      setChatDetails(prev => prev ? { ...prev, requestStatus: 'rejected' } : null); // Or some 'canceled' status
+      setMessages([]);
+
+
+      toast({ title: "Request Canceled", description: `Your request to ${contact.name} has been canceled.` });
+      router.push('/');
+    } catch (error: any) {
+      console.error("Error canceling request:", error);
+      toast({ variant: "destructive", title: "Cancellation Failed", description: error.message || "Could not cancel request." });
+    } finally {
+      setIsCancellingRequest(false);
     }
   };
 
@@ -425,9 +460,26 @@ export default function ChatPage() {
             <CardContent className="text-center">
                 <p className="text-sm text-muted-foreground">Your message request has been sent to {contact.name}. You'll be able to chat once they accept. <br/> <span className="italic mt-2 block">"{chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text) || ''}"</span></p>
             </CardContent>
-            <CardFooter>
-                <Button variant="outline" onClick={() => router.push('/')} className="w-full">
-                Back to Chats
+            <CardFooter className="flex-col space-y-2">
+                <Button 
+                  variant="destructive" 
+                  onClick={handleCancelRequest} 
+                  className="w-full"
+                  disabled={isCancellingRequest}
+                >
+                  {isCancellingRequest ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      Cancelling...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="mr-2 h-4 w-4" /> Cancel Request
+                    </>
+                  )}
+                </Button>
+                <Button variant="outline" onClick={() => router.push('/')} className="w-full" disabled={isCancellingRequest}>
+                  Back to Chats
                 </Button>
             </CardFooter>
         </Card>
@@ -442,12 +494,12 @@ export default function ChatPage() {
             <CardHeader className="items-center text-center">
                 <MessageSquareX className="w-12 h-12 text-destructive mb-3" />
                 <CardTitle className="text-destructive">
-                    Request Rejected
+                    {chatDetails.requesterId === currentUserId ? "Request Rejected" : "Request Rejected"} 
                 </CardTitle>
             </CardHeader>
             <CardContent className="text-center">
                 {chatDetails.requesterId === currentUserId ?
-                    <p className="text-sm text-muted-foreground">Your chat request to {contact.name} was rejected.</p> :
+                    <p className="text-sm text-muted-foreground">{contact.name} rejected your chat request.</p> :
                     <p className="text-sm text-muted-foreground">You rejected the chat request from {contact.name}.</p>
                 }
             </CardContent>
@@ -554,3 +606,4 @@ export default function ChatPage() {
     </div>
   );
 }
+

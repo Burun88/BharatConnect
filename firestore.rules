@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -11,25 +12,19 @@ service cloud.firestore {
       allow delete: if request.auth.uid == userId;
 
       // Chat Requests - Sent
-      match /requestsSent/{requestId} {
-        allow read: if true; // WARNING: Temporarily public for diagnostics
-        allow write: if request.auth.uid == userId && request.resource.data.to == requestId;
-        // TODO: Add validation for requestSent documents:
-        // allow write: if request.auth.uid == userId && request.resource.data.to == requestId
-        //           && request.resource.data.status is string
-        //           && request.resource.data.timestamp is timestamp;
+      match /requestsSent/{receiverIdInPath} {
+        allow read: if request.auth.uid == userId;
+        allow create: if request.auth.uid == userId && request.resource.data.to == receiverIdInPath;
+        allow update: if request.auth.uid == userId; // e.g., if sender could update a message in the request (not typical)
+        allow delete: if request.auth.uid == userId; // Sender can delete their sent request
       }
 
       // Chat Requests - Received
-      match /requestsReceived/{requestId} {
-        allow read: if true; // WARNING: Temporarily public for diagnostics
-        allow write: if (request.auth.uid == requestId && request.resource.data.from == request.auth.uid) // Sender creating
-                      || (request.auth.uid == userId); // Receiver updating
-        // TODO: Add validation for requestsReceived documents:
-        // allow write: if ((request.auth.uid == requestId && request.resource.data.from == request.auth.uid)
-        //               || (request.auth.uid == userId))
-        //           && request.resource.data.status is string
-        //           && request.resource.data.timestamp is timestamp;
+      match /requestsReceived/{senderIdInPath} {
+        allow read: if request.auth.uid == userId;
+        allow create: if request.auth.uid == senderIdInPath && request.resource.data.from == request.auth.uid; // Sender creates
+        allow update: if request.auth.uid == userId; // Receiver updates (e.g. status to accepted/rejected)
+        allow delete: if request.auth.uid == userId || request.auth.uid == senderIdInPath; // Receiver or original Sender can delete
       }
     }
   }
