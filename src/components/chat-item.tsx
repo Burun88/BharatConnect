@@ -2,8 +2,8 @@
 "use client";
 
 import type { Chat } from '@/types';
-import { AURA_OPTIONS, mockCurrentUser } from '@/types'; // Added mockCurrentUser
-import { mockUsers } from '@/lib/mock-data';
+import { AURA_OPTIONS } from '@/types'; 
+import { mockUsers, mockCurrentUser } from '@/lib/mock-data'; // Changed import for mockCurrentUser
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
