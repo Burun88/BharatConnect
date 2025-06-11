@@ -1,24 +1,32 @@
 
 'use server';
 import { firestore } from '@/lib/firebase';
-import { collection, query, getDocs, limit, orderBy, startAt, endAt, doc, getDoc } from 'firebase/firestore'; // Added doc, getDoc
+import { collection, query, getDocs, limit, orderBy, startAt, endAt, doc, getDoc } from 'firebase/firestore';
 import type { BharatConnectFirestoreUser } from '@/services/profileService';
 
 export async function searchUsersAction(searchTerm: string, currentUserIdToExclude: string): Promise<BharatConnectFirestoreUser[]> {
+  console.log("-------------------- NEW SEARCH ACTION START --------------------");
   console.log(`[SearchAction] Called with searchTerm: "${searchTerm}", currentUserIdToExclude: "${currentUserIdToExclude}"`);
 
-  // --- START DIAGNOSTIC: Direct fetch for Ayandip's profile ---
-  const ayandipId = "UMQIs0ucLbcaJmC8ef3P3jQeRVs2"; // Ayandip's specific UID
+  if (firestore) {
+    console.log("[SearchAction] Firestore instance appears to be initialized.");
+  } else {
+    console.error("[SearchAction CRITICAL] Firestore instance is NOT initialized. Search will fail.");
+    return [];
+  }
+
+  // --- START DIAGNOSTIC: Direct fetch for a specific user's profile ---
+  const specificTestUserId = "UMQIs0ucLbcaJmC8ef3P3jQeRVs2"; // Ayandip's specific UID
   try {
-    const testUserDocRef = doc(firestore, 'bharatConnectUsers', ayandipId);
+    const testUserDocRef = doc(firestore, 'bharatConnectUsers', specificTestUserId);
     const testDocSnap = await getDoc(testUserDocRef);
     if (testDocSnap.exists()) {
-      console.log(`[SearchAction DIAGNOSTIC] Successfully fetched document for ID ${ayandipId} directly:`, JSON.stringify(testDocSnap.data()));
+      console.log(`[SearchAction DIAGNOSTIC] Successfully fetched document for ID ${specificTestUserId} directly:`, JSON.stringify(testDocSnap.data()));
     } else {
-      console.log(`[SearchAction DIAGNOSTIC] Document for ID ${ayandipId} NOT found by direct getDoc.`);
+      console.log(`[SearchAction DIAGNOSTIC] Document for ID ${specificTestUserId} NOT found by direct getDoc. This is unexpected if the user exists and rules are permissive.`);
     }
   } catch (e: any) {
-    console.error(`[SearchAction DIAGNOSTIC] Error fetching document for ID ${ayandipId} directly:`, e.message, e.stack);
+    console.error(`[SearchAction DIAGNOSTIC] Error fetching document for ID ${specificTestUserId} directly:`, e.message, e.stack);
   }
   // --- END DIAGNOSTIC ---
 
@@ -33,10 +41,28 @@ export async function searchUsersAction(searchTerm: string, currentUserIdToExclu
   const usersRef = collection(firestore, 'bharatConnectUsers');
   const resultsLimit = 10;
 
+  // --- START TEMP_DIAG: Simplified query ---
+  try {
+    const testQuery = query(usersRef, orderBy('displayName'), limit(5)); // Querying on 'displayName' which should be lowercase
+    const testQuerySnapshot = await getDocs(testQuery);
+    console.log(`[SearchAction TEMP_DIAG] Simplified testQuery (orderBy lowercase 'displayName', limit 5) returned ${testQuerySnapshot.size} documents.`);
+    if (!testQuerySnapshot.empty) {
+      testQuerySnapshot.forEach(doc => {
+        const data = doc.data();
+        console.log(`  [SearchAction TEMP_DIAG] Raw data from testQuery for doc ${doc.id}: id='${data.id}', displayName(lc)='${data.displayName}', originalDisplayName='${data.originalDisplayName}', email(lc)='${data.email}', username(lc)='${data.username}'`);
+      });
+    } else {
+      console.log("[SearchAction TEMP_DIAG] Simplified testQuery returned no documents. This indicates a fundamental issue with querying the collection or data structure/content.");
+    }
+  } catch (e: any) {
+    console.error(`[SearchAction TEMP_DIAG] Error executing simplified testQuery:`, e.message, e.stack);
+  }
+  // --- END TEMP_DIAG ---
+
   console.log(`[SearchAction] Preparing nameQuery against Firestore's lowercase 'displayName' field. orderBy('displayName'), startAt('${lowerSearchTerm}'), endAt('${lowerSearchTerm}\\uf8ff')`);
   const nameQuery = query(
     usersRef,
-    orderBy('displayName'),
+    orderBy('displayName'), // This field MUST be lowercase in Firestore
     startAt(lowerSearchTerm),
     endAt(lowerSearchTerm + '\uf8ff'),
     limit(resultsLimit)
@@ -45,7 +71,7 @@ export async function searchUsersAction(searchTerm: string, currentUserIdToExclu
   console.log(`[SearchAction] Preparing emailQuery against Firestore's lowercase 'email' field. orderBy('email'), startAt('${lowerSearchTerm}'), endAt('${lowerSearchTerm}\\uf8ff')`);
   const emailQuery = query(
     usersRef,
-    orderBy('email'),
+    orderBy('email'), // This field MUST be lowercase in Firestore
     startAt(lowerSearchTerm),
     endAt(lowerSearchTerm + '\uf8ff'),
     limit(resultsLimit)
@@ -54,7 +80,7 @@ export async function searchUsersAction(searchTerm: string, currentUserIdToExclu
   console.log(`[SearchAction] Preparing usernameQuery against Firestore's lowercase 'username' field. orderBy('username'), startAt('${lowerSearchTerm}'), endAt('${lowerSearchTerm}\\uf8ff')`);
   const usernameQuery = query(
     usersRef,
-    orderBy('username'),
+    orderBy('username'), // This field MUST be lowercase in Firestore
     startAt(lowerSearchTerm),
     endAt(lowerSearchTerm + '\uf8ff'),
     limit(resultsLimit)
@@ -69,7 +95,7 @@ export async function searchUsersAction(searchTerm: string, currentUserIdToExclu
     }
     nameSnapshot.forEach(doc => {
       const data = doc.data();
-      console.log(`[SearchAction] Raw data from NAME query for doc ${doc.id}: displayName='${data.displayName}', email='${data.email}', username='${data.username}', originalDisplayName='${data.originalDisplayName}'`);
+      console.log(`  [SearchAction RAW_DATA_NAME_QUERY] Doc ID ${doc.id}: displayName(lc)='${data.displayName}', email(lc)='${data.email}', username(lc)='${data.username}', originalDisplayName='${data.originalDisplayName}'`);
     });
 
     console.log(`[SearchAction] Executing emailQuery for term: "${lowerSearchTerm}"`);
@@ -78,9 +104,9 @@ export async function searchUsersAction(searchTerm: string, currentUserIdToExclu
     if (emailSnapshot.empty) {
       console.log("[SearchAction] Email query snapshot was empty.");
     }
-    emailSnapshot.forEach(doc => {
+     emailSnapshot.forEach(doc => {
       const data = doc.data();
-      console.log(`[SearchAction] Raw data from EMAIL query for doc ${doc.id}: displayName='${data.displayName}', email='${data.email}', username='${data.username}', originalDisplayName='${data.originalDisplayName}'`);
+      console.log(`  [SearchAction RAW_DATA_EMAIL_QUERY] Doc ID ${doc.id}: displayName(lc)='${data.displayName}', email(lc)='${data.email}', username(lc)='${data.username}', originalDisplayName='${data.originalDisplayName}'`);
     });
 
     console.log(`[SearchAction] Executing usernameQuery for term: "${lowerSearchTerm}"`);
@@ -91,37 +117,37 @@ export async function searchUsersAction(searchTerm: string, currentUserIdToExclu
     }
     usernameSnapshot.forEach(doc => {
       const data = doc.data();
-      console.log(`[SearchAction] Raw data from USERNAME query for doc ${doc.id}: displayName='${data.displayName}', email='${data.email}', username='${data.username}', originalDisplayName='${data.originalDisplayName}'`);
+      console.log(`  [SearchAction RAW_DATA_USERNAME_QUERY] Doc ID ${doc.id}: displayName(lc)='${data.displayName}', email(lc)='${data.email}', username(lc)='${data.username}', originalDisplayName='${data.originalDisplayName}'`);
     });
 
 
     const usersMap = new Map<string, BharatConnectFirestoreUser>();
 
     const processSnapshot = (snapshot: any, queryType: string) => {
-      snapshot.forEach((doc: any) => {
-        const userData = doc.data() as BharatConnectFirestoreUser;
+      console.log(`[SearchAction PROCESS_SNAPSHOT - ${queryType}] Processing ${snapshot.size} docs.`);
+      snapshot.forEach((docSnapshot: any) => { // Changed 'doc' to 'docSnapshot' to avoid confusion
+        const userData = docSnapshot.data() as BharatConnectFirestoreUser;
+        const docId = docSnapshot.id;
         
-        console.log(`[SearchAction PROCESS_SNAPSHOT - ${queryType}] Processing doc ID: ${doc.id}`);
-        console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] userData.id: ${userData.id} (type: ${typeof userData.id})`);
-        console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] userData.displayName (from DB, should be lc): ${userData.displayName} (type: ${typeof userData.displayName})`);
-        console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] userData.originalDisplayName: ${userData.originalDisplayName} (type: ${typeof userData.originalDisplayName})`);
-        console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] userData.email (from DB, should be lc): ${userData.email} (type: ${typeof userData.email})`);
-        console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] userData.username (from DB, should be lc): ${userData.username} (type: ${typeof userData.username})`);
+        console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] Processing doc ID from snapshot: ${docId}`);
+        console.log(`    userData.id (from data obj): ${userData.id} (type: ${typeof userData.id})`);
+        console.log(`    userData.displayName (LOWERCASE from DB): '${userData.displayName}' (type: ${typeof userData.displayName})`);
+        console.log(`    userData.originalDisplayName (ORIGINAL from DB): '${userData.originalDisplayName}' (type: ${typeof userData.originalDisplayName})`);
+        console.log(`    userData.email (LOWERCASE from DB): '${userData.email}' (type: ${typeof userData.email})`);
+        console.log(`    userData.username (LOWERCASE from DB): '${userData.username}' (type: ${typeof userData.username})`);
 
         const isCurrentUser = userData.id === currentUserIdToExclude;
-        console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] Is current user (userData.id === currentUserIdToExclude: ${userData.id} === ${currentUserIdToExclude}): ${isCurrentUser}`);
+        console.log(`    Is current user (userData.id === currentUserIdToExclude: ${userData.id} === ${currentUserIdToExclude}): ${isCurrentUser}`);
 
         if (!isCurrentUser) {
-          // Use originalDisplayName if available, otherwise fallback to the (lowercase) displayName.
-          // This ensures that if originalDisplayName is missing for some reason, we still show a name.
-          const displayNameToUse = userData.originalDisplayName || userData.displayName;
+          const displayNameToUse = userData.originalDisplayName || userData.displayName || 'Unknown User'; // Fallback chain
           usersMap.set(userData.id, {
             ...userData,
-            displayName: displayNameToUse 
+            displayName: displayNameToUse // This is what will be used in the UI
           });
-          console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] Added/Updated user ${doc.id} into usersMap. User data in map: ID='${userData.id}', DisplayName (for UI)='${displayNameToUse}', Username (lc)='${userData.username}', Email (lc)='${userData.email}'`);
+          console.log(`    Added/Updated user ${docId} into usersMap. User data in map: ID='${userData.id}', DisplayName (for UI)='${displayNameToUse}', Username(lc)='${userData.username}', Email(lc)='${userData.email}'`);
         } else {
-          console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] Skipped user ${doc.id} (is current user).`);
+          console.log(`    Skipped user ${docId} (is current user).`);
         }
       });
     };
@@ -134,10 +160,9 @@ export async function searchUsersAction(searchTerm: string, currentUserIdToExclu
     if (usersMap.size > 0) {
         console.log(`[SearchAction] UsersMap keys: ${Array.from(usersMap.keys()).join(', ')}`);
         usersMap.forEach((value, key) => {
-            console.log(`  Map Entry - Key: ${key}, User's DisplayName (for UI): '${value.displayName}', Username: '${value.username}', Email: '${value.email}'`);
+            console.log(`  Map Entry - Key: ${key}, User's DisplayName (for UI): '${value.displayName}', Username(lc): '${value.username}', Email(lc): '${value.email}'`);
         });
     }
-
 
     const finalResults = Array.from(usersMap.values()).slice(0, resultsLimit);
     console.log(`[SearchAction] Combined and filtered results count for UI: ${finalResults.length}`);
@@ -146,14 +171,16 @@ export async function searchUsersAction(searchTerm: string, currentUserIdToExclu
     } else {
       console.log(`[SearchAction] Final results array is empty.`);
     }
+    console.log("-------------------- SEARCH ACTION END --------------------");
     return finalResults;
 
   } catch (error) {
     console.error("[SearchAction] Error searching users in Firestore:", error);
     if (error instanceof Error) {
-        console.error(`[SearchAction] Error name: ${error.name}, message: ${error.message}`);
-        console.error(`[SearchAction] Error stack: ${error.stack}`); // Log stack trace
+        console.error(`  [SearchAction] Error name: ${error.name}, message: ${error.message}`);
+        console.error(`  [SearchAction] Error stack: ${error.stack}`); // Log stack trace
     }
+    console.log("-------------------- SEARCH ACTION END (WITH ERROR) --------------------");
     return [];
   }
 }
