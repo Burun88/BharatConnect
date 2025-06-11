@@ -67,6 +67,34 @@ export const mockUsers: User[] = [
     status: 'Feeling playful! 🎉',
     hasViewedStatus: true,
   },
+  { // New user for chat request demonstration
+    id: 'user8RequestSender',
+    name: 'Rajesh Gupta (Wants to Connect)',
+    avatarUrl: 'https://picsum.photos/seed/user8/100/100',
+    currentAuraId: 'calm',
+    status: 'Exploring BharatConnect',
+  },
+  { // New user for chat request demonstration (sender perspective)
+    id: 'user9RequestRecipient',
+    name: 'Meera Iyer (Request Sent)',
+    avatarUrl: 'https://picsum.photos/seed/user9/100/100',
+    currentAuraId: null,
+    status: 'Online',
+  },
+   { // New user for rejected request demonstration
+    id: 'user10RejectedBy',
+    name: 'Amit Verma (Rejected You)',
+    avatarUrl: 'https://picsum.photos/seed/user10/100/100',
+    currentAuraId: 'sad',
+    status: 'Offline',
+  },
+  { // New user for current user to reject
+    id: 'user11ToReject',
+    name: 'Sunita Rao (Wants to Connect)',
+    avatarUrl: 'https://picsum.photos/seed/user11/100/100',
+    currentAuraId: 'focused',
+    status: 'Online',
+  }
 ];
 
 const getAuraById = (id: string | null | undefined): UserAura | undefined => AURA_OPTIONS.find(a => a.id === id);
@@ -100,9 +128,75 @@ export const mockMessagesData: { [chatId: string]: Message[] } = {
     { id: 'msg7_1', chatId: 'chat7', senderId: 'user7', text: 'Party tonight! You in?', timestamp: Date.now() - 1000 * 60 * 15, type: 'text' },
     { id: 'msg7_2', chatId: 'chat7', senderId: 'currentUser', text: 'Definitely! What time?', timestamp: Date.now() - 1000 * 60 * 10, type: 'text', status: 'sent'},
   ],
+  // Mock messages for chat requests
+  chat8_request_from_user8: [ // CurrentUser is recipient
+    { id: 'msg_req_8_1', chatId: 'chat8_request_from_user8', senderId: 'user8RequestSender', text: 'Hi there! I saw your profile and would love to connect regarding our mutual interest in tech.', timestamp: Date.now() - 1000 * 60 * 5, type: 'text' },
+  ],
+  chat9_request_to_user9: [ // CurrentUser is sender
+    { id: 'msg_req_9_1', chatId: 'chat9_request_to_user9', senderId: 'currentUser', text: 'Hello Meera, I would like to discuss a potential collaboration.', timestamp: Date.now() - 1000 * 60 * 10, type: 'text', status: 'sent' },
+  ],
+  chat10_rejected_by_user10: [ // CurrentUser sent, user10 rejected
+    { id: 'msg_req_10_1', chatId: 'chat10_rejected_by_user10', senderId: 'currentUser', text: 'Hi Amit, hope you are doing well.', timestamp: Date.now() - 1000 * 60 * 60 * 24, type: 'text', status: 'sent' },
+  ],
+   chat11_request_from_user11: [ // CurrentUser is recipient, to demonstrate rejecting
+    { id: 'msg_req_11_1', chatId: 'chat11_request_from_user11', senderId: 'user11ToReject', text: 'Hey, can we chat for a moment?', timestamp: Date.now() - 1000 * 60 * 2, type: 'text' },
+  ],
 };
 
 export const mockChats: Chat[] = [
+  { // Chat request for current user to action
+    id: 'chat8_request_from_user8',
+    type: 'individual',
+    name: mockUsers.find(u => u.id === 'user8RequestSender')?.name || 'Rajesh Gupta',
+    contactUserId: 'user8RequestSender',
+    participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user8RequestSender')!],
+    lastMessage: mockMessagesData.chat8_request_from_user8[0],
+    unreadCount: 1,
+    avatarUrl: mockUsers.find(u => u.id === 'user8RequestSender')?.avatarUrl,
+    requestStatus: 'awaiting_action',
+    requesterId: 'user8RequestSender',
+    firstMessageTextPreview: mockMessagesData.chat8_request_from_user8[0].text,
+  },
+  { // Chat request current user has sent, pending
+    id: 'chat9_request_to_user9',
+    type: 'individual',
+    name: mockUsers.find(u => u.id === 'user9RequestRecipient')?.name || 'Meera Iyer',
+    contactUserId: 'user9RequestRecipient',
+    participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user9RequestRecipient')!],
+    lastMessage: mockMessagesData.chat9_request_to_user9[0],
+    unreadCount: 0,
+    avatarUrl: mockUsers.find(u => u.id === 'user9RequestRecipient')?.avatarUrl,
+    requestStatus: 'pending',
+    requesterId: 'currentUser',
+    firstMessageTextPreview: mockMessagesData.chat9_request_to_user9[0].text,
+  },
+  { // Chat request current user sent, was rejected
+    id: 'chat10_rejected_by_user10',
+    type: 'individual',
+    name: mockUsers.find(u => u.id === 'user10RejectedBy')?.name || 'Amit Verma',
+    contactUserId: 'user10RejectedBy',
+    participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user10RejectedBy')!],
+    lastMessage: mockMessagesData.chat10_rejected_by_user10[0],
+    unreadCount: 0,
+    avatarUrl: mockUsers.find(u => u.id === 'user10RejectedBy')?.avatarUrl,
+    requestStatus: 'rejected', // Recipient (user10) rejected
+    requesterId: 'currentUser',
+    firstMessageTextPreview: mockMessagesData.chat10_rejected_by_user10[0].text,
+  },
+   { // Chat request for current user to action (for rejection demo)
+    id: 'chat11_request_from_user11',
+    type: 'individual',
+    name: mockUsers.find(u => u.id === 'user11ToReject')?.name || 'Sunita Rao',
+    contactUserId: 'user11ToReject',
+    participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user11ToReject')!],
+    lastMessage: mockMessagesData.chat11_request_from_user11[0],
+    unreadCount: 1,
+    avatarUrl: mockUsers.find(u => u.id === 'user11ToReject')?.avatarUrl,
+    requestStatus: 'awaiting_action',
+    requesterId: 'user11ToReject',
+    firstMessageTextPreview: mockMessagesData.chat11_request_from_user11[0].text,
+  },
+  // Existing chats (implicitly 'accepted' or 'none')
   {
     id: 'chat1',
     type: 'individual',
@@ -112,6 +206,7 @@ export const mockChats: Chat[] = [
     lastMessage: mockMessagesData.chat1[mockMessagesData.chat1.length -1],
     unreadCount: 2,
     avatarUrl: mockUsers.find(u => u.id === 'user1')?.avatarUrl,
+    requestStatus: 'accepted', // Explicitly accepted for clarity
   },
   {
     id: 'chat2',
@@ -122,6 +217,7 @@ export const mockChats: Chat[] = [
     lastMessage: mockMessagesData.chat2[mockMessagesData.chat2.length - 1],
     unreadCount: 0,
     avatarUrl: mockUsers.find(u => u.id === 'user2')?.avatarUrl,
+    requestStatus: 'none', // Assumed to be a pre-existing chat
   },
   {
     id: 'chat3',
@@ -132,6 +228,7 @@ export const mockChats: Chat[] = [
     lastMessage: mockMessagesData.chat3[mockMessagesData.chat3.length - 1],
     unreadCount: 1,
     avatarUrl: mockUsers.find(u => u.id === 'user3')?.avatarUrl,
+    requestStatus: 'accepted',
   },
   {
     id: 'chat4',
@@ -142,6 +239,7 @@ export const mockChats: Chat[] = [
     lastMessage: mockMessagesData.chat4[mockMessagesData.chat4.length - 1],
     unreadCount: 0,
     avatarUrl: mockUsers.find(u => u.id === 'user4')?.avatarUrl,
+    requestStatus: 'none',
   },
   {
     id: 'chat5',
@@ -152,6 +250,7 @@ export const mockChats: Chat[] = [
     lastMessage: mockMessagesData.chat5[mockMessagesData.chat5.length -1],
     unreadCount: 0,
     avatarUrl: mockUsers.find(u => u.id === 'user5')?.avatarUrl,
+    requestStatus: 'accepted',
   },
   {
     id: 'chat6',
@@ -162,6 +261,7 @@ export const mockChats: Chat[] = [
     lastMessage: mockMessagesData.chat6[mockMessagesData.chat6.length - 1],
     unreadCount: 1,
     avatarUrl: mockUsers.find(u => u.id === 'user6')?.avatarUrl,
+    requestStatus: 'none',
   },
   {
     id: 'chat7',
@@ -172,8 +272,9 @@ export const mockChats: Chat[] = [
     lastMessage: mockMessagesData.chat7[mockMessagesData.chat7.length - 1],
     unreadCount: 3,
     avatarUrl: mockUsers.find(u => u.id === 'user7')?.avatarUrl,
+    requestStatus: 'accepted',
   },
-];
+].sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
 
 
 export const mockAuraBarItemsData = (): User[] => {
@@ -195,7 +296,7 @@ export const mockAuraBarItemsData = (): User[] => {
       ...user,
       status: aura ? `Feeling ${aura.name} ${aura.emoji}` : user.status || 'Offline',
     };
-  });
+  }).filter(user => !['user8RequestSender', 'user9RequestRecipient', 'user10RejectedBy', 'user11ToReject'].includes(user.id)); // Filter out special users for requests from aura bar for now
 };
 
 export const mockStatusUpdates: StatusUpdate[] = [

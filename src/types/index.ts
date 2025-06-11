@@ -30,6 +30,8 @@ export type Message = {
   mediaUrl?: string; // URL for image/file
 };
 
+export type ChatRequestStatus = 'pending' | 'awaiting_action' | 'accepted' | 'rejected' | 'none';
+
 export type Chat = {
   id: string;
   type: 'individual' | 'group';
@@ -39,6 +41,9 @@ export type Chat = {
   unreadCount: number;
   avatarUrl?: string; // Contact avatar or group avatar
   contactUserId?: string; // For individual chats, the ID of the other user
+  requestStatus?: ChatRequestStatus; // Status of the chat request
+  requesterId?: string | null; // UID of the user who initiated the request
+  firstMessageTextPreview?: string | null; // The first message sent as part of the request
 };
 
 export const AURA_OPTIONS: UserAura[] = [
