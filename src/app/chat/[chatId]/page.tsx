@@ -360,28 +360,31 @@ export default function ChatPage() {
             <Button variant="ghost" size="icon" type="button" className={cn("hover:bg-transparent", isEmojiPickerOpen && "bg-accent/20 text-primary")} onClick={toggleEmojiPicker} aria-pressed={isEmojiPickerOpen} aria-label="Toggle emoji picker">
               <SmilePlus className={cn("w-5 h-5 text-muted-foreground", isEmojiPickerOpen && "text-primary")} />
             </Button>
-            <div className="chat-input-sweep-border-wrapper flex-1">
-              <Textarea
-                ref={textareaRef}
-                placeholder="Type a message..."
-                value={newMessage}
-                onChange={(e) => {
-                  setNewMessage(e.target.value);
-                  e.target.style.height = 'auto';
-                  e.target.style.height = `${e.target.scrollHeight}px`;
-                }}
-                onFocus={() => { if(isEmojiPickerOpen) setIsEmojiPickerOpen(false); }}
-                rows={1}
-                className={cn("chat-input-sweep-border-textarea", "resize-none min-h-[40px] max-h-[100px] rounded-full px-6 py-2.5 leading-tight hide-scrollbar")}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage(e as any);
-                    if (textareaRef.current) textareaRef.current.style.height = 'auto';
-                  }
-                }}
-              />
-            </div>
+            <Textarea
+              ref={textareaRef}
+              placeholder="Type a message..."
+              value={newMessage}
+              onChange={(e) => {
+                setNewMessage(e.target.value);
+                e.target.style.height = 'auto';
+                e.target.style.height = `${e.target.scrollHeight}px`;
+              }}
+              onFocus={() => { if(isEmojiPickerOpen) setIsEmojiPickerOpen(false); }}
+              rows={1}
+              className={cn(
+                "flex-1", // Ensures Textarea takes up available space
+                "resize-none min-h-[40px] max-h-[100px] rounded-full px-6 py-2.5 leading-tight hide-scrollbar"
+                // The chat-input-sweep-border-textarea class is removed
+                // The default focus-visible:focus-visible-gradient-border-apply from components/ui/textarea.tsx will now apply
+              )}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage(e as any);
+                  if (textareaRef.current) textareaRef.current.style.height = 'auto';
+                }
+              }}
+            />
             <input type="file" ref={fileInputRef} onChange={handleFileSelect} style={{ display: 'none' }} accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,text/plain,audio/*" />
             {newMessage.trim() === '' ? (
               <>
