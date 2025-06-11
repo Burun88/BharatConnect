@@ -56,24 +56,86 @@ export default function ChatPage() {
 
     setIsChatDataLoading(true);
     setTimeout(() => {
-      const currentChat = initialMockChats.find(c => c.id === chatId);
+      // Attempt to find the chat in initialMockChats first
+      let currentChat = initialMockChats.find(c => c.id === chatId);
+
+      // If not found in mockChats, and it's a request ID format (e.g., req_sent_xxx or req_rec_xxx)
+      // this indicates it might be a newer request not yet "accepted" into mockChats.
+      // We'll construct a temporary Chat object based on information we might have
+      // (e.g. from local storage or passed params if we were to extend this)
+      // For now, if it starts with 'req_', we assume its details are primarily for request handling.
+      if (!currentChat && (chatId.startsWith('req_sent_') || chatId.startsWith('req_rec_'))) {
+          const parts = chatId.split('_');
+          const contactIdFromChatId = parts.length === 3 ? parts[2] : null;
+          const typeFromChatId = parts.length > 1 ? parts[1] : null; // 'sent' or 'rec'
+
+          if (contactIdFromChatId) {
+              const potentialContact = mockUsers.find(u => u.id === contactIdFromChatId);
+              if (potentialContact && userProfileLs) {
+                  currentChat = {
+                      id: chatId,
+                      type: 'individual',
+                      name: potentialContact.name,
+                      contactUserId: contactIdFromChatId,
+                      participants: [
+                          { id: userProfileLs.uid, name: userProfileLs.displayName || 'You' },
+                          potentialContact
+                      ],
+                      lastMessage: null, // Will be set by request status logic
+                      unreadCount: 0,
+                      avatarUrl: potentialContact.avatarUrl,
+                      // Infer requestStatus and requesterId based on chatId prefix
+                      requestStatus: typeFromChatId === 'sent' ? 'pending' : (typeFromChatId === 'rec' ? 'awaiting_action' : 'none'),
+                      requesterId: typeFromChatId === 'sent' ? userProfileLs.uid : contactIdFromChatId,
+                      firstMessageTextPreview: typeFromChatId === 'sent' ? "Request sent. Waiting for approval..." : "Wants to connect with you. Tap to respond."
+                  };
+              }
+          }
+      }
+
+
       if (currentChat) {
         setChatDetails(currentChat);
-        const contactUser = currentChat.contactUserId ? mockUsers.find(u => u.id === currentChat.contactUserId) : null;
-        setContact(contactUser);
-        // Only load full messages if chat is accepted or has no request status (legacy)
+        const contactUser = currentChat.contactUserId ? mockUsers.find(u => u.id === currentChat.contactUserId) : (currentChat.participants.find(p => p.id !== currentUserId));
+        setContact(contactUser || null);
+        
+        // Logic for loading messages based on request status
         if (currentChat.requestStatus === 'accepted' || !currentChat.requestStatus || currentChat.requestStatus === 'none') {
             setMessages(mockMessagesData[chatId] || []);
         } else if (currentChat.requestStatus === 'awaiting_action' && currentChat.requesterId !== currentUserId) {
-            // For awaiting action, show only the first message preview (handled by UI, not full messages list)
-            setMessages([]); // Or just the preview message if desired in bubble format
-        } else {
-            setMessages([]); // No messages for pending (sender) or rejected
+            // Show first message preview if available, else empty
+            const previewMsgText = currentChat.firstMessageTextPreview || "Wants to connect with you.";
+             if (contactUser) { // Ensure contactUser is defined before creating message
+                setMessages([{
+                    id: `preview_${chatId}`,
+                    chatId: chatId,
+                    senderId: contactUser.id, 
+                    text: previewMsgText,
+                    timestamp: Date.now(), // Or a more appropriate timestamp
+                    type: 'text'
+                }]);
+             } else {
+                 setMessages([]);
+             }
+        } else if (currentChat.requestStatus === 'pending' && currentChat.requesterId === currentUserId) {
+            const previewMsgText = currentChat.firstMessageTextPreview || "Request sent. Waiting for approval...";
+            setMessages([{
+                id: `preview_pending_${chatId}`,
+                chatId: chatId,
+                senderId: currentUserId,
+                text: previewMsgText,
+                timestamp: Date.now(), // Or a more appropriate timestamp
+                type: 'text',
+                status: 'sent'
+            }]);
+        }
+        else {
+            setMessages([]); // No messages for rejected or other states
         }
       }
       setIsChatDataLoading(false);
-    }, 500); // Reduced timeout
-  }, [chatId, isGuardLoading, currentUserId]);
+    }, 300); // Reduced timeout
+  }, [chatId, isGuardLoading, currentUserId, userProfileLs]);
 
   useEffect(() => {
     if (messageListContainerRef.current && (chatDetails?.requestStatus === 'accepted' || !chatDetails?.requestStatus || chatDetails?.requestStatus === 'none')) {
@@ -83,8 +145,8 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (isGuardLoading) return;
-    const mcEl = mainContentRef.current; // Main content area (contains message list)
-    const bbEl = bottomBarRef.current;  // Bottom bar (input + emoji picker)
+    const mcEl = mainContentRef.current; 
+    const bbEl = bottomBarRef.current;  
     const vp = window.visualViewport;
 
     if (!mcEl || !bbEl || !vp) return;
@@ -93,35 +155,17 @@ export default function ChatPage() {
     let lastBottomBarActualHeight = bbEl.offsetHeight;
 
     const updateLayout = () => {
-      const currentInputBarActualHeight = bbEl.offsetHeight; // Actual height of the input bar (may include emoji picker)
-      let physicalKeyboardHeight = 0; // Height of the OS keyboard if visible and emoji picker is not open
-
-      // isKeyboardEffectivelyOpen: Check if keyboard is visually taking up space.
-      // vp.height is the visual viewport height. window.innerHeight is the layout viewport height.
-      // If keyboard is open, vp.height < window.innerHeight.
-      // vp.offsetTop will be non-zero when keyboard is up.
-      const isKeyboardEffectivelyOpen = vp.height < window.innerHeight - 50; // 50px threshold
+      const currentInputBarActualHeight = bbEl.offsetHeight; 
+      let physicalKeyboardHeight = 0; 
+      const isKeyboardEffectivelyOpen = vp.height < window.innerHeight - 50; 
 
       if (isKeyboardEffectivelyOpen && !isEmojiPickerOpen) {
-        // Keyboard is open, and emoji picker is NOT.
-        // physicalKeyboardHeight is the space taken by the keyboard.
         physicalKeyboardHeight = window.innerHeight - vp.offsetTop - vp.height;
       }
-      // If emoji picker is open, physicalKeyboardHeight remains 0 because emoji picker is part of bbEl.
-      // If neither keyboard nor emoji picker is open, physicalKeyboardHeight remains 0.
-
-      // Position the bottom bar (bbEl):
-      // It should sit 'physicalKeyboardHeight' from the bottom of the screen.
+      
       bbEl.style.bottom = `${physicalKeyboardHeight}px`;
-
-      // Pad the main content area (mcEl):
-      // mcEl uses flex-1 within an h-dvh container. Its height is already viewport-aware.
-      // The paddingBottom on mcEl is ONLY to prevent its *scrollable content* (messageListContainerRef)
-      // from being obscured by the input bar (bbEl).
-      // So, mcEl's paddingBottom should be equal to the actual height of bbEl.
       mcEl.style.paddingBottom = `${currentInputBarActualHeight}px`;
       
-      // Auto-scroll when keyboard appears/changes height and textarea is focused
       if (physicalKeyboardHeight > 0 && physicalKeyboardHeight !== lastKeyboardHeight && document.activeElement === textareaRef.current) {
         if (messageListContainerRef.current) {
            messageListContainerRef.current.scrollTop = messageListContainerRef.current.scrollHeight;
@@ -133,21 +177,17 @@ export default function ChatPage() {
 
     vp.addEventListener('resize', updateLayout);
     const resizeObserver = new ResizeObserver(() => {
-        // Update layout if the bottom bar's actual height changes (e.g., emoji picker toggled)
         if(bbEl.offsetHeight !== lastBottomBarActualHeight) {
             updateLayout();
         }
     });
     resizeObserver.observe(bbEl);
     
-    updateLayout(); // Initial call to set layout
+    updateLayout(); 
 
     return () => {
       vp.removeEventListener('resize', updateLayout);
       resizeObserver.disconnect();
-      // Optionally reset styles on cleanup, though page navigation usually handles this.
-      // bbEl.style.bottom = '0px';
-      // mcEl.style.paddingBottom = `${lastBottomBarActualHeight}px`; 
     };
   }, [isEmojiPickerOpen, textareaRef, isGuardLoading]);
 
@@ -175,7 +215,7 @@ export default function ChatPage() {
 
   const handleSendMessage = (e: FormEvent) => {
     e.preventDefault();
-    if (newMessage.trim() === '' || !userProfileLs?.uid || chatDetails?.requestStatus !== 'accepted') return;
+    if (newMessage.trim() === '' || !userProfileLs?.uid || (chatDetails?.requestStatus !== 'accepted' && chatDetails?.requestStatus !== 'none' && chatDetails?.requestStatus !== undefined) ) return;
 
     const messageToSend: Message = {
       id: `msg${Date.now()}`,
@@ -241,14 +281,39 @@ export default function ChatPage() {
 
   const handleRequestAction = (action: 'accepted' | 'rejected') => {
     if (!chatDetails || !contact) return;
-    // Simulate updating the chat request status
     setChatDetails(prev => prev ? { ...prev, requestStatus: action } : null);
     
-    // In a real app, update mockChats/Firestore and notify sender
     const chatIndex = initialMockChats.findIndex(c => c.id === chatId);
     if (chatIndex !== -1) {
       initialMockChats[chatIndex].requestStatus = action;
+      if (action === 'accepted') {
+         initialMockChats[chatIndex].lastMessage = { // Add a system message or clear preview
+            id: `sys_accepted_${Date.now()}`,
+            chatId: chatId,
+            senderId: 'system',
+            text: `Chat request accepted. You can now message ${contact.name}.`,
+            timestamp: Date.now(),
+            type: 'system'
+         };
+      }
+    } else if (action === 'accepted') {
+      // If it was a live request not in mockChats, add it as an accepted chat
+      // This is a simplified mock update. A real app would fetch/update Firestore.
+      const newAcceptedChat: Chat = {
+        ...chatDetails,
+        requestStatus: 'accepted',
+        lastMessage: {
+            id: `sys_accepted_${Date.now()}`,
+            chatId: chatId,
+            senderId: 'system',
+            text: `Chat request accepted. You can now message ${contact.name}.`,
+            timestamp: Date.now(),
+            type: 'system'
+        }
+      };
+      initialMockChats.push(newAcceptedChat);
     }
+
 
     toast({
       title: `Request ${action}`,
@@ -256,8 +321,9 @@ export default function ChatPage() {
     });
 
     if (action === 'accepted') {
-      // Load messages for accepted chat
-      setMessages(mockMessagesData[chatId] || []);
+      setMessages(mockMessagesData[chatId] || []); // Load full messages or prepare for new ones
+    } else {
+      setMessages([]); // Clear messages for rejected
     }
   };
 
@@ -338,28 +404,30 @@ export default function ChatPage() {
 
       <div ref={mainContentRef} className="flex flex-col flex-1 pt-16 overflow-hidden">
         {isRequestView && (
-          <Card className="m-4 shadow-lg border-primary/50">
-            <CardHeader className="items-center text-center">
-              <Avatar className="w-16 h-16 mb-2">
-                {contact.avatarUrl ? <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar"/> : <AvatarFallback><UserCircle2 className="w-10 h-10" /></AvatarFallback>}
-              </Avatar>
-              <CardTitle>{contact.name} wants to connect!</CardTitle>
-            </CardHeader>
-            <CardContent className="text-center space-y-2">
-              <p className="text-sm text-muted-foreground italic p-3 bg-muted/50 rounded-md">
-                "{chatDetails.firstMessageTextPreview || 'No message preview.'}"
-              </p>
-              <p className="text-xs text-muted-foreground pt-2">Accept this chat request to start messaging.</p>
-            </CardContent>
-            <CardFooter className="flex justify-center gap-3">
-              <Button variant="outline" onClick={() => handleRequestAction('rejected')} className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive">
-                <X className="mr-2 h-4 w-4" /> Reject
-              </Button>
-              <Button onClick={() => handleRequestAction('accepted')} className="bg-gradient-to-r from-green-500 to-green-700 text-primary-foreground">
-                <Check className="mr-2 h-4 w-4" /> Accept
-              </Button>
-            </CardFooter>
-          </Card>
+          <div className="flex-grow flex flex-col items-center justify-center p-4">
+            <Card className="w-full max-w-md shadow-lg border-primary/50">
+              <CardHeader className="items-center text-center">
+                <Avatar className="w-16 h-16 mb-2">
+                  {contact.avatarUrl ? <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar"/> : <AvatarFallback><UserCircle2 className="w-10 h-10" /></AvatarFallback>}
+                </Avatar>
+                <CardTitle>{contact.name} wants to connect!</CardTitle>
+              </CardHeader>
+              <CardContent className="text-center space-y-2">
+                <p className="text-sm text-muted-foreground italic p-3 bg-muted/50 rounded-md">
+                  "{chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text) || 'No message preview.'}"
+                </p>
+                <p className="text-xs text-muted-foreground pt-2">Accept this chat request to start messaging.</p>
+              </CardContent>
+              <CardFooter className="flex justify-center gap-3">
+                <Button variant="outline" onClick={() => handleRequestAction('rejected')} className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive">
+                  <X className="mr-2 h-4 w-4" /> Reject
+                </Button>
+                <Button onClick={() => handleRequestAction('accepted')} className="bg-gradient-to-r from-green-500 to-green-700 text-primary-foreground">
+                  <Check className="mr-2 h-4 w-4" /> Accept
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
         )}
 
         {(isPendingSenderView || isRejectedView) && (
@@ -374,13 +442,20 @@ export default function ChatPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {isPendingSenderView && <p className="text-sm text-muted-foreground">Your message request has been sent to ${contact.name}. You'll be able to chat once they accept.</p>}
+                    {isPendingSenderView && <p className="text-sm text-muted-foreground">Your message request has been sent to {contact.name}. You'll be able to chat once they accept. <br/> <span className="italic mt-2 block">"{chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text) || ''}"</span></p>}
                     {isRejectedView && (
                         chatDetails.requesterId === currentUserId ?
-                        <p className="text-sm text-muted-foreground">Your chat request to ${contact.name} was rejected.</p> :
-                        <p className="text-sm text-muted-foreground">You rejected the chat request from ${contact.name}.</p>
+                        <p className="text-sm text-muted-foreground">Your chat request to {contact.name} was rejected.</p> :
+                        <p className="text-sm text-muted-foreground">You rejected the chat request from {contact.name}.</p>
                     )}
                 </CardContent>
+                 {isPendingSenderView && (
+                    <CardFooter>
+                        <Button variant="outline" onClick={() => router.back()} className="w-full">
+                        Back to Chats
+                        </Button>
+                    </CardFooter>
+                )}
             </Card>
           </div>
         )}
@@ -399,7 +474,7 @@ export default function ChatPage() {
         <div 
           ref={bottomBarRef} 
           className={cn("fixed left-0 right-0 z-10 bg-background border-t", "pb-[env(safe-area-inset-bottom)]")} 
-          style={{ bottom: '0px', transform: 'translateZ(0px)' }} // Added transformZ here
+          style={{ bottom: '0px', transform: 'translateZ(0px)' }} 
         >
           <footer className="flex items-end space-x-2 p-2.5 flex-shrink-0">
             <Button variant="ghost" size="icon" type="button" className={cn("hover:bg-transparent", isEmojiPickerOpen && "bg-accent/20 text-primary")} onClick={toggleEmojiPicker} aria-pressed={isEmojiPickerOpen} aria-label="Toggle emoji picker">
@@ -452,6 +527,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
-
-    
