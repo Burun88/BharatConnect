@@ -3,65 +3,30 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Rules for the 'bharatConnectUsers' collection
+    // Rules for the bharatConnectUsers collection
     match /bharatConnectUsers/{userId} {
 
-      // Allow a user to read their own profile document.
-      allow get: if request.auth != null && request.auth.uid == userId;
+      // Allow ANY authenticated user to READ any user's profile data.
+      // This is necessary for searching users.
+      // Your app's search code will run as an authenticated entity.
+      allow read: if request.auth != null;
 
-      // Allow a user to create their own profile document.
-      allow create: if request.auth != null && request.auth.uid == userId
-                    // --- Data Validation for Create ---
-                    // The 'id' field in the document must match the user's UID.
-                    && request.resource.data.id == userId
-                    // The 'email' field must match the authenticated user's email.
-                    && request.resource.data.email == request.auth.token.email
-                    // 'displayName' must be a non-empty string.
-                    && request.resource.data.displayName is string
-                    && request.resource.data.displayName.size() > 0
-                    && request.resource.data.displayName.size() < 100 // Example: Max 100 chars
-                    // 'onboardingComplete' must be true when the profile is fully created.
-                    && request.resource.data.onboardingComplete == true
-                    // Optional fields: check type if they are provided.
-                    && (request.resource.data.photoURL == null || request.resource.data.photoURL is string)
-                    && (request.resource.data.phoneNumber == null || request.resource.data.phoneNumber is string)
-                    && (request.resource.data.bio == null || request.resource.data.bio is string)
-                    // 'createdAt' and 'updatedAt' must be set to the server's request time.
-                    && request.resource.data.createdAt == request.time
-                    && request.resource.data.updatedAt == request.time;
+      // Allow a user to CREATE their own profile document.
+      // The {userId} in the path must match the UID of the user making the request.
+      allow create: if request.auth != null && request.auth.uid == userId;
 
-      // Allow a user to update their own profile document.
-      allow update: if request.auth != null && request.auth.uid == userId
-                    // --- Data Validation for Update ---
-                    // Ensure immutable fields are not changed.
-                    && request.resource.data.id == resource.data.id // 'id' field cannot change.
-                    && request.resource.data.email == resource.data.email // 'email' field cannot change.
-                    && request.resource.data.createdAt == resource.data.createdAt // 'createdAt' timestamp cannot change.
-                    // Validate fields that can be updated.
-                    && request.resource.data.displayName is string
-                    && request.resource.data.displayName.size() > 0
-                    && request.resource.data.displayName.size() < 100 // Example: Max 100 chars
-                    // 'onboardingComplete' must remain true.
-                    && request.resource.data.onboardingComplete == true
-                    // Optional fields: check type if they are provided.
-                    && (request.resource.data.photoURL == null || request.resource.data.photoURL is string)
-                    && (request.resource.data.phoneNumber == null || request.resource.data.phoneNumber is string)
-                    && (request.resource.data.bio == null || request.resource.data.bio is string)
-                    // 'updatedAt' must be set to the server's request time for any update.
-                    && request.resource.data.updatedAt == request.time;
-      
-      // Disallow client-side deletion of user profiles.
-      allow delete: if false;
+      // Allow a user to UPDATE only their own profile document.
+      allow update: if request.auth != null && request.auth.uid == userId;
 
-      // Disallow listing all documents in this collection from the client.
-      allow list: if false;
+      // Allow a user to DELETE only their own profile document.
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Default rule: Deny all reads and writes to any other collections/documents
-    // not explicitly matched above.
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    // If you have other collections (like 'chats'), you would add rules for them here.
+    // For example:
+    // match /chats/{chatId} {
+    //   // Only allow users who are participants in the chat to read or write to it
+    //   allow read, write: if request.auth != null && request.auth.uid in resource.data.participantUids;
+    // }
   }
 }
