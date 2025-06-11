@@ -10,8 +10,8 @@ export type UserAura = {
 // The definitive Firestore structure is in profileService.ts's BharatConnectFirestoreUser
 export type User = {
   id: string; // Firebase UID
-  name: string; // Display Name
-  email?: string; // User's email
+  name: string; // Display Name (can be original casing for display)
+  email?: string; // User's email (can be original casing for display, or lowercase if that's what's primarily stored/used)
   phone?: string; // Optional phone number
   avatarUrl?: string; // Placeholder or initials if not available
   currentAuraId?: string | null;
@@ -70,10 +70,10 @@ export type StatusUpdate = {
 // This represents the structure in localStorage during onboarding and for general app use.
 export interface LocalUserProfile {
   uid: string;
-  email: string;
-  displayName?: string | null; // Allow null for consistency
+  email: string; // Original casing email
+  displayName?: string | null; // Original casing display name
   photoURL?: string | null;
   phoneNumber?: string | null;
   bio?: string | null;
-  onboardingComplete: boolean; // Added this field
+  onboardingComplete: boolean; 
 }

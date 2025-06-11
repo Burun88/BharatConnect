@@ -10,8 +10,9 @@ import { updateProfile } from 'firebase/auth'; // Import updateProfile
 
 export interface BharatConnectFirestoreUser {
   id: string; // Document ID (user's auth UID) is also stored as a field named 'id'
-  email: string;
-  displayName: string;
+  email: string; // Stored in lowercase for searching
+  displayName: string; // Stored in lowercase for searching
+  originalDisplayName?: string | null; // Optional: Store original casing for display
   photoURL?: string | null;
   phoneNumber?: string | null;
   bio?: string | null;
@@ -26,8 +27,8 @@ export interface BharatConnectFirestoreUser {
 export async function createOrUpdateUserFullProfile(
   uid: string, // This is the auth UID, and will be the document ID
   profileData: {
-    email: string;
-    displayName: string;
+    email: string; // Original casing email
+    displayName: string; // Original casing displayName
     onboardingComplete: boolean;
     photoURL?: string | null;
     phoneNumber?: string | null;
@@ -47,24 +48,24 @@ export async function createOrUpdateUserFullProfile(
 
   const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
 
-  // Data for Firestore
-  const firestoreData: Omit<BharatConnectFirestoreUser, 'createdAt' | 'updatedAt'> = {
-    id: uid, 
-    email: profileData.email,
-    displayName: profileData.displayName,
-    photoURL: profileData.photoURL !== undefined ? profileData.photoURL : null, // Ensure null if undefined
+  // Data for Firestore: store searchable fields in lowercase
+  const firestoreData: Omit<BharatConnectFirestoreUser, 'createdAt' | 'updatedAt' | 'id'> & { id: string } = {
+    id: uid,
+    email: profileData.email.toLowerCase(), // Store email in lowercase
+    displayName: profileData.displayName.toLowerCase(), // Store displayName in lowercase
+    originalDisplayName: profileData.displayName, // Keep original for display
+    photoURL: profileData.photoURL !== undefined ? profileData.photoURL : null,
     phoneNumber: profileData.phoneNumber !== undefined ? profileData.phoneNumber : null,
     bio: profileData.bio !== undefined ? profileData.bio : null,
     onboardingComplete: profileData.onboardingComplete,
   };
 
-  // Data for Firebase Auth update
+  // Data for Firebase Auth update (use original casing for displayName)
   const authProfileUpdate: { displayName?: string; photoURL?: string | null } = {};
-  if (profileData.displayName) { // Only add if displayName is truthy (not null, undefined, or empty string)
-    authProfileUpdate.displayName = profileData.displayName;
+  if (profileData.displayName) {
+    authProfileUpdate.displayName = profileData.displayName; // Use original casing for Auth profile
   }
-  // Allow explicit setting of photoURL to null, or a new URL
-  if (profileData.photoURL !== undefined) { 
+  if (profileData.photoURL !== undefined) {
     authProfileUpdate.photoURL = profileData.photoURL;
   }
 
@@ -72,7 +73,7 @@ export async function createOrUpdateUserFullProfile(
   try {
     // 1. Update Firestore document
     const docSnap = await getDoc(userDocRef);
-    const dataForFirestoreOperation = { ...firestoreData }; // Create a mutable copy
+    const dataForFirestoreOperation = { ...firestoreData };
 
     if (!docSnap.exists()) {
       await setDoc(userDocRef, {
@@ -80,23 +81,19 @@ export async function createOrUpdateUserFullProfile(
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      console.log(`[SVC_PROF] User profile for ${uid} CREATED in Firestore collection 'bharatConnectUsers'.`);
+      console.log(`[SVC_PROF] User profile for ${uid} CREATED in Firestore collection 'bharatConnectUsers'. Email: ${firestoreData.email}, DisplayName: ${firestoreData.displayName}`);
     } else {
-      // For updates, remove id and email from the direct update payload if they are not meant to be changed by this function
-      // or ensure rules prevent their modification if they are part of a general spread.
-      // However, spreading firestoreData (which includes id and email) is common for simplicity if rules handle immutability.
       await updateDoc(userDocRef, {
-        ...dataForFirestoreOperation, 
+        ...dataForFirestoreOperation,
         updatedAt: serverTimestamp(),
       });
-      console.log(`[SVC_PROF] User profile for ${uid} UPDATED in Firestore collection 'bharatConnectUsers'.`);
+      console.log(`[SVC_PROF] User profile for ${uid} UPDATED in Firestore collection 'bharatConnectUsers'. Email: ${firestoreData.email}, DisplayName: ${firestoreData.displayName}`);
     }
 
     // 2. Update Firebase Auth user profile
     const currentUser = auth.currentUser;
     if (currentUser && currentUser.uid === uid) {
-      // Determine if an Auth update is needed
-      const needsAuthUpdate = 
+      const needsAuthUpdate =
         (authProfileUpdate.displayName && authProfileUpdate.displayName !== currentUser.displayName) ||
         (authProfileUpdate.photoURL !== undefined && authProfileUpdate.photoURL !== currentUser.photoURL);
 
@@ -133,7 +130,9 @@ export async function getUserFullProfile(
     const docSnap = await getDoc(userDocRef);
     if (docSnap.exists()) {
       console.log(`[SVC_PROF] Profile found for ${uid} in 'bharatConnectUsers'.`);
-      return docSnap.data() as BharatConnectFirestoreUser;
+      const data = docSnap.data() as BharatConnectFirestoreUser;
+      // Ensure originalDisplayName is used for display if available, otherwise fallback to displayName (which is lowercase)
+      return { ...data, displayName: data.originalDisplayName || data.displayName };
     } else {
       console.log(`[SVC_PROF] No profile found for ${uid} in 'bharatConnectUsers'.`);
       return null;

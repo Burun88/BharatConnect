@@ -12,11 +12,11 @@ import Logo from '@/components/shared/Logo';
 import { Search as SearchIconLucide, Settings, X, UserCircle2, Send } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { LocalUserProfile, User, Chat } from '@/types';
-import { mockCurrentUser, mockChats as initialMockChats } from '@/lib/mock-data'; // Removed mockUsers import
+import { mockCurrentUser, mockChats as initialMockChats } from '@/lib/mock-data';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
-import { searchUsersAction } from '@/actions/searchUsersAction'; // Import the server action
+import { searchUsersAction } from '@/actions/searchUsersAction';
 import type { BharatConnectFirestoreUser } from '@/services/profileService';
 
 type UserRequestStatus = 'idle' | 'request_sent' | 'chat_exists' | 'is_self';
@@ -34,7 +34,7 @@ export default function SearchPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResultUser[]>([]);
   const [mockChats, setMockChats] = useState<Chat[]>(initialMockChats);
-  const [isSearching, setIsSearching] = useState(false); // For loading state
+  const [isSearching, setIsSearching] = useState(false);
 
   const currentUserId = userProfileLs?.uid || mockCurrentUser.id;
 
@@ -63,17 +63,16 @@ export default function SearchPage() {
 
       setIsSearching(true);
       try {
+        // Server action now handles lowercasing the search term and querying lowercase fields
         const firebaseUsers: BharatConnectFirestoreUser[] = await searchUsersAction(searchTerm.trim(), currentUserId);
 
         const results: SearchResultUser[] = firebaseUsers
-          // Filtering of currentUserId is now handled in the server action
           .map(fbUser => {
             const existingChat = mockChats.find(chat => 
               chat.contactUserId === fbUser.id || (chat.participants.some(p => p.id === fbUser.id) && chat.participants.some(p => p.id === currentUserId))
             );
             
             let requestUiStatus: UserRequestStatus = 'idle';
-            // fbUser.id === currentUserId should ideally not happen due to server-side filtering
             
             if (existingChat) {
               if (existingChat.requestStatus === 'pending' && existingChat.requesterId === currentUserId) {
@@ -84,32 +83,32 @@ export default function SearchPage() {
                 requestUiStatus = 'chat_exists';
               }
             }
-            // Map BharatConnectFirestoreUser to SearchResultUser (which extends User)
+            // fbUser.displayName here will be the originalDisplayName if available, or the lowercase one.
+            // The server action now ensures this.
             return { 
                 id: fbUser.id,
-                name: fbUser.displayName,
-                email: fbUser.email,
+                name: fbUser.displayName, // This should be original casing if available
+                email: fbUser.email, // This will be the lowercase email from Firestore
                 avatarUrl: fbUser.photoURL || undefined,
-                currentAuraId: fbUser.currentAuraId || null, // Assuming these might be on BharatConnectFirestoreUser
-                status: fbUser.status || 'Offline', // Assuming these might be on BharatConnectFirestoreUser
-                hasViewedStatus: false, // Default or fetch if needed
+                currentAuraId: fbUser.currentAuraId || null,
+                status: fbUser.status || 'Offline',
+                hasViewedStatus: false,
                 requestUiStatus 
             };
           });
         setSearchResults(results);
       } catch (error) {
         console.error("Failed to search users:", error);
-        toast({ variant: 'destructive', title: "Search Error", description: "Could not perform search. Firestore queries might require specific indexes." });
+        toast({ variant: 'destructive', title: "Search Error", description: "Could not perform search." });
         setSearchResults([]);
       } finally {
         setIsSearching(false);
       }
     };
 
-    // Debounce search
     const debounceTimeout = setTimeout(() => {
       performSearch();
-    }, 500); // Increased debounce to 500ms
+    }, 500);
 
     return () => clearTimeout(debounceTimeout);
 
@@ -136,11 +135,11 @@ export default function SearchPage() {
       const newRequestChat: Chat = {
         id: newChatId,
         type: 'individual',
-        name: targetUser.name,
+        name: targetUser.name, // Use the (potentially original cased) name for the chat
         contactUserId: targetUser.id,
         participants: [
           { id: currentUserId, name: userProfileLs.displayName || 'You', avatarUrl: userProfileLs.photoURL || undefined },
-          targetUser // targetUser already conforms to User type for participants
+          targetUser 
         ],
         lastMessage: null,
         unreadCount: 0,
@@ -158,7 +157,6 @@ export default function SearchPage() {
   };
 
   const getButtonProps = (user: SearchResultUser): { text: string; onClick: () => void; disabled: boolean; variant: "default" | "secondary" | "outline" } => {
-    // Note: 'is_self' case is now filtered server-side, but good to keep client-side checks robust
     if (user.requestUiStatus === 'is_self') {
         return { text: 'This is you', onClick: () => {}, disabled: true, variant: "secondary" };
     }
@@ -203,7 +201,7 @@ export default function SearchPage() {
             <SearchIconLucide className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search by name or email (case-sensitive prefix)"
+              placeholder="Search by name or email (case-insensitive prefix)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-10 h-12 text-base rounded-xl shadow-sm focus-visible:focus-visible-gradient-border-apply"
@@ -237,10 +235,12 @@ export default function SearchPage() {
                 <div className="space-y-3">
                   {searchResults.map((user) => {
                     const buttonProps = getButtonProps(user);
+                    // Use user.name for display which should be original casing if available
+                    // User.email will be the lowercase version (as that's what's stored in Firestore for search)
+                    // If you need original case email for display, it should be fetched/stored separately.
                     return (
                       <div key={user.id} className="flex items-center p-3 bg-card rounded-lg shadow hover:bg-muted/30 transition-colors">
                         <Avatar className="w-12 h-12 mr-4">
-                           {/* Use data-ai-hint for placeholder image generation */}
                           <AvatarImage src={user.avatarUrl || `https://placehold.co/100x100.png?text=${user.name.charAt(0)}`} alt={user.name} data-ai-hint="person avatar" />
                           <AvatarFallback className="bg-muted text-muted-foreground">
                             {user.name ? user.name.substring(0, 2).toUpperCase() : <UserCircle2 />}
@@ -270,7 +270,7 @@ export default function SearchPage() {
                   })}
                 </div>
               ) : (
-                <p className="text-muted-foreground text-center py-6">No users found matching "{searchTerm}". Try a different name or email prefix.</p>
+                <p className="text-muted-foreground text-center py-6">No users found matching "{searchTerm}".</p>
               )}
             </div>
           )}
