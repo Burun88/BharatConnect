@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, type FormEvent, type ChangeEvent, useCallback } from 'react';
@@ -38,6 +39,7 @@ export default function ChatPage() {
   const [isCancellingRequest, setIsCancellingRequest] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [isProcessingRequestAction, setIsProcessingRequestAction] = useState(false);
+  const [actionBeingProcessed, setActionBeingProcessed] = useState<'accepted' | 'rejected' | null>(null);
 
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -299,6 +301,7 @@ export default function ChatPage() {
     }
 
     setIsProcessingRequestAction(true);
+    setActionBeingProcessed(action);
 
     try {
       const receivedRequestRef = doc(firestore, `bharatConnectUsers/${currentUserId}/requestsReceived`, contact.id);
@@ -366,6 +369,7 @@ export default function ChatPage() {
       });
     } finally {
       setIsProcessingRequestAction(false);
+      setActionBeingProcessed(null);
     }
   };
 
