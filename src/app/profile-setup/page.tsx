@@ -17,7 +17,6 @@ import type { LocalUserProfile } from '@/types';
 import { auth, signOutUser as fbSignOutUser } from '@/lib/firebase'; 
 import { createOrUpdateUserFullProfile } from '@/services/profileService';
 import { uploadProfileImage } from '@/services/storageService';
-// The testFormDataAction import is no longer needed as the button and its handler are removed.
 
 
 function ProfileSetupContent() {
@@ -273,14 +272,14 @@ function ProfileSetupContent() {
             <div className="space-y-1">
               <Label htmlFor="phoneNumber">Phone Number (Optional)</Label>
               <div className="flex items-center space-x-2">
-                 <span className="p-2.5 rounded-l-md border border-r-0 bg-muted text-muted-foreground text-sm">+91</span>
+                 <span className="p-2.5 rounded-md border bg-muted text-muted-foreground text-sm">+91</span>
                 <Input
                   id="phoneNumber"
                   type="tel"
-                  placeholder="e.g. 9876543210"
+                  placeholder="e.g. 98765*****"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="flex-1 rounded-l-none"
+                  className="flex-1"
                 />
               </div>
                <p className="text-xs text-muted-foreground">Helps friends find you and secures your account.</p>
@@ -303,7 +302,6 @@ function ProfileSetupContent() {
             <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isLoading}>
               {isLoading ? 'Saving...' : 'Complete Setup & Continue'}
             </Button>
-            {/* The "Test FormData Action" button has been removed from here */}
             <Button type="button" variant="link" className="mt-2 text-sm text-muted-foreground" onClick={handleLogoutAndStartOver} disabled={isLoading}>
               Logout and start over
             </Button>
@@ -331,3 +329,5 @@ export default function ProfileSetupPage() {
     </div>
   )
 }
+
+    
