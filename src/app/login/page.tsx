@@ -33,7 +33,7 @@ export default function LoginPageHub() {
       if (userProfileLs.onboardingComplete) {
         toast({
           title: 'Login Successful!',
-          description: `Welcome back, ${userProfileLs.displayName || userProfileLs.email || 'user'}! Redirecting...`,
+          description: `Welcome back, ${userProfileLs.displayName || userProfileLs.email || 'user'}!`,
         });
         router.replace('/');
       } else {
