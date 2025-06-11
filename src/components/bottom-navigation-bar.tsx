@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessagesSquare, Clapperboard, PhoneCall, UserCircle } from 'lucide-react'; // Changed Image to Clapperboard
+import { MessagesSquare, Clapperboard, PhoneCall, UserCircle, Search as SearchIcon } from 'lucide-react'; // Changed Image to Clapperboard, Added SearchIcon
 import { cn } from '@/lib/utils';
 
 type NavItem = {
@@ -12,10 +12,11 @@ type NavItem = {
   icon: React.ElementType;
 };
 
-// Export navItems to be used by swipe navigation logic
+// Export navItems to be used by swipe navigation logic and other components
 export const navItems: NavItem[] = [
   { href: '/', label: 'Chats', icon: MessagesSquare },
-  { href: '/status', label: 'Status', icon: Clapperboard }, // Changed icon here
+  { href: '/search', label: 'Search', icon: SearchIcon }, // New Search Tab
+  { href: '/status', label: 'Status', icon: Clapperboard },
   { href: '/calls', label: 'Calls', icon: PhoneCall },
   { href: '/account', label: 'Account', icon: UserCircle },
 ];
@@ -27,9 +28,11 @@ export default function BottomNavigationBar() {
     <nav className="fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-border shadow- ऊपर">
       <div className="flex justify-around items-center h-full max-w-md mx-auto">
         {navItems.map((item) => {
-          const isActive = (pathname === '/' && item.href === '/') || 
+          // More specific active check for search page
+          const isActive = (pathname === '/' && item.href === '/') ||
                            (item.href !== '/' && pathname.startsWith(item.href)) ||
-                           (pathname === '/account' && item.href === '/account'); 
+                           (pathname === item.href); // Ensure '/search' matches exactly for search
+                           
           return (
             <Link
               key={item.href}
