@@ -10,7 +10,7 @@ import MessageBubble from '@/components/message-bubble';
 import type { Message, User, Chat, LocalUserProfile, ChatRequestStatus } from '@/types'; 
 import { AURA_OPTIONS } from '@/types'; 
 import { mockMessagesData, mockUsers, mockChats as initialMockChats, mockCurrentUser } from '@/lib/mock-data'; // Corrected import
-import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera, UserCircle2, Check, X, Info } from 'lucide-react';
+import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera, UserCircle2, Check, X, Info, MessageSquareX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import EmojiPicker from '@/components/emoji-picker';
@@ -279,9 +279,26 @@ export default function ChatPage() {
 
   if (!chatDetails || !contact) {
     return (
-      <div className="flex flex-col h-full items-center justify-center">
-        <p className="text-muted-foreground">Chat not found.</p>
-        <Button variant="link" onClick={() => router.push('/')}>Go to Chats</Button>
+      <div className="flex flex-col h-dvh bg-background items-center justify-center p-4">
+        <Card className="w-full max-w-md shadow-lg">
+          <CardHeader className="items-center text-center">
+            <MessageSquareX className="w-16 h-16 text-destructive mb-4" />
+            <CardTitle className="text-2xl">Chat Not Found</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-muted-foreground">
+              The chat you are looking for doesn't exist or may have been removed.
+            </p>
+          </CardContent>
+          <CardFooter className="flex-col items-center space-y-3">
+            <Button onClick={() => router.push('/')} className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground">
+              Go to Chats
+            </Button>
+            <Button variant="outline" onClick={() => router.back()} className="w-full">
+              Go Back
+            </Button>
+          </CardFooter>
+        </Card>
       </div>
     );
   }
@@ -350,7 +367,7 @@ export default function ChatPage() {
             <Card className="w-full max-w-sm">
                 <CardHeader className="items-center">
                     {isPendingSenderView && <Send className="w-12 h-12 text-amber-500 mb-3" />}
-                    {isRejectedView && <XCircle className="w-12 h-12 text-destructive mb-3" />}
+                    {isRejectedView && <MessageSquareX className="w-12 h-12 text-destructive mb-3" />}
                     <CardTitle className={cn(isPendingSenderView && "text-amber-600", isRejectedView && "text-destructive")}>
                         {isPendingSenderView && "Request Sent"}
                         {isRejectedView && "Request Rejected"}
@@ -435,3 +452,6 @@ export default function ChatPage() {
     </div>
   );
 }
+
+
+    
