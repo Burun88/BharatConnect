@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import DynamicVhSetter from '@/components/shared/DynamicVhSetter';
+import FirebaseAuthObserver from '@/components/shared/FirebaseAuthObserver'; // Import the observer
 
 export const metadata: Metadata = {
   title: 'BharatConnect',
@@ -33,6 +34,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased h-full bg-background">
+        <FirebaseAuthObserver /> {/* Add the observer here */}
         <DynamicVhSetter />
         {children}
         <Toaster />

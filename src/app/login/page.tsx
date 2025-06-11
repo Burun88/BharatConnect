@@ -26,6 +26,7 @@ export default function LoginPageHub() {
   const [isLoadingPage, setIsLoadingPage] = useState(true); 
   
   useEffect(() => {
+    console.log("[Login Hub] useEffect triggered. userProfileLs:", userProfileLs); // Enhanced logging
     if (userProfileLs) { 
       if (userProfileLs.uid && userProfileLs.onboardingComplete) {
         console.log(`[Login Hub] User ${userProfileLs.uid} from LS is onboarded. Redirecting to /`);
@@ -36,8 +37,12 @@ export default function LoginPageHub() {
         router.replace('/profile-setup');
         return;
       }
+      // If userProfileLs exists but doesn't meet above conditions (e.g. no UID, though unlikely after successful login)
+      // we still consider loading done for the login page itself.
+      console.log("[Login Hub] userProfileLs exists but conditions for redirect not fully met. Login page will render.");
       setIsLoadingPage(false);
     } else {
+      console.log("[Login Hub] userProfileLs is null. Login page will render.");
       setIsLoadingPage(false); 
     }
   }, [userProfileLs, router]);
@@ -65,7 +70,7 @@ export default function LoginPageHub() {
       // Redirection is handled by the useEffect hook listening to userProfileLs changes.
       toast({
         title: 'Login Successful!',
-        description: `Welcome back, ${userCredential.user.email || 'user'}!`,
+        description: `Welcome back, ${userCredential.user.email || 'user'}! Redirecting...`,
       });
     } catch (err: any) {
       console.error("[Login Hub] Firebase SignIn Error:", err);
