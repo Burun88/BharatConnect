@@ -13,7 +13,7 @@ import { mockCurrentUser, mockAuraBarItemsData, mockChats as initialMockChats } 
 import { Plus } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
-import { getChatListItemsAction } from '@/actions/getChatListItemsAction';
+import { getChatListItemsAction, type GetChatListItemsActionResult } from '@/actions/getChatListItemsAction';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -29,7 +29,7 @@ export default function HomePage() {
 
   const [auraBarItems, setAuraBarItems] = useState<User[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
-  const [searchTerm, setSearchTerm] = useState(''); // Not used on this page, but ChatList might expect it
+  const [searchTerm, setSearchTerm] = useState('');
 
   const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
   const [currentUserAuraIdLs] = useLocalStorage<string | null>('currentUserAuraId', null);
@@ -49,7 +49,7 @@ export default function HomePage() {
 
     const currentUserId = userProfileLs.uid;
     const currentUserDisplayName = userProfileLs.displayName || 'You';
-    const currentUserPhotoURL = userProfileLs.photoURL;
+    const currentUserPhotoURL = userProfileLs.photoURL || null;
 
 
     const loadData = async () => {
@@ -87,8 +87,18 @@ export default function HomePage() {
       let liveRequests: Chat[] = [];
       try {
         console.log(`[HomePage] Calling getChatListItemsAction for user ${currentUserId}...`);
-        liveRequests = await getChatListItemsAction(currentUserId, currentUserDisplayName, currentUserPhotoURL);
-        console.log(`[HomePage] getChatListItemsAction returned ${liveRequests.length} live requests.`);
+        const result: GetChatListItemsActionResult = await getChatListItemsAction(currentUserId, currentUserDisplayName, currentUserPhotoURL);
+        
+        console.log("[HomePage] Diagnostics from getChatListItemsAction:");
+        if (result.diagnostics && result.diagnostics.length > 0) {
+          result.diagnostics.forEach(logMsg => console.log(logMsg));
+        } else {
+          console.log("[HomePage] No diagnostic messages returned from action.");
+        }
+        
+        liveRequests = result.chats;
+        console.log(`[HomePage] getChatListItemsAction returned ${liveRequests.length} live requests from action's 'chats' property.`);
+
       } catch (error) {
         console.error("[HomePage] Error calling or processing getChatListItemsAction:", error);
         toast({
@@ -98,27 +108,24 @@ export default function HomePage() {
         });
       }
       
-      // Get existing accepted/none status chats from mock data
-      // In a real app, these would also be fetched from Firestore
       const existingAcceptedChats = initialMockChats.filter(
         chat => (chat.requestStatus === 'accepted' || !chat.requestStatus || chat.requestStatus === 'none') &&
-                !liveRequests.some(lr => lr.contactUserId === chat.contactUserId) // Avoid duplicates if mock data has pending ones
+                !liveRequests.some(lr => lr.contactUserId === chat.contactUserId) 
       );
 
       const combinedChats = [...liveRequests, ...existingAcceptedChats];
 
-      // Sort chats: received requests > sent requests > other chats by timestamp
       const getChatSortPriority = (chat: Chat): number => {
         if (chat.requestStatus === 'awaiting_action' && chat.requesterId !== currentUserId) {
-          return 0; // Highest: requests to accept/reject
+          return 0; 
         }
         if (chat.requestStatus === 'pending' && chat.requesterId === currentUserId) {
-          return 1; // Next: requests user has sent
+          return 1; 
         }
         if (chat.requestStatus === 'rejected') {
           return 3; 
         }
-        return 2; // Default for active/none/accepted
+        return 2; 
       };
 
       const sortedChats = combinedChats.sort((a, b) => {
@@ -185,9 +192,7 @@ export default function HomePage() {
     };
   }, [isPageDataLoading, chats, searchTerm, handleScroll, userProfileLs?.onboardingComplete]);
 
-  // Search term is not used on this page, but ChatList might expect it.
-  // For homepage, we usually show all chats without filtering by search term here.
-  const filteredChats = chats; // No search filtering on homepage list itself.
+  const filteredChats = chats;
 
   const handleCurrentUserAuraClick = useCallback(() => {
     router.push('/aura-select');
@@ -220,14 +225,14 @@ export default function HomePage() {
           <AuraBar
             isLoading={isPageDataLoading}
             auraBarItems={isPageDataLoading ? [] : auraBarItems}
-            currentUserId={userProfileLs?.uid || ''} // Pass actual currentUserId
+            currentUserId={userProfileLs?.uid || ''}
             onCurrentUserAuraClick={handleCurrentUserAuraClick}
           />
           <ChatList
             isLoading={isPageDataLoading}
             filteredChats={filteredChats}
             searchTerm={searchTerm}
-            currentUserId={userProfileLs?.uid || ''} // Pass currentUserId
+            currentUserId={userProfileLs?.uid || ''} 
           />
         </main>
       </SwipeablePageWrapper>
@@ -244,3 +249,4 @@ export default function HomePage() {
     </div>
   );
 }
+
