@@ -3,12 +3,12 @@ import type { User, Chat, Message, UserAura, StatusUpdate } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 
 export const mockCurrentUser: User = {
-  id: 'currentUser',
+  id: 'currentUser', // This will be replaced by actual UID from LocalStorage in components
   name: 'You',
   username: 'currentuser',
   avatarUrl: undefined, // Ensures AvatarFallback is used
   currentAuraId: null,
-  hasViewedStatus: true, 
+  hasViewedStatus: true,
 };
 
 export const mockUsers: User[] = [
@@ -25,7 +25,7 @@ export const mockUsers: User[] = [
     id: 'user2',
     name: 'Rahul Kumar',
     username: 'rahulkumar',
-    avatarUrl: 'https://picsum.photos/seed/user2/100/100', 
+    avatarUrl: 'https://picsum.photos/seed/user2/100/100',
     currentAuraId: 'focused',
     status: 'Last seen yesterday at 10:30 PM',
     hasViewedStatus: true,
@@ -34,7 +34,7 @@ export const mockUsers: User[] = [
     id: 'user3',
     name: 'Anjali Singh',
     username: 'anjalisingh',
-    avatarUrl: 'https://picsum.photos/seed/user3/100/100', 
+    avatarUrl: 'https://picsum.photos/seed/user3/100/100',
     currentAuraId: null,
     status: 'Typing...',
     hasViewedStatus: false,
@@ -43,7 +43,7 @@ export const mockUsers: User[] = [
     id: 'user4',
     name: 'Vikram Patel',
     username: 'vikrampatel',
-    avatarUrl: 'https://picsum.photos/seed/user4/100/100', 
+    avatarUrl: 'https://picsum.photos/seed/user4/100/100',
     currentAuraId: 'chill',
     status: 'Feeling Chill 😎',
     hasViewedStatus: true,
@@ -52,7 +52,7 @@ export const mockUsers: User[] = [
     id: 'user5',
     name: 'Deepika Iyer',
     username: 'deepika_iyer',
-    avatarUrl: 'https://picsum.photos/seed/user5/100/100', 
+    avatarUrl: 'https://picsum.photos/seed/user5/100/100',
     currentAuraId: 'energetic',
     status: 'Ready to go!',
     hasViewedStatus: false,
@@ -61,7 +61,7 @@ export const mockUsers: User[] = [
     id: 'user6',
     name: 'Arjun Reddy',
     username: 'arjunreddy',
-    avatarUrl: 'https://picsum.photos/seed/user6/100/100', 
+    avatarUrl: 'https://picsum.photos/seed/user6/100/100',
     currentAuraId: null,
     status: 'Away',
     hasViewedStatus: false,
@@ -70,42 +70,59 @@ export const mockUsers: User[] = [
     id: 'user7',
     name: 'Sneha Kapoor',
     username: 'snehakapoor',
-    avatarUrl: 'https://picsum.photos/seed/user7/100/100', 
+    avatarUrl: 'https://picsum.photos/seed/user7/100/100',
     currentAuraId: 'playful',
     status: 'Feeling playful! 🎉',
     hasViewedStatus: true,
   },
-  { // New user for chat request demonstration
+  { 
     id: 'user8RequestSender',
-    name: 'Rajesh Gupta (Wants to Connect)',
+    name: 'Rajesh Gupta', // Name updated to remove suffix
     username: 'rajesh_g',
     avatarUrl: 'https://picsum.photos/seed/user8/100/100',
     currentAuraId: 'calm',
     status: 'Exploring BharatConnect',
   },
-  { // New user for chat request demonstration (sender perspective)
+  { 
     id: 'user9RequestRecipient',
-    name: 'Meera Iyer (Request Sent)',
+    name: 'Meera Iyer', // Name updated to remove suffix
     username: 'meera_iyer9',
     avatarUrl: 'https://picsum.photos/seed/user9/100/100',
     currentAuraId: null,
     status: 'Online',
   },
-   { // New user for rejected request demonstration
+   { 
     id: 'user10RejectedBy',
-    name: 'Amit Verma (Rejected You)',
+    name: 'Amit Verma', // Name updated to remove suffix
     username: 'amit_v',
     avatarUrl: 'https://picsum.photos/seed/user10/100/100',
     currentAuraId: 'sad',
     status: 'Offline',
   },
-  { // New user for current user to reject
+  { 
     id: 'user11ToReject',
-    name: 'Sunita Rao (Wants to Connect)',
+    name: 'Sunita Rao', // Name updated to remove suffix
     username: 'sunita_rao11',
     avatarUrl: 'https://picsum.photos/seed/user11/100/100',
     currentAuraId: 'focused',
     status: 'Online',
+  },
+  // Added users from logs to ensure chat page can find them
+  {
+    id: '69wLKGZvjEUcCKLnVmDr7qqqOMM2',
+    name: 'nisanta das',
+    username: 'nisantadas', // Example username
+    avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/bharatconnect-i8510.firebasestorage.app/o/profileImages%2F69wLKGZvjEUcCKLnVmDr7qqqOMM2%2FprofileImage.png?alt=media&token=754c927f-de1b-4b9e-bf15-a7bb8dbe455f', // From log
+    currentAuraId: null,
+    status: 'Online',
+  },
+  {
+    id: 'UMQIs0ucLbcaJmC8ef3P3jQeRVs2',
+    name: 'Ayandip',
+    username: 'ayandip', // Example username
+    avatarUrl: null, // From log
+    currentAuraId: null,
+    status: 'Offline',
   }
 ];
 
@@ -141,72 +158,72 @@ export const mockMessagesData: { [chatId: string]: Message[] } = {
     { id: 'msg7_2', chatId: 'chat7', senderId: 'currentUser', text: 'Definitely! What time?', timestamp: Date.now() - 1000 * 60 * 10, type: 'text', status: 'sent'},
   ],
   // Mock messages for chat requests
-  chat8_request_from_user8: [ // CurrentUser is recipient
-    { id: 'msg_req_8_1', chatId: 'chat8_request_from_user8', senderId: 'user8RequestSender', text: 'Hi there! I saw your profile and would love to connect regarding our mutual interest in tech.', timestamp: Date.now() - 1000 * 60 * 5, type: 'text' },
+  ['req_rec_user8RequestSender']: [ 
+    { id: 'msg_req_8_1', chatId: 'req_rec_user8RequestSender', senderId: 'user8RequestSender', text: 'Hi there! I saw your profile and would love to connect regarding our mutual interest in tech.', timestamp: Date.now() - 1000 * 60 * 5, type: 'text' },
   ],
-  chat9_request_to_user9: [ // CurrentUser is sender
-    { id: 'msg_req_9_1', chatId: 'chat9_request_to_user9', senderId: 'currentUser', text: 'Hello Meera, I would like to discuss a potential collaboration.', timestamp: Date.now() - 1000 * 60 * 10, type: 'text', status: 'sent' },
+  ['req_sent_user9RequestRecipient']: [ 
+    { id: 'msg_req_9_1', chatId: 'req_sent_user9RequestRecipient', senderId: 'currentUser', text: 'Hello Meera, I would like to discuss a potential collaboration.', timestamp: Date.now() - 1000 * 60 * 10, type: 'text', status: 'sent' },
   ],
-  chat10_rejected_by_user10: [ // CurrentUser sent, user10 rejected
-    { id: 'msg_req_10_1', chatId: 'chat10_rejected_by_user10', senderId: 'currentUser', text: 'Hi Amit, hope you are doing well.', timestamp: Date.now() - 1000 * 60 * 60 * 24, type: 'text', status: 'sent' },
+  ['req_sent_user10RejectedBy']: [ 
+    { id: 'msg_req_10_1', chatId: 'req_sent_user10RejectedBy', senderId: 'currentUser', text: 'Hi Amit, hope you are doing well.', timestamp: Date.now() - 1000 * 60 * 60 * 24, type: 'text', status: 'sent' },
   ],
-   chat11_request_from_user11: [ // CurrentUser is recipient, to demonstrate rejecting
-    { id: 'msg_req_11_1', chatId: 'chat11_request_from_user11', senderId: 'user11ToReject', text: 'Hey, can we chat for a moment?', timestamp: Date.now() - 1000 * 60 * 2, type: 'text' },
+   ['req_rec_user11ToReject']: [ 
+    { id: 'msg_req_11_1', chatId: 'req_rec_user11ToReject', senderId: 'user11ToReject', text: 'Hey, can we chat for a moment?', timestamp: Date.now() - 1000 * 60 * 2, type: 'text' },
   ],
 };
 
 export const mockChats: Chat[] = [
-  { // Chat request for current user to action
-    id: 'chat8_request_from_user8',
+  { 
+    id: 'req_rec_user8RequestSender', // Assuming currentUser is recipient
     type: 'individual',
     name: mockUsers.find(u => u.id === 'user8RequestSender')?.name || 'Rajesh Gupta',
     contactUserId: 'user8RequestSender',
     participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user8RequestSender')!],
-    lastMessage: mockMessagesData.chat8_request_from_user8[0],
+    lastMessage: mockMessagesData['req_rec_user8RequestSender']?.[0] || null,
     unreadCount: 1,
     avatarUrl: mockUsers.find(u => u.id === 'user8RequestSender')?.avatarUrl,
     requestStatus: 'awaiting_action',
     requesterId: 'user8RequestSender',
-    firstMessageTextPreview: mockMessagesData.chat8_request_from_user8[0].text,
+    firstMessageTextPreview: mockMessagesData['req_rec_user8RequestSender']?.[0]?.text || "Wants to connect.",
   },
-  { // Chat request current user has sent, pending
-    id: 'chat9_request_to_user9',
+  { 
+    id: 'req_sent_user9RequestRecipient', // Assuming currentUser is sender
     type: 'individual',
     name: mockUsers.find(u => u.id === 'user9RequestRecipient')?.name || 'Meera Iyer',
     contactUserId: 'user9RequestRecipient',
     participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user9RequestRecipient')!],
-    lastMessage: mockMessagesData.chat9_request_to_user9[0],
+    lastMessage: mockMessagesData['req_sent_user9RequestRecipient']?.[0] || null,
     unreadCount: 0,
     avatarUrl: mockUsers.find(u => u.id === 'user9RequestRecipient')?.avatarUrl,
     requestStatus: 'pending',
     requesterId: 'currentUser',
-    firstMessageTextPreview: mockMessagesData.chat9_request_to_user9[0].text,
+    firstMessageTextPreview: mockMessagesData['req_sent_user9RequestRecipient']?.[0]?.text || "Request sent.",
   },
-  { // Chat request current user sent, was rejected
-    id: 'chat10_rejected_by_user10',
+  { 
+    id: 'req_sent_user10RejectedBy', // CurrentUser sent, user10 rejected
     type: 'individual',
     name: mockUsers.find(u => u.id === 'user10RejectedBy')?.name || 'Amit Verma',
     contactUserId: 'user10RejectedBy',
     participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user10RejectedBy')!],
-    lastMessage: mockMessagesData.chat10_rejected_by_user10[0],
+    lastMessage: mockMessagesData['req_sent_user10RejectedBy']?.[0] || null,
     unreadCount: 0,
     avatarUrl: mockUsers.find(u => u.id === 'user10RejectedBy')?.avatarUrl,
-    requestStatus: 'rejected', // Recipient (user10) rejected
+    requestStatus: 'rejected', 
     requesterId: 'currentUser',
-    firstMessageTextPreview: mockMessagesData.chat10_rejected_by_user10[0].text,
+    firstMessageTextPreview: mockMessagesData['req_sent_user10RejectedBy']?.[0]?.text || "Request rejected.",
   },
-   { // Chat request for current user to action (for rejection demo)
-    id: 'chat11_request_from_user11',
+   { 
+    id: 'req_rec_user11ToReject', // CurrentUser is recipient
     type: 'individual',
     name: mockUsers.find(u => u.id === 'user11ToReject')?.name || 'Sunita Rao',
     contactUserId: 'user11ToReject',
     participants: [mockCurrentUser, mockUsers.find(u => u.id === 'user11ToReject')!],
-    lastMessage: mockMessagesData.chat11_request_from_user11[0],
+    lastMessage: mockMessagesData['req_rec_user11ToReject']?.[0] || null,
     unreadCount: 1,
     avatarUrl: mockUsers.find(u => u.id === 'user11ToReject')?.avatarUrl,
     requestStatus: 'awaiting_action',
     requesterId: 'user11ToReject',
-    firstMessageTextPreview: mockMessagesData.chat11_request_from_user11[0].text,
+    firstMessageTextPreview: mockMessagesData['req_rec_user11ToReject']?.[0]?.text || "Wants to connect.",
   },
   // Existing chats (implicitly 'accepted' or 'none')
   {
@@ -301,7 +318,7 @@ export const mockAuraBarItemsData = (): User[] => {
   } else if (currentUserIndex === -1 && mockCurrentUser.name) { // If current user is not in the list but has a name
      sortedUsers.unshift(mockCurrentUser);
   }
-  
+
   return sortedUsers.map(user => {
     const aura = getAuraById(user.currentAuraId);
     return {
@@ -315,6 +332,6 @@ export const mockStatusUpdates: StatusUpdate[] = [
   { id: 'status1', userId: 'user1', timestamp: Date.now() - 1000 * 60 * 30, imageUrl: 'https://picsum.photos/seed/statusUser1/300/500', viewedByCurrentUser: false },
   { id: 'status2', userId: 'user3', timestamp: Date.now() - 1000 * 60 * 60 * 2, imageUrl: 'https://picsum.photos/seed/statusUser3/300/500', viewedByCurrentUser: false },
   { id: 'status3', userId: 'user5', timestamp: Date.now() - 1000 * 60 * 60 * 5, imageUrl: 'https://picsum.photos/seed/statusUser5/300/500', viewedByCurrentUser: false },
-  { id: 'status4', userId: 'user2', timestamp: Date.now() - 1000 * 60 * 60 * 24, text: 'Enjoying the long weekend! ☀️', viewedByCurrentUser: true }, 
+  { id: 'status4', userId: 'user2', timestamp: Date.now() - 1000 * 60 * 60 * 24, text: 'Enjoying the long weekend! ☀️', viewedByCurrentUser: true },
   { id: 'status5', userId: 'user4', timestamp: Date.now() - 1000 * 60 * 60 * 28, imageUrl: 'https://picsum.photos/seed/statusUser4/300/500', viewedByCurrentUser: true },
 ];

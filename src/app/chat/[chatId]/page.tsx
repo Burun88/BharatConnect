@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import MessageBubble from '@/components/message-bubble';
-import type { Message, User, Chat, LocalUserProfile, ChatRequestStatus } from '@/types'; 
-import { AURA_OPTIONS } from '@/types'; 
+import type { Message, User, Chat, LocalUserProfile, ChatRequestStatus } from '@/types';
+import { AURA_OPTIONS } from '@/types';
 import { mockMessagesData, mockUsers, mockChats as initialMockChats, mockCurrentUser } from '@/lib/mock-data'; // Corrected import
 import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera, UserCircle2, Check, X, Info, MessageSquareX } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -52,19 +52,26 @@ export default function ChatPage() {
   }, [userProfileLs, router]);
 
   useEffect(() => {
-    if (isGuardLoading) return; 
+    if (isGuardLoading) return;
 
     setIsChatDataLoading(true);
+    console.log(`[ChatPage] useEffect for chatId: ${chatId}, currentUserId: ${currentUserId}`);
     setTimeout(() => {
       let currentChat = initialMockChats.find(c => c.id === chatId);
+      console.log(`[ChatPage] Found in initialMockChats for ${chatId}:`, currentChat);
 
       if (!currentChat && (chatId.startsWith('req_sent_') || chatId.startsWith('req_rec_'))) {
+          console.log(`[ChatPage] Attempting to reconstruct request chat for ID: ${chatId}`);
           const parts = chatId.split('_');
           const contactIdFromChatId = parts.length === 3 ? parts[2] : null;
-          const typeFromChatId = parts.length > 1 ? parts[1] : null; 
+          const typeFromChatId = parts.length > 1 ? parts[1] : null;
+          console.log(`[ChatPage] Parsed request: contactId=${contactIdFromChatId}, type=${typeFromChatId}`);
+
 
           if (contactIdFromChatId) {
               const potentialContact = mockUsers.find(u => u.id === contactIdFromChatId);
+              console.log(`[ChatPage] Potential contact for ID ${contactIdFromChatId} from mockUsers:`, potentialContact);
+
               if (potentialContact && userProfileLs) {
                   currentChat = {
                       id: chatId,
@@ -72,25 +79,31 @@ export default function ChatPage() {
                       name: potentialContact.name,
                       contactUserId: contactIdFromChatId,
                       participants: [
-                          { id: userProfileLs.uid, name: userProfileLs.displayName || 'You' },
+                          { id: userProfileLs.uid, name: userProfileLs.displayName || 'You', avatarUrl: userProfileLs.photoURL || undefined, username: userProfileLs.username || 'you' },
                           potentialContact
                       ],
                       lastMessage: null,
-                      unreadCount: 0,
+                      unreadCount: typeFromChatId === 'rec' ? 1 : 0,
                       avatarUrl: potentialContact.avatarUrl,
                       requestStatus: typeFromChatId === 'sent' ? 'pending' : (typeFromChatId === 'rec' ? 'awaiting_action' : 'none'),
                       requesterId: typeFromChatId === 'sent' ? userProfileLs.uid : contactIdFromChatId,
                       firstMessageTextPreview: typeFromChatId === 'sent' ? "Request sent. Waiting for approval..." : "Wants to connect with you. Tap to respond."
                   };
+                  console.log(`[ChatPage] Reconstructed currentChat for request:`, currentChat);
+              } else {
+                console.warn(`[ChatPage] Could not find potentialContact in mockUsers for ID ${contactIdFromChatId} or userProfileLs missing.`);
               }
+          } else {
+             console.warn(`[ChatPage] Could not parse contactIdFromChatId from ${chatId}`);
           }
       }
 
       if (currentChat) {
         setChatDetails(currentChat);
-        const contactUser = currentChat.contactUserId ? mockUsers.find(u => u.id === currentChat.contactUserId) : (currentChat.participants.find(p => p.id !== currentUserId));
+        const contactUser = currentChat.participants.find(p => p.id !== currentUserId);
         setContact(contactUser || null);
-        
+        console.log(`[ChatPage] Set chatDetails:`, currentChat, `Set contactUser:`, contactUser);
+
         if (currentChat.requestStatus === 'accepted' || !currentChat.requestStatus || currentChat.requestStatus === 'none') {
             setMessages(mockMessagesData[chatId] || []);
         } else if (currentChat.requestStatus === 'awaiting_action' && currentChat.requesterId !== currentUserId) {
@@ -99,7 +112,7 @@ export default function ChatPage() {
                 setMessages([{
                     id: `preview_${chatId}`,
                     chatId: chatId,
-                    senderId: contactUser.id, 
+                    senderId: contactUser.id,
                     text: previewMsgText,
                     timestamp: Date.now(),
                     type: 'text'
@@ -122,10 +135,14 @@ export default function ChatPage() {
         else {
             setMessages([]);
         }
+      } else {
+        console.warn(`[ChatPage] currentChat is still null for chatId: ${chatId}. Setting chatDetails and contact to null.`);
+        setChatDetails(null);
+        setContact(null);
       }
       setIsChatDataLoading(false);
     }, 300);
-  }, [chatId, isGuardLoading, currentUserId, userProfileLs]);
+  }, [chatId, isGuardLoading, currentUserId, userProfileLs]); // userProfileLs ensures reconstruction logic has access to current user's details
 
   useEffect(() => {
     if (messageListContainerRef.current && (chatDetails?.requestStatus === 'accepted' || !chatDetails?.requestStatus || chatDetails?.requestStatus === 'none')) {
@@ -135,8 +152,8 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (isGuardLoading) return;
-    const mcEl = mainContentRef.current; 
-    const bbEl = bottomBarRef.current;  
+    const mcEl = mainContentRef.current;
+    const bbEl = bottomBarRef.current;
     const vp = window.visualViewport;
 
     if (!mcEl || !bbEl || !vp) return;
@@ -145,17 +162,17 @@ export default function ChatPage() {
     let lastBottomBarActualHeight = bbEl.offsetHeight;
 
     const updateLayout = () => {
-      const currentInputBarActualHeight = bbEl.offsetHeight; 
-      let physicalKeyboardHeight = 0; 
-      const isKeyboardEffectivelyOpen = vp.height < window.innerHeight - 50; 
+      const currentInputBarActualHeight = bbEl.offsetHeight;
+      let physicalKeyboardHeight = 0;
+      const isKeyboardEffectivelyOpen = vp.height < window.innerHeight - 50;
 
       if (isKeyboardEffectivelyOpen && !isEmojiPickerOpen) {
         physicalKeyboardHeight = window.innerHeight - vp.offsetTop - vp.height;
       }
-      
+
       bbEl.style.bottom = `${physicalKeyboardHeight}px`;
       mcEl.style.paddingBottom = `${currentInputBarActualHeight}px`;
-      
+
       if (physicalKeyboardHeight > 0 && physicalKeyboardHeight !== lastKeyboardHeight && document.activeElement === textareaRef.current) {
         if (messageListContainerRef.current) {
            messageListContainerRef.current.scrollTop = messageListContainerRef.current.scrollHeight;
@@ -172,8 +189,8 @@ export default function ChatPage() {
         }
     });
     resizeObserver.observe(bbEl);
-    
-    updateLayout(); 
+
+    updateLayout();
 
     return () => {
       vp.removeEventListener('resize', updateLayout);
@@ -272,7 +289,7 @@ export default function ChatPage() {
   const handleRequestAction = (action: 'accepted' | 'rejected') => {
     if (!chatDetails || !contact) return;
     setChatDetails(prev => prev ? { ...prev, requestStatus: action } : null);
-    
+
     const chatIndex = initialMockChats.findIndex(c => c.id === chatId);
     if (chatIndex !== -1) {
       initialMockChats[chatIndex].requestStatus = action;
@@ -286,7 +303,7 @@ export default function ChatPage() {
             type: 'system'
          };
       }
-    } else if (action === 'accepted') {
+    } else if (action === 'accepted') { // Also handle if the chat was reconstructed and not in initialMockChats
       const newAcceptedChat: Chat = {
         ...chatDetails,
         requestStatus: 'accepted',
@@ -299,8 +316,11 @@ export default function ChatPage() {
             type: 'system'
         }
       };
-      initialMockChats.push(newAcceptedChat);
+      // This part is tricky with mock data; ideally, this state update would propagate differently
+      // For now, we rely on local setChatDetails and hope HomePage re-fetches or has its own logic
+      initialMockChats.push(newAcceptedChat); // Add to mock for potential future consistency if list is re-read
     }
+
 
     toast({
       title: `Request ${action}`,
@@ -308,9 +328,9 @@ export default function ChatPage() {
     });
 
     if (action === 'accepted') {
-      setMessages(mockMessagesData[chatId] || []); 
+      setMessages(mockMessagesData[chatId] || []);
     } else {
-      setMessages([]); 
+      setMessages([]);
     }
   };
 
@@ -355,7 +375,7 @@ export default function ChatPage() {
       </div>
     );
   }
-  
+
   const isRequestView = chatDetails.requestStatus === 'awaiting_action' && chatDetails.requesterId !== currentUserId;
   const isPendingSenderView = chatDetails.requestStatus === 'pending' && chatDetails.requesterId === currentUserId;
   const isRejectedView = chatDetails.requestStatus === 'rejected';
@@ -440,7 +460,7 @@ export default function ChatPage() {
       </div>
     );
   }
-  
+
   // If it's an active chat (none of the above request states)
   return (
     <div className="flex flex-col h-dvh bg-background">
@@ -478,10 +498,10 @@ export default function ChatPage() {
       </div>
 
       {showInputArea && (
-        <div 
-          ref={bottomBarRef} 
-          className={cn("fixed left-0 right-0 z-10 bg-background border-t", "pb-[env(safe-area-inset-bottom)]")} 
-          style={{ bottom: '0px', transform: 'translateZ(0px)' }} 
+        <div
+          ref={bottomBarRef}
+          className={cn("fixed left-0 right-0 z-10 bg-background border-t", "pb-[env(safe-area-inset-bottom)]")}
+          style={{ bottom: '0px', transform: 'translateZ(0px)' }}
         >
           <footer className="flex items-end space-x-2 p-2.5 flex-shrink-0">
             <Button variant="ghost" size="icon" type="button" className={cn("hover:bg-transparent", isEmojiPickerOpen && "bg-accent/20 text-primary")} onClick={toggleEmojiPicker} aria-pressed={isEmojiPickerOpen} aria-label="Toggle emoji picker">
@@ -499,7 +519,7 @@ export default function ChatPage() {
               onFocus={() => { if(isEmojiPickerOpen) setIsEmojiPickerOpen(false); }}
               rows={1}
               className={cn(
-                "flex-1", 
+                "flex-1",
                 "resize-none min-h-[40px] max-h-[100px] rounded-full px-6 py-2.5 leading-tight hide-scrollbar focus-visible:focus-visible-gradient-border-apply"
               )}
               onKeyDown={(e) => {
@@ -534,4 +554,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
