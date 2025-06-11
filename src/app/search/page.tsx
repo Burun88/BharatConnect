@@ -16,7 +16,7 @@ import { mockCurrentUser, mockChats as initialMockChats } from '@/lib/mock-data'
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
-import { searchUsersAction } from '@/actions/searchUsersAction';
+import { searchUsersAction, type SearchUserActionResult } from '@/actions/searchUsersAction'; // Updated import
 import type { BharatConnectFirestoreUser } from '@/services/profileService';
 
 type UserRequestStatus = 'idle' | 'request_sent' | 'chat_exists' | 'is_self';
@@ -63,13 +63,24 @@ export default function SearchPage() {
 
       setIsSearching(true);
       try {
-        console.log(`[SearchPage] Calling searchUsersAction with term: "${searchTerm.trim()}" and excluding UID: "${currentUserId}"`);
-        const firebaseUsers: BharatConnectFirestoreUser[] = await searchUsersAction(searchTerm.trim(), currentUserId);
-        console.log(`[SearchPage] searchUsersAction returned ${firebaseUsers.length} users.`);
-        firebaseUsers.forEach(u => console.log(`  [SearchPage] User from action: ID=${u.id}, DisplayName='${u.displayName}', Username='${u.username}', Email='${u.email}'`));
+        console.log(`[SearchPage CLIENT] Calling searchUsersAction with term: "${searchTerm.trim()}" and excluding UID: "${currentUserId}"`);
+        const result: SearchUserActionResult = await searchUsersAction(searchTerm.trim(), currentUserId);
+        
+        console.log("[SearchPage CLIENT] Diagnostics from searchUsersAction:");
+        result.diagnostics.log.forEach(logMsg => console.log(logMsg));
+        if (result.diagnostics.directFetchResult) console.log(`Direct Fetch: ${result.diagnostics.directFetchResult}`);
+        if (result.diagnostics.testQueryResult) console.log(`Test Query: ${result.diagnostics.testQueryResult}`);
+        if (result.diagnostics.nameQueryCount !== undefined) console.log(`Name Query Count: ${result.diagnostics.nameQueryCount}`);
+        if (result.diagnostics.emailQueryCount !== undefined) console.log(`Email Query Count: ${result.diagnostics.emailQueryCount}`);
+        if (result.diagnostics.usernameQueryCount !== undefined) console.log(`Username Query Count: ${result.diagnostics.usernameQueryCount}`);
 
 
-        const results: SearchResultUser[] = firebaseUsers
+        const firebaseUsers: BharatConnectFirestoreUser[] = result.users;
+        console.log(`[SearchPage CLIENT] searchUsersAction returned ${firebaseUsers.length} users.`);
+        firebaseUsers.forEach(u => console.log(`  [SearchPage CLIENT] User from action: ID=${u.id}, DisplayName='${u.displayName}', Username='${u.username}', Email='${u.email}'`));
+
+
+        const uiResults: SearchResultUser[] = firebaseUsers
           .map(fbUser => {
             const existingChat = mockChats.find(chat => 
               chat.contactUserId === fbUser.id || (chat.participants.some(p => p.id === fbUser.id) && chat.participants.some(p => p.id === currentUserId))
@@ -86,12 +97,11 @@ export default function SearchPage() {
                 requestUiStatus = 'chat_exists';
               }
             }
-            // fbUser.displayName here SHOULD be the originalDisplayName if available, due to action's mapping.
             return { 
                 id: fbUser.id,
-                name: fbUser.displayName, // This should be originalDisplayName from action
-                username: fbUser.username, // Username (should be lowercase from action)
-                email: fbUser.email, // This will be the lowercase email from action
+                name: fbUser.displayName, 
+                username: fbUser.username, 
+                email: fbUser.email, 
                 avatarUrl: fbUser.photoURL || undefined,
                 currentAuraId: fbUser.currentAuraId || null,
                 status: fbUser.status || 'Offline',
@@ -99,11 +109,11 @@ export default function SearchPage() {
                 requestUiStatus 
             };
           });
-        console.log(`[SearchPage] Mapped results for UI: ${results.length} users.`);
-        results.forEach(u => console.log(`  [SearchPage] UI User: ID=${u.id}, Name='${u.name}', Username='${u.username}', Email='${u.email}'`));
-        setSearchResults(results);
+        console.log(`[SearchPage CLIENT] Mapped results for UI: ${uiResults.length} users.`);
+        uiResults.forEach(u => console.log(`  [SearchPage CLIENT] UI User: ID=${u.id}, Name='${u.name}', Username='${u.username}', Email='${u.email}'`));
+        setSearchResults(uiResults);
       } catch (error) {
-        console.error("[SearchPage] Failed to search users:", error);
+        console.error("[SearchPage CLIENT] Failed to search users:", error);
         toast({ variant: 'destructive', title: "Search Error", description: "Could not perform search." });
         setSearchResults([]);
       } finally {
@@ -240,8 +250,6 @@ export default function SearchPage() {
                 <div className="space-y-3">
                   {searchResults.map((user) => {
                     const buttonProps = getButtonProps(user);
-                    // user.name should be originalDisplayName from the action
-                    // user.email and user.username are lowercase from the action
                     return (
                       <div key={user.id} className="flex items-center p-3 bg-card rounded-lg shadow hover:bg-muted/30 transition-colors">
                         <Avatar className="w-12 h-12 mr-4">
@@ -291,3 +299,4 @@ export default function SearchPage() {
     </div>
   );
 }
+
