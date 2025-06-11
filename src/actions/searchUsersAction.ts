@@ -6,6 +6,8 @@ import type { BharatConnectFirestoreUser } from '@/services/profileService';
 
 export async function searchUsersAction(searchTerm: string, currentUserIdToExclude: string): Promise<BharatConnectFirestoreUser[]> {
   const trimmedSearchTerm = searchTerm.trim();
+  console.log(`[SearchAction] Called with searchTerm: "${searchTerm}", currentUserIdToExclude: "${currentUserIdToExclude}"`);
+
   if (!trimmedSearchTerm) {
     console.log("[SearchAction] Search term is empty after trimming. Returning empty array.");
     return [];
@@ -77,20 +79,25 @@ export async function searchUsersAction(searchTerm: string, currentUserIdToExclu
     const processSnapshot = (snapshot: any, queryType: string) => {
       snapshot.forEach((doc: any) => {
         const userData = doc.data() as BharatConnectFirestoreUser;
-        // userData.displayName here is the lowercase version from Firestore.
-        // userData.email is the lowercase version from Firestore.
-        // userData.username is the lowercase version from Firestore.
-        // userData.originalDisplayName is the original cased name.
-        if (userData.id !== currentUserIdToExclude) {
-          // For the map, we store the user data but ensure the `displayName` field
-          // that will be used for display purposes is the original cased one.
-          usersMap.set(userData.id, { 
-            ...userData, 
+        
+        console.log(`[SearchAction PROCESS_SNAPSHOT - ${queryType}] Processing doc ID: ${doc.id}`);
+        console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] userData.id: ${userData.id} (type: ${typeof userData.id})`);
+        console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] userData.displayName (from DB, should be lc): ${userData.displayName} (type: ${typeof userData.displayName})`);
+        console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] userData.originalDisplayName: ${userData.originalDisplayName} (type: ${typeof userData.originalDisplayName})`);
+        console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] userData.email (from DB, should be lc): ${userData.email} (type: ${typeof userData.email})`);
+        console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] userData.username (from DB, should be lc): ${userData.username} (type: ${typeof userData.username})`);
+
+        const isCurrentUser = userData.id === currentUserIdToExclude;
+        console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] Is current user (userData.id === currentUserIdToExclude: ${userData.id} === ${currentUserIdToExclude}): ${isCurrentUser}`);
+
+        if (!isCurrentUser) {
+          usersMap.set(userData.id, {
+            ...userData,
             displayName: userData.originalDisplayName || userData.displayName // Prefer original for display
           });
-          console.log(`[SearchAction] Added/Updated user ${doc.id} from ${queryType} query into usersMap. User data in map: ID='${userData.id}', DisplayName (for UI)='${userData.originalDisplayName || userData.displayName}', Username (lowercase)='${userData.username}', Email (lowercase)='${userData.email}'`);
+          console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] Added/Updated user ${doc.id} into usersMap. User data in map: ID='${userData.id}', DisplayName (for UI)='${userData.originalDisplayName || userData.displayName}', Username (lc)='${userData.username}', Email (lc)='${userData.email}'`);
         } else {
-          console.log(`[SearchAction] Skipped user ${doc.id} from ${queryType} query (is current user).`);
+          console.log(`  [SearchAction PROCESS_SNAPSHOT - ${queryType}] Skipped user ${doc.id} (is current user).`);
         }
       });
     };
@@ -99,14 +106,19 @@ export async function searchUsersAction(searchTerm: string, currentUserIdToExclu
     processSnapshot(emailSnapshot, "EMAIL");
     processSnapshot(usernameSnapshot, "USERNAME");
     
-    console.log(`[SearchAction] UsersMap before converting to array (size ${usersMap.size}):`);
+    console.log(`[SearchAction] UsersMap size before converting to array: ${usersMap.size}`);
+    console.log(`[SearchAction] UsersMap keys: ${Array.from(usersMap.keys()).join(', ')}`);
     usersMap.forEach((value, key) => {
         console.log(`  Map Entry - Key: ${key}, User's DisplayName (for UI): '${value.displayName}', Username: '${value.username}', Email: '${value.email}'`);
     });
 
     const finalResults = Array.from(usersMap.values()).slice(0, resultsLimit);
     console.log(`[SearchAction] Combined and filtered results count for UI: ${finalResults.length}`);
-    console.log(`[SearchAction] Final results being returned (showing key fields for display):`, JSON.stringify(finalResults.map(u => ({id: u.id, displayName: u.displayName, username: u.username, email: u.email }))));
+    if (finalResults.length > 0) {
+      console.log(`[SearchAction] Final results being returned (showing key fields for display):`, JSON.stringify(finalResults.map(u => ({id: u.id, displayName: u.displayName, username: u.username, email: u.email }))));
+    } else {
+      console.log(`[SearchAction] Final results array is empty.`);
+    }
     return finalResults;
 
   } catch (error) {
@@ -114,6 +126,6 @@ export async function searchUsersAction(searchTerm: string, currentUserIdToExclu
     if (error instanceof Error) {
         console.error(`[SearchAction] Error name: ${error.name}, message: ${error.message}`);
     }
-    return []; 
+    return [];
   }
 }
