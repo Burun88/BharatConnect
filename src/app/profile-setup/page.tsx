@@ -17,10 +17,7 @@ import type { LocalUserProfile } from '@/types';
 import { auth, signOutUser as fbSignOutUser } from '@/lib/firebase'; 
 import { createOrUpdateUserFullProfile } from '@/services/profileService';
 import { uploadProfileImage } from '@/services/storageService';
-import { testFormDataAction } from '@/actions/testFormDataAction'; // Re-import from separate file
-
-// The inline testFormDataAction has been moved back to src/actions/testFormDataAction.ts
-// to resolve the Next.js build error about defining server actions inline in client components.
+// The testFormDataAction import is no longer needed as the button and its handler are removed.
 
 
 function ProfileSetupContent() {
@@ -210,48 +207,6 @@ function ProfileSetupContent() {
       });
   };
 
-  const handleTestFormDataAction = async () => {
-    if (!authUid) {
-      toast({ title: "Auth UID missing for test", variant: "destructive"});
-      return;
-    }
-    const testFormData = new FormData();
-    testFormData.append('uid', authUid); 
-
-    if (profilePicFile) {
-      testFormData.append('profileImageFile', profilePicFile); 
-      console.log('[ProfileSetupPage] Appended profilePicFile to testFormData:', profilePicFile.name);
-    } else {
-      console.log('[ProfileSetupPage] No profilePicFile to append to testFormData.');
-    }
-    
-    console.log('[ProfileSetupPage] Calling testFormDataAction. FormData entries:');
-    for (const [key, value] of testFormData.entries()) {
-      if (value instanceof File) {
-        console.log(`  ${key}: File - name=${value.name}, size=${value.size}, type=${value.type}`);
-      } else {
-        console.log(`  ${key}: ${value}`);
-      }
-    }
-
-    try {
-      setIsLoading(true);
-      const result = await testFormDataAction(testFormData); // Call the imported action
-      console.log('[ProfileSetupPage] testFormDataAction result:', result);
-      toast({ 
-        title: `Test Action: ${result.success ? 'Success' : 'Failed'}`, 
-        description: `${result.message} File: ${result.fileDetails || 'N/A'}. Text: ${result.textDetails || 'N/A'}`,
-        variant: result.success ? 'default' : 'destructive'
-      });
-    } catch (error) {
-      console.error('[ProfileSetupPage] testFormDataAction caught error:', error);
-      toast({ title: 'Test FormData Action Error', description: String(error), variant: 'destructive' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-
   if (isPageLoading) {
     return (
       <div className="flex flex-col items-center justify-center flex-grow min-h-0 bg-background p-4 hide-scrollbar overflow-y-auto">
@@ -348,9 +303,7 @@ function ProfileSetupContent() {
             <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isLoading}>
               {isLoading ? 'Saving...' : 'Complete Setup & Continue'}
             </Button>
-            <Button type="button" variant="outline" onClick={handleTestFormDataAction} className="w-full" disabled={isLoading}>
-              Test FormData Action
-            </Button>
+            {/* The "Test FormData Action" button has been removed from here */}
             <Button type="button" variant="link" className="mt-2 text-sm text-muted-foreground" onClick={handleLogoutAndStartOver} disabled={isLoading}>
               Logout and start over
             </Button>
@@ -378,7 +331,3 @@ export default function ProfileSetupPage() {
     </div>
   )
 }
-
-    
-
-    
