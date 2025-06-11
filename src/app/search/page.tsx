@@ -12,12 +12,13 @@ import Logo from '@/components/shared/Logo';
 import { Search as SearchIconLucide, Settings, X, UserCircle2, Send } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { LocalUserProfile, User, Chat } from '@/types';
-import { mockUsers, mockChats as initialMockChats, mockCurrentUser } from '@/lib/mock-data';
+import { mockCurrentUser, mockChats as initialMockChats } from '@/lib/mock-data'; // Removed mockUsers import
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
+import { searchUsersAction } from '@/actions/searchUsersAction'; // Import the server action
+import type { BharatConnectFirestoreUser } from '@/services/profileService';
 
-// Define a type for the request status of each user in search results
 type UserRequestStatus = 'idle' | 'request_sent' | 'chat_exists' | 'is_self';
 
 interface SearchResultUser extends User {
@@ -32,7 +33,8 @@ export default function SearchPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResultUser[]>([]);
-  const [mockChats, setMockChats] = useState<Chat[]>(initialMockChats); // Local state for mock chats to update UI
+  const [mockChats, setMockChats] = useState<Chat[]>(initialMockChats);
+  const [isSearching, setIsSearching] = useState(false); // For loading state
 
   const currentUserId = userProfileLs?.uid || mockCurrentUser.id;
 
@@ -48,42 +50,74 @@ export default function SearchPage() {
   useEffect(() => {
     if (isGuardLoading) return;
 
-    if (searchTerm.trim() === '') {
-      setSearchResults([]);
-      return;
-    }
+    const performSearch = async () => {
+      if (searchTerm.trim() === '') {
+        setSearchResults([]);
+        return;
+      }
+      if (!currentUserId) {
+        console.warn("[SearchPage] Current user ID not available for search exclusion.");
+        setSearchResults([]);
+        return;
+      }
 
-    const filteredUsers = mockUsers
-      .filter(user => user.id !== currentUserId) // Exclude current user
-      .filter(user =>
-        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase()))
-      )
-      .map(user => {
-        const existingChat = mockChats.find(chat => 
-          chat.contactUserId === user.id || (chat.participants.some(p => p.id === user.id) && chat.participants.some(p => p.id === currentUserId))
-        );
-        
-        let requestUiStatus: UserRequestStatus = 'idle';
-        if (existingChat) {
-          if (existingChat.requestStatus === 'pending' && existingChat.requesterId === currentUserId) {
-            requestUiStatus = 'request_sent';
-          } else if (existingChat.requestStatus === 'awaiting_action' && existingChat.requesterId === user.id) {
-             requestUiStatus = 'request_sent'; // From current user's perspective, they are waiting for this user to accept *their* request
-          } else if (existingChat.requestStatus === 'accepted' || existingChat.requestStatus === 'none' || !existingChat.requestStatus) {
-            requestUiStatus = 'chat_exists';
-          }
-        }
-        return { ...user, requestUiStatus };
-      });
+      setIsSearching(true);
+      try {
+        const firebaseUsers: BharatConnectFirestoreUser[] = await searchUsersAction(searchTerm.trim(), currentUserId);
 
-    setSearchResults(filteredUsers);
-  }, [searchTerm, isGuardLoading, currentUserId, mockChats]);
+        const results: SearchResultUser[] = firebaseUsers
+          // Filtering of currentUserId is now handled in the server action
+          .map(fbUser => {
+            const existingChat = mockChats.find(chat => 
+              chat.contactUserId === fbUser.id || (chat.participants.some(p => p.id === fbUser.id) && chat.participants.some(p => p.id === currentUserId))
+            );
+            
+            let requestUiStatus: UserRequestStatus = 'idle';
+            // fbUser.id === currentUserId should ideally not happen due to server-side filtering
+            
+            if (existingChat) {
+              if (existingChat.requestStatus === 'pending' && existingChat.requesterId === currentUserId) {
+                requestUiStatus = 'request_sent';
+              } else if (existingChat.requestStatus === 'awaiting_action' && existingChat.requesterId === fbUser.id) {
+                 requestUiStatus = 'request_sent'; 
+              } else if (existingChat.requestStatus === 'accepted' || existingChat.requestStatus === 'none' || !existingChat.requestStatus) {
+                requestUiStatus = 'chat_exists';
+              }
+            }
+            // Map BharatConnectFirestoreUser to SearchResultUser (which extends User)
+            return { 
+                id: fbUser.id,
+                name: fbUser.displayName,
+                email: fbUser.email,
+                avatarUrl: fbUser.photoURL || undefined,
+                currentAuraId: fbUser.currentAuraId || null, // Assuming these might be on BharatConnectFirestoreUser
+                status: fbUser.status || 'Offline', // Assuming these might be on BharatConnectFirestoreUser
+                hasViewedStatus: false, // Default or fetch if needed
+                requestUiStatus 
+            };
+          });
+        setSearchResults(results);
+      } catch (error) {
+        console.error("Failed to search users:", error);
+        toast({ variant: 'destructive', title: "Search Error", description: "Could not perform search. Firestore queries might require specific indexes." });
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    // Debounce search
+    const debounceTimeout = setTimeout(() => {
+      performSearch();
+    }, 500); // Increased debounce to 500ms
+
+    return () => clearTimeout(debounceTimeout);
+
+  }, [searchTerm, isGuardLoading, currentUserId, mockChats, toast]);
 
   const handleSendRequest = (targetUser: SearchResultUser) => {
     if (!userProfileLs) return;
 
-    // Update UI immediately for this user
     setSearchResults(prevResults => 
       prevResults.map(u => 
         u.id === targetUser.id ? { ...u, requestUiStatus: 'request_sent' } : u
@@ -95,8 +129,6 @@ export default function SearchPage() {
       description: `Your chat request has been sent to ${targetUser.name}.`,
     });
 
-    // Simulate adding to mockChats (in a real app, this would be a backend call)
-    // This is a simplified simulation. A real app would need more robust ID generation and participant handling.
     const newChatId = `chat_req_${currentUserId}_${targetUser.id}`;
     const existingChatIndex = mockChats.findIndex(c => c.id === newChatId || (c.contactUserId === targetUser.id && c.participants.some(p => p.id === currentUserId)));
 
@@ -108,14 +140,14 @@ export default function SearchPage() {
         contactUserId: targetUser.id,
         participants: [
           { id: currentUserId, name: userProfileLs.displayName || 'You', avatarUrl: userProfileLs.photoURL || undefined },
-          targetUser
+          targetUser // targetUser already conforms to User type for participants
         ],
-        lastMessage: null, // No last message initially for a request
+        lastMessage: null,
         unreadCount: 0,
         avatarUrl: targetUser.avatarUrl,
-        requestStatus: 'pending', // Current user is sender, so it's 'pending' for them
+        requestStatus: 'pending',
         requesterId: currentUserId,
-        firstMessageTextPreview: `Hi ${targetUser.name}, I'd like to connect!`, // Simulated first message
+        firstMessageTextPreview: `Hi ${targetUser.name}, I'd like to connect!`,
       };
       setMockChats(prevChats => [newRequestChat, ...prevChats]);
     }
@@ -125,8 +157,11 @@ export default function SearchPage() {
     router.push(`/chat/${chatId}`);
   };
 
-
   const getButtonProps = (user: SearchResultUser): { text: string; onClick: () => void; disabled: boolean; variant: "default" | "secondary" | "outline" } => {
+    // Note: 'is_self' case is now filtered server-side, but good to keep client-side checks robust
+    if (user.requestUiStatus === 'is_self') {
+        return { text: 'This is you', onClick: () => {}, disabled: true, variant: "secondary" };
+    }
     switch (user.requestUiStatus) {
       case 'request_sent':
         return { text: 'Request Sent', onClick: () => {}, disabled: true, variant: "secondary" };
@@ -168,7 +203,7 @@ export default function SearchPage() {
             <SearchIconLucide className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search by name or email"
+              placeholder="Search by name or email (case-sensitive prefix)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-10 h-12 text-base rounded-xl shadow-sm focus-visible:focus-visible-gradient-border-apply"
@@ -184,8 +219,18 @@ export default function SearchPage() {
               </Button>
             )}
           </div>
+          
+          {isSearching && (
+             <div className="flex flex-col items-center justify-center text-center text-muted-foreground py-10">
+                <svg className="animate-spin h-8 w-8 text-primary mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p>Searching users...</p>
+             </div>
+          )}
 
-          {searchTerm.trim() !== '' && (
+          {!isSearching && searchTerm.trim() !== '' && (
             <div>
               <h2 className="text-lg font-semibold text-foreground mb-3">Results</h2>
               {searchResults.length > 0 ? (
@@ -195,6 +240,7 @@ export default function SearchPage() {
                     return (
                       <div key={user.id} className="flex items-center p-3 bg-card rounded-lg shadow hover:bg-muted/30 transition-colors">
                         <Avatar className="w-12 h-12 mr-4">
+                           {/* Use data-ai-hint for placeholder image generation */}
                           <AvatarImage src={user.avatarUrl || `https://placehold.co/100x100.png?text=${user.name.charAt(0)}`} alt={user.name} data-ai-hint="person avatar" />
                           <AvatarFallback className="bg-muted text-muted-foreground">
                             {user.name ? user.name.substring(0, 2).toUpperCase() : <UserCircle2 />}
@@ -224,15 +270,15 @@ export default function SearchPage() {
                   })}
                 </div>
               ) : (
-                <p className="text-muted-foreground text-center py-6">No users found matching your search.</p>
+                <p className="text-muted-foreground text-center py-6">No users found matching "{searchTerm}". Try a different name or email prefix.</p>
               )}
             </div>
           )}
-          {searchTerm.trim() === '' && (
+          {!isSearching && searchTerm.trim() === '' && (
              <div className="flex flex-col items-center justify-center text-center text-muted-foreground pt-10">
                 <SearchIconLucide className="w-16 h-16 mb-4"/>
                 <p className="text-lg">Search for People</p>
-                <p className="text-sm">Find and connect with others on BharatConnect.</p>
+                <p className="text-sm">Find and connect with others on BharatConnect by name or email.</p>
              </div>
           )}
         </main>
