@@ -1,30 +1,97 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // BharatConnect User Profiles
-    match /bharatConnectUsers/{userId} {
-      allow create: if request.auth.uid == userId;
-      allow read: if true; // WARNING: Publicly readable for now. Change to `if request.auth != null;` for production.
-      allow update: if request.auth.uid == userId;
-      allow delete: if request.auth.uid == userId;
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
 
-      // Chat Requests - Sent
-      match /requestsSent/{receiverIdInPath} {
-        allow read: if request.auth.uid == userId;
-        allow create: if request.auth.uid == userId && request.resource.data.to == receiverIdInPath;
-        allow update: if request.auth.uid == userId; // e.g., if sender could update a message in the request (not typical)
-        allow delete: if request.auth.uid == userId; // Sender can delete their sent request
+    function isOwner(userDocId) {
+      return isAuthenticated() && request.auth.uid == userDocId;
+    }
+
+    // Ensure that only specified fields can be changed during an update
+    function areFieldsUnchanged(newData, oldData, allowedToChange) {
+      let allKeys = newData.keys().concat(oldData.keys()).toSet();
+      return allKeys.every(key => 
+        allowedToChange.hasAny([key]) || newData[key] == oldData[key]
+      );
+    }
+
+    // User Profiles
+    match /bharatConnectUsers/{userDocId} {
+      allow create: if isOwner(userDocId)
+                    && request.resource.data.id == userDocId
+                    && request.resource.data.email == request.auth.token.email.lower()
+                    && request.resource.data.username is string && request.resource.data.username.size() >= 3 && request.resource.data.username.size() <= 20
+                    && request.resource.data.displayName is string && request.resource.data.displayName.size() >= 1
+                    && request.resource.data.originalDisplayName is string && request.resource.data.originalDisplayName.size() >= 1
+                    && request.resource.data.onboardingComplete == false // Initially false
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.updatedAt == request.time;
+      
+      allow read: if isAuthenticated(); // Allow any authenticated user to read profiles (for search, viewing)
+
+      allow update: if isOwner(userDocId)
+                    // Prevent changing critical immutable fields or regressing onboarding
+                    && request.resource.data.id == resource.data.id 
+                    && request.resource.data.email == resource.data.email
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && (request.resource.data.onboardingComplete == true || request.resource.data.onboardingComplete == resource.data.onboardingComplete)
+                    && request.resource.data.updatedAt == request.time;
+      
+      allow delete: if isOwner(userDocId); // Or perhaps restrict deletion more
+
+      // List for search functionality
+      allow list: if isAuthenticated();
+
+
+      // Chat Requests - Sent by {userDocId} to {receiverUid}
+      // Path: /bharatConnectUsers/{userDocId}/requestsSent/{receiverUid}
+      match /requestsSent/{receiverUid} {
+        allow create: if isOwner(userDocId) // Sender creates their own request
+                      && request.resource.data.from == userDocId
+                      && request.resource.data.to == receiverUid
+                      && request.resource.data.status == 'pending'
+                      && request.resource.data.timestamp == request.time
+                      && request.resource.data.name is string // Name of the receiver
+                      && (request.resource.data.photoURL == null || request.resource.data.photoURL is string);
+
+        allow read: if isOwner(userDocId) || (isAuthenticated() && request.auth.uid == receiverUid); // Sender or receiver can read
+
+        allow update: if isAuthenticated() &&
+                         // Case: Receiver is accepting/rejecting this request (which is in sender's subcollection)
+                         request.auth.uid == receiverUid &&
+                         (request.resource.data.status == 'accepted' || request.resource.data.status == 'rejected') &&
+                         resource.data.status == 'pending' && // Original request must be pending
+                         areFieldsUnchanged(request.resource.data, resource.data, ['status', 'timestamp']); // Only status and timestamp can change
+                         // No rule for sender to update status here, only receiver actions change status
+
+        allow delete: if isOwner(userDocId) && resource.data.status == 'pending'; // Sender can cancel their pending request
       }
 
-      // Chat Requests - Received
-      match /requestsReceived/{senderIdInPath} {
-        allow read: if request.auth.uid == userId;
-        allow create: if request.auth.uid == senderIdInPath && request.resource.data.from == request.auth.uid; // Sender creates
-        allow update: if request.auth.uid == userId; // Receiver updates (e.g. status to accepted/rejected)
-        allow delete: if request.auth.uid == userId || request.auth.uid == senderIdInPath; // Receiver or original Sender can delete
+      // Chat Requests - Received by {userDocId} from {senderUid}
+      // Path: /bharatConnectUsers/{userDocId}/requestsReceived/{senderUid}
+      match /requestsReceived/{senderUid} {
+        allow create: if isAuthenticated() && request.auth.uid == senderUid // Request is created by the sender in receiver's subcollection
+                      && request.resource.data.from == senderUid
+                      && request.resource.data.to == userDocId // userDocId is the receiver
+                      && request.resource.data.status == 'pending'
+                      && request.resource.data.timestamp == request.time
+                      && request.resource.data.name is string // Name of the sender
+                      && (request.resource.data.photoURL == null || request.resource.data.photoURL is string);
+
+        allow read: if isOwner(userDocId) || (isAuthenticated() && request.auth.uid == senderUid); // Receiver or sender can read
+
+        allow update: if isOwner(userDocId) && // Receiver is accepting/rejecting their received request
+                         (request.resource.data.status == 'accepted' || request.resource.data.status == 'rejected') &&
+                         resource.data.status == 'pending' && // Original request must be pending
+                         areFieldsUnchanged(request.resource.data, resource.data, ['status', 'timestamp']); // Only status and timestamp can change
+        
+        allow delete: if (isOwner(userDocId) && (resource.data.status == 'accepted' || resource.data.status == 'rejected')) // Receiver can delete actioned requests
+                         || (isAuthenticated() && request.auth.uid == senderUid && resource.data.status == 'pending'); // Sender can delete if they cancelled the corresponding sentRequest
       }
     }
   }
