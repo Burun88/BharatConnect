@@ -91,13 +91,13 @@ export default function HomePage() {
         
         console.log("[HomePage] Diagnostics from getChatListItemsAction:");
         if (result.diagnostics && result.diagnostics.length > 0) {
-          result.diagnostics.forEach(logMsg => console.log(logMsg));
+          result.diagnostics.forEach(logMsg => console.log(`  [DIAG] ${logMsg}`));
         } else {
           console.log("[HomePage] No diagnostic messages returned from action.");
         }
         
-        liveRequests = result.chats;
-        console.log(`[HomePage] getChatListItemsAction returned ${liveRequests.length} live requests from action's 'chats' property.`);
+        liveRequests = result.chats || []; // Ensure result.chats is not undefined
+        console.log(`[HomePage] getChatListItemsAction returned ${liveRequests.length} live interactions.`);
 
       } catch (error) {
         console.error("[HomePage] Error calling or processing getChatListItemsAction:", error);
@@ -106,14 +106,32 @@ export default function HomePage() {
           title: "Error Loading Requests",
           description: "Could not fetch live chat requests. Please try again later.",
         });
+        liveRequests = []; // Ensure liveRequests is an empty array on error
       }
       
-      const existingAcceptedChats = initialMockChats.filter(
-        chat => (chat.requestStatus === 'accepted' || !chat.requestStatus || chat.requestStatus === 'none') &&
-                !liveRequests.some(lr => lr.contactUserId === chat.contactUserId) 
-      );
+      let combinedChatsResult: Chat[];
+      if (liveRequests.length > 0) {
+        console.log(`[HomePage] Live interactions found (${liveRequests.length}). Merging with non-conflicting mocks.`);
+        // Create a set of contactUserIds from live requests to avoid duplication with mock data
+        const liveRequestContactIds = new Set(
+          liveRequests.map(lr => lr.contactUserId).filter(id => id !== undefined) as string[]
+        );
+        
+        // Filter mock chats to exclude those whose contactUserId is already covered by a live request
+        const nonConflictingMockChats = initialMockChats.filter(
+          mc => mc.contactUserId && !liveRequestContactIds.has(mc.contactUserId)
+        );
+        combinedChatsResult = [...liveRequests, ...nonConflictingMockChats];
+        console.log(`[HomePage] Number of non-conflicting mock chats: ${nonConflictingMockChats.length}`);
+      } else {
+        console.log("[HomePage] No live interactions found. Using all initialMockChats as fallback.");
+        combinedChatsResult = [...initialMockChats]; // Fallback to all mock data if live fetch fails or returns empty
+      }
+      console.log(`[HomePage] Total combined chats for display: ${combinedChatsResult.length}`);
+      if (combinedChatsResult.length > 0) {
+        console.log(`[HomePage] Combined chats (sample):`, combinedChatsResult.slice(0,5).map(c=>({id:c.id, name:c.name, status: c.requestStatus, lastMsg: c.lastMessage?.text?.substring(0,20)})));
+      }
 
-      const combinedChats = [...liveRequests, ...existingAcceptedChats];
 
       const getChatSortPriority = (chat: Chat): number => {
         if (chat.requestStatus === 'awaiting_action' && chat.requesterId !== currentUserId) {
@@ -125,15 +143,17 @@ export default function HomePage() {
         if (chat.requestStatus === 'rejected') {
           return 3; 
         }
+        // Accepted or no status (effectively accepted)
         return 2; 
       };
 
-      const sortedChats = combinedChats.sort((a, b) => {
+      const sortedChats = combinedChatsResult.sort((a, b) => {
         const priorityA = getChatSortPriority(a);
         const priorityB = getChatSortPriority(b);
         if (priorityA !== priorityB) {
           return priorityA - priorityB;
         }
+        // For chats with the same priority, sort by last message timestamp (descending)
         return (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0);
       });
       
@@ -192,7 +212,7 @@ export default function HomePage() {
     };
   }, [isPageDataLoading, chats, searchTerm, handleScroll, userProfileLs?.onboardingComplete]);
 
-  const filteredChats = chats;
+  const filteredChats = chats; // Search filtering logic removed for now for simplicity
 
   const handleCurrentUserAuraClick = useCallback(() => {
     router.push('/aura-select');

@@ -18,7 +18,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
 import { firestore } from '@/lib/firebase';
-import { doc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 
 export default function ChatPage() {
@@ -52,35 +52,45 @@ export default function ChatPage() {
   const currentUserId = userProfileLs?.uid || mockCurrentUser.id;
 
   useEffect(() => {
+    console.log(`[ChatPage GUARD] Running for chatId: ${chatId}. userProfileLs:`, userProfileLs);
     if (!userProfileLs || !userProfileLs.uid || !userProfileLs.onboardingComplete) {
+      console.log(`[ChatPage GUARD] User not found/onboarded. UID: ${userProfileLs?.uid}, Onboarding: ${userProfileLs?.onboardingComplete}. Redirecting to /login.`);
       router.replace('/login');
       return;
     }
+    console.log(`[ChatPage GUARD] Guard passed for UID: ${userProfileLs.uid}. Setting isGuardLoading to false.`);
     setIsGuardLoading(false);
-  }, [userProfileLs, router]);
+  }, [userProfileLs, router, chatId]);
 
   useEffect(() => {
-    if (isGuardLoading) return;
+    if (isGuardLoading) {
+      console.log(`[ChatPage DATA_LOAD] Guard is loading for chatId: ${chatId}. Waiting.`);
+      return;
+    }
+    console.log(`[ChatPage DATA_LOAD] Guard finished. Processing for chatId: ${chatId}, currentUserId: ${currentUserId}`);
+    console.log(`[ChatPage DATA_LOAD] userProfileLs at this point:`, JSON.parse(JSON.stringify(userProfileLs))); // Log a deep copy
 
     setIsChatDataLoading(true);
-    console.log(`[ChatPage] useEffect for chatId: ${chatId}, currentUserId: ${currentUserId}`);
-    setTimeout(() => {
+    // Simulate async data fetching if needed, or just process
+    // Using a timeout to ensure state updates from guard propagate if needed, though usually not necessary
+    const timerId = setTimeout(() => {
+      console.log(`[ChatPage DATA_LOAD_TIMEOUT] Attempting to find/reconstruct chat for ID: ${chatId}`);
       let currentChat = initialMockChats.find(c => c.id === chatId);
-      console.log(`[ChatPage] Found in initialMockChats for ${chatId}:`, currentChat);
+      console.log(`[ChatPage DATA_LOAD_TIMEOUT] Result from initialMockChats.find:`, currentChat ? JSON.parse(JSON.stringify(currentChat)) : undefined);
 
       if (!currentChat && (chatId.startsWith('req_sent_') || chatId.startsWith('req_rec_'))) {
-          console.log(`[ChatPage] Attempting to reconstruct request chat for ID: ${chatId}`);
+          console.log(`[ChatPage DATA_LOAD_TIMEOUT] Chat not found by direct find. Attempting to reconstruct request chat for ID: ${chatId}`);
           const parts = chatId.split('_');
+          const typeFromChatId = parts.length > 1 ? parts[1] : null; // 'sent' or 'rec'
           const contactIdFromChatId = parts.length === 3 ? parts[2] : null;
-          const typeFromChatId = parts.length > 1 ? parts[1] : null;
-          console.log(`[ChatPage] Parsed request: contactId=${contactIdFromChatId}, type=${typeFromChatId}`);
-
+          console.log(`[ChatPage DATA_LOAD_TIMEOUT] Parsed request: contactId=${contactIdFromChatId}, type=${typeFromChatId}`);
 
           if (contactIdFromChatId) {
               const potentialContact = mockUsers.find(u => u.id === contactIdFromChatId);
-              console.log(`[ChatPage] Potential contact for ID ${contactIdFromChatId} from mockUsers:`, potentialContact);
+              console.log(`[ChatPage DATA_LOAD_TIMEOUT] Potential contact for reconstruction (ID ${contactIdFromChatId}):`, potentialContact ? JSON.parse(JSON.stringify(potentialContact)) : undefined);
+              console.log(`[ChatPage DATA_LOAD_TIMEOUT] userProfileLs for reconstruction:`, userProfileLs ? JSON.parse(JSON.stringify(userProfileLs)) : undefined);
 
-              if (potentialContact && userProfileLs) {
+              if (potentialContact && userProfileLs && userProfileLs.uid) {
                   currentChat = {
                       id: chatId,
                       type: 'individual',
@@ -90,31 +100,35 @@ export default function ChatPage() {
                           { id: userProfileLs.uid, name: userProfileLs.displayName || 'You', avatarUrl: userProfileLs.photoURL || undefined, username: userProfileLs.username || 'you' },
                           potentialContact
                       ],
-                      lastMessage: null,
+                      lastMessage: null, // For new requests, lastMessage might be null or derived from firstMessageTextPreview
                       unreadCount: typeFromChatId === 'rec' ? 1 : 0,
                       avatarUrl: potentialContact.avatarUrl,
                       requestStatus: typeFromChatId === 'sent' ? 'pending' : (typeFromChatId === 'rec' ? 'awaiting_action' : 'none'),
                       requesterId: typeFromChatId === 'sent' ? userProfileLs.uid : contactIdFromChatId,
                       firstMessageTextPreview: typeFromChatId === 'sent' ? "Request sent. Waiting for approval..." : (mockMessagesData[chatId]?.[0]?.text || "Wants to connect with you. Tap to respond.")
                   };
-                  console.log(`[ChatPage] Reconstructed currentChat for request:`, currentChat);
+                  console.log(`[ChatPage DATA_LOAD_TIMEOUT] Reconstructed currentChat for request:`, JSON.parse(JSON.stringify(currentChat)));
               } else {
-                console.warn(`[ChatPage] Could not find potentialContact in mockUsers for ID ${contactIdFromChatId} or userProfileLs missing.`);
+                console.warn(`[ChatPage DATA_LOAD_TIMEOUT] Reconstruction failed: potentialContact found: ${!!potentialContact}, userProfileLs valid: ${!!(userProfileLs && userProfileLs.uid)}`);
               }
           } else {
-             console.warn(`[ChatPage] Could not parse contactIdFromChatId from ${chatId}`);
+             console.warn(`[ChatPage DATA_LOAD_TIMEOUT] Could not parse contactIdFromChatId from ${chatId} for reconstruction.`);
           }
       }
 
       if (currentChat) {
+        console.log(`[ChatPage DATA_LOAD_TIMEOUT] Chat found/reconstructed. Setting chatDetails and contact.`);
         setChatDetails(currentChat);
         const contactUser = currentChat.participants.find(p => p.id !== currentUserId);
         setContact(contactUser || null);
-        console.log(`[ChatPage] Set chatDetails:`, currentChat, `Set contactUser:`, contactUser);
+        console.log(`[ChatPage DATA_LOAD_TIMEOUT] Set contactUser:`, contactUser ? JSON.parse(JSON.stringify(contactUser)) : null);
 
+        // Message setting logic
         if (currentChat.requestStatus === 'accepted' || !currentChat.requestStatus || currentChat.requestStatus === 'none') {
+            console.log(`[ChatPage DATA_LOAD_TIMEOUT] Chat is accepted/active. Loading messages from mockMessagesData[${chatId}]`);
             setMessages(mockMessagesData[chatId] || []);
         } else if (currentChat.requestStatus === 'awaiting_action' && currentChat.requesterId !== currentUserId) {
+            console.log(`[ChatPage DATA_LOAD_TIMEOUT] Chat is awaiting_action (received request). Creating preview message.`);
             const previewMsgText = currentChat.firstMessageTextPreview || (mockMessagesData[chatId]?.[0]?.text) || "Wants to connect with you.";
              if (contactUser) {
                 setMessages([{
@@ -122,35 +136,42 @@ export default function ChatPage() {
                     chatId: chatId,
                     senderId: contactUser.id,
                     text: previewMsgText,
-                    timestamp: Date.now(),
+                    timestamp: Date.now(), // Or a timestamp from the request if available
                     type: 'text'
                 }]);
              } else {
+                 console.warn(`[ChatPage DATA_LOAD_TIMEOUT] No contactUser for awaiting_action preview message. Setting empty messages.`);
                  setMessages([]);
              }
         } else if (currentChat.requestStatus === 'pending' && currentChat.requesterId === currentUserId) {
+            console.log(`[ChatPage DATA_LOAD_TIMEOUT] Chat is pending (sent request). Creating preview message.`);
             const previewMsgText = currentChat.firstMessageTextPreview || (mockMessagesData[chatId]?.[0]?.text) || "Request sent. Waiting for approval...";
             setMessages([{
                 id: `preview_pending_${chatId}`,
                 chatId: chatId,
                 senderId: currentUserId,
                 text: previewMsgText,
-                timestamp: Date.now(),
+                timestamp: Date.now(), // Or a timestamp from the request
                 type: 'text',
                 status: 'sent'
             }]);
         }
         else {
+            console.log(`[ChatPage DATA_LOAD_TIMEOUT] Chat status is '${currentChat.requestStatus}'. Setting empty messages.`);
             setMessages([]);
         }
       } else {
-        console.warn(`[ChatPage] currentChat is still null for chatId: ${chatId}. Setting chatDetails and contact to null.`);
+        console.error(`[ChatPage DATA_LOAD_TIMEOUT] CRITICAL: currentChat is still null/undefined for chatId: ${chatId}. Setting chatDetails to null. This will show 'Chat Not Found'.`);
         setChatDetails(null);
         setContact(null);
       }
       setIsChatDataLoading(false);
-    }, 300);
+      console.log(`[ChatPage DATA_LOAD_TIMEOUT] Finished processing for chatId: ${chatId}. isChatDataLoading: false.`);
+    }, 0); // Reduced timeout, can be 0 if guard logic is robust enough
+
+    return () => clearTimeout(timerId);
   }, [chatId, isGuardLoading, currentUserId, userProfileLs]);
+
 
   useEffect(() => {
     if (messageListContainerRef.current && (chatDetails?.requestStatus === 'accepted' || !chatDetails?.requestStatus || chatDetails?.requestStatus === 'none')) {
@@ -318,34 +339,46 @@ export default function ChatPage() {
       // Update local state and mock data after successful Firestore update
       setChatDetails(prev => prev ? { ...prev, requestStatus: action } : null);
 
-      const chatIndex = initialMockChats.findIndex(c => c.id === chatId);
-      if (chatIndex !== -1) {
-        initialMockChats[chatIndex].requestStatus = action;
+      const chatIndexInMocks = initialMockChats.findIndex(c => c.id === chatId);
+      if (chatIndexInMocks !== -1) {
+        initialMockChats[chatIndexInMocks].requestStatus = action;
+        initialMockChats[chatIndexInMocks].unreadCount = 0; // Clear unread on action
         if (action === 'accepted') {
-          initialMockChats[chatIndex].lastMessage = {
+          initialMockChats[chatIndexInMocks].lastMessage = {
               id: `sys_accepted_${Date.now()}`,
               chatId: chatId,
+              senderId: 'system', // Or currentUserId if you prefer
+              text: `You are now connected with ${contact.name}. Start chatting!`,
+              timestamp: Date.now(),
+              type: 'system'
+          };
+        } else { // rejected
+            initialMockChats[chatIndexInMocks].lastMessage = {
+              id: `sys_rejected_${Date.now()}`,
+              chatId: chatId,
               senderId: 'system',
-              text: `Chat request accepted. You can now message ${contact.name}.`,
+              text: `You ignored the request from ${contact.name}.`,
               timestamp: Date.now(),
               type: 'system'
           };
         }
-      } else if (action === 'accepted') {
+      } else if (action === 'accepted' && chatDetails) { // Chat might not be in initialMockChats if reconstructed
         const newAcceptedChat: Chat = {
-          ...chatDetails, // Spread existing chatDetails
+          ...chatDetails,
           requestStatus: 'accepted',
+          unreadCount: 0,
           lastMessage: {
               id: `sys_accepted_${Date.now()}`,
               chatId: chatId,
               senderId: 'system',
-              text: `Chat request accepted. You can now message ${contact.name}.`,
+              text: `You are now connected with ${contact.name}. Start chatting!`,
               timestamp: Date.now(),
               type: 'system'
           }
         };
-        initialMockChats.push(newAcceptedChat);
+        initialMockChats.push(newAcceptedChat); // Add it to mocks if it was reconstructed
       }
+
 
       toast({
         title: `Request ${action === 'rejected' ? 'Ignored' : 'Accepted'}!`,
@@ -353,11 +386,24 @@ export default function ChatPage() {
       });
 
       if (action === 'accepted') {
-        setMessages(mockMessagesData[chatId] || []); // Load actual messages if accepted
-      } else {
-        setMessages([]); // Clear messages if rejected
+         // Load actual messages or show an initial system message
+        const existingMessages = mockMessagesData[chatId] || [];
+        if (existingMessages.length > 0) {
+          setMessages(existingMessages);
+        } else {
+          setMessages([{
+            id: `sys_connect_${Date.now()}`,
+            chatId: chatId,
+            senderId: 'system',
+            text: `You are now connected with ${contact.name}. Start chatting!`,
+            timestamp: Date.now(),
+            type: 'system'
+          }]);
+        }
+      } else { // rejected
+        setMessages([]); // Clear messages
         // Optionally navigate away, or the UI will show the rejected state
-        router.push('/');
+        router.push('/'); // Navigate to home after rejecting
       }
 
     } catch (error: any) {
@@ -392,7 +438,7 @@ export default function ChatPage() {
         initialMockChats.splice(chatIndex, 1); 
       }
       
-      setChatDetails(prev => prev ? { ...prev, requestStatus: 'rejected' } : null); 
+      setChatDetails(prev => prev ? { ...prev, requestStatus: 'rejected' } : null); // Visually treat as rejected/gone
       setMessages([]);
 
 
@@ -432,7 +478,7 @@ export default function ChatPage() {
           </CardHeader>
           <CardContent className="text-center pt-0 pb-6">
             <p className="text-muted-foreground">
-              The chat you are looking for doesn't exist or may have been removed.
+              The chat you are looking for doesn't exist or may have been removed. (Chat ID: {chatId})
             </p>
           </CardContent>
           <CardFooter className="flex-col items-center space-y-3 p-6 pt-0 border-t border-border">
@@ -748,3 +794,4 @@ export default function ChatPage() {
     </div>
   );
 }
+
