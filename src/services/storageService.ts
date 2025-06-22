@@ -30,7 +30,8 @@ export async function uploadProfileImage(formData: FormData): Promise<string> {
     const downloadURL = await getDownloadURL(snapshot.ref);
     return downloadURL;
   } catch (error: any) {
-    console.error('[StorageService] Profile image upload/URL retrieval failed:', error);
+    // Enhanced logging to capture the full error details from Firebase.
+    console.error('[StorageService] Firebase Storage operation failed. Full error object:', JSON.stringify(error, null, 2));
     throw new Error(`Firebase Storage operation failed: ${error.message || 'Unknown error'} (Code: ${error.code || 'N/A'})`);
   }
 }
