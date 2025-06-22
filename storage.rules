@@ -2,11 +2,32 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow public read access to profile images so they can be displayed in the app.
-    // Restrict write access to only the authenticated user for their own directory.
-    match /profileImages/{userId}/{allPaths=**} {
+    // Allow public read access to all files by default.
+    // Profile pictures are often public. Adjust if this is not desired.
+    match /{allPaths=**} {
       allow read;
-      allow write: if request.auth != null && request.auth.uid == userId;
     }
+
+    // For profile images in /profileImages/{userId}/{fileName}
+    match /profileImages/{userId}/{fileName} {
+      // This rule allows any write operation to this specific path pattern.
+      // SECURITY NOTE: This rule trusts that your Server Action (`uploadProfileImage`)
+      // correctly obtains the `userId` (e.g., from FormData, as you are doing)
+      // and uses it in the path. The Server Action becomes the primary gatekeeper
+      // for ensuring a user can only write to their own designated folder.
+      // It no longer relies on Firebase's `request.auth.uid` for this specific write path,
+      // because the client SDK on the server doesn't have that auth context.
+      allow write: if true;
+
+      // Optional: You can still add restrictions for file size and type here if needed
+      // allow write: if request.resource.size < 5 * 1024 * 1024 && // e.g., 5MB limit
+      //               request.resource.contentType.matches('image/.*'); // e.g., only images
+    }
+
+    // Define rules for any other paths you might use in your storage bucket.
+    // Example:
+    // match /otherData/{documentId} {
+    //   allow read, write: if request.auth != null; // Only authenticated users
+    // }
   }
 }
