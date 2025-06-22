@@ -1,220 +1,48 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // =========== HELPER FUNCTIONS ===========
-    function isAuthenticated() {
-      return request.auth != null && request.auth.uid != null;
-    }
-
-    function isOwner(docUserId) {
-      // For Playground: ensure request.auth.uid is just the UID, not the full path.
-      return isAuthenticated() && request.auth.uid == docUserId;
-    }
-
-    // =========== USER PROFILES (/bharatConnectUsers/{userId}) ===========
+    // Users can read/write their own profile, but only read others' public profiles.
     match /bharatConnectUsers/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isOwner(userId) &&
-                       request.resource.data.id == userId &&
-                       request.resource.data.email == request.auth.token.email &&
-                       request.resource.data.username is string && request.resource.data.username.size() >= 3 && request.resource.data.username.size() <= 20 && request.resource.data.username.matches("^[a-z0-9_]+$") &&
-                       request.resource.data.displayName is string && request.resource.data.displayName.size() > 0 &&
-                       request.resource.data.onboardingComplete == false && // Only false during initial create via signup flow
-                       (!('photoURL' in request.resource.data) || request.resource.data.photoURL == null || request.resource.data.photoURL is string) &&
-                       (!('phoneNumber' in request.resource.data) || request.resource.data.phoneNumber == null || (request.resource.data.phoneNumber is string && request.resource.data.phoneNumber.matches("^\\+?[1-9]\\d{1,14}$"))) &&
-                       (!('bio' in request.resource.data) || request.resource.data.bio == null || (request.resource.data.bio is string && request.resource.data.bio.size() <= 150)) &&
-                       request.resource.data.keys().hasOnly(['id', 'email', 'username', 'displayName', 'photoURL', 'phoneNumber', 'bio', 'onboardingComplete', 'createdAt', 'updatedAt']) &&
-                       request.resource.data.createdAt == request.time &&
-                       request.resource.data.updatedAt == request.time;
-
-      allow update: if isOwner(userId) &&
-                       request.resource.data.id == userId && // ID cannot change
-                       request.resource.data.email == resource.data.email && // Email cannot change post-creation
-                       request.resource.data.username is string && request.resource.data.username.size() >= 3 && request.resource.data.username.size() <= 20 && request.resource.data.username.matches("^[a-z0-9_]+$") &&
-                       request.resource.data.displayName is string && request.resource.data.displayName.size() > 0 &&
-                       request.resource.data.onboardingComplete == true && // Can only be updated to true
-                       (!('photoURL' in request.resource.data) || request.resource.data.photoURL == null || request.resource.data.photoURL is string) &&
-                       (!('phoneNumber' in request.resource.data) || request.resource.data.phoneNumber == null || (request.resource.data.phoneNumber is string && request.resource.data.phoneNumber.matches("^\\+?[1-9]\\d{1,14}$"))) &&
-                       (!('bio' in request.resource.data) || request.resource.data.bio == null || (request.resource.data.bio is string && request.resource.data.bio.size() <= 150)) &&
-                       request.resource.data.updatedAt == request.time &&
-                       // Allow originalDisplayName to be set/updated, ensure other fields are not changed if not part of update
-                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username', 'displayName', 'originalDisplayName', 'photoURL', 'phoneNumber', 'bio', 'onboardingComplete', 'languagePreference', 'status', 'updatedAt']);
-      allow delete: if false; // No user deletion for now
-
-      // Subcollections for chat requests
-      match /requestsSent/{contactId} {
-        allow read, write: if isOwner(userId); // User can manage their sent requests
-      }
-      match /requestsReceived/{senderId} {
-        allow read, write: if isOwner(userId); // User can manage their received requests
-      }
+      allow read;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Users can read/write their own subcollections for requests
+    match /bharatConnectUsers/{userId}/{subcollection}/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // =========== CHATS (/chats/{chatId}) ===========
+    // Chats: Participants can read/write
     match /chats/{chatId} {
-      allow read: if isAuthenticated() && request.auth.uid in resource.data.participants;
-      allow create: if isAuthenticated() &&
-                       request.auth.uid in request.resource.data.participants &&
-                       request.resource.data.participants.size() == 2 && // Only 1-on-1 for now
-                       request.resource.data.type == 'individual' &&
-                       (request.resource.data.lastMessage == null || (
-                         request.resource.data.lastMessage.senderId == request.auth.uid &&
-                         request.resource.data.lastMessage.text is string &&
-                         request.resource.data.lastMessage.timestamp == request.time &&
-                         request.resource.data.lastMessage.type is string &&
-                         request.resource.data.lastMessage.readBy is list && request.resource.data.lastMessage.readBy.size() >= 1 && request.auth.uid in request.resource.data.lastMessage.readBy
-                       )) &&
-                       request.resource.data.updatedAt == request.time &&
-                       request.resource.data.participantInfo is map &&
-                       request.resource.data.participantInfo.keys().hasAll(request.resource.data.participants) &&
-                       request.resource.data.participantInfo[request.auth.uid].name is string &&
-                       (!('avatarUrl' in request.resource.data.participantInfo[request.auth.uid]) || request.resource.data.participantInfo[request.auth.uid].avatarUrl == null || request.resource.data.participantInfo[request.auth.uid].avatarUrl is string);
-
-
-      allow update: if isAuthenticated() &&
-                       request.auth.uid in resource.data.participants &&
-                       request.resource.data.participants == resource.data.participants && // Participants list cannot change
-                       request.resource.data.type == resource.data.type && // Type cannot change
-                       request.resource.data.lastMessage.senderId == request.auth.uid &&
-                       request.resource.data.lastMessage.text is string &&
-                       request.resource.data.lastMessage.timestamp == request.time &&
-                       request.resource.data.lastMessage.type is string &&
-                       request.resource.data.lastMessage.readBy is list && request.resource.data.lastMessage.readBy.size() >= 1 && request.auth.uid in request.resource.data.lastMessage.readBy &&
-                       request.resource.data.updatedAt == request.time &&
-                       request.resource.data.participantInfo is map && // Ensure participantInfo remains a map
-                       request.resource.data.participantInfo.keys().hasAll(resource.data.participants) && // All existing participants must remain
-                       // Allow participantInfo for the current user to be updated, others should ideally not change in this operation
-                       request.resource.data.participantInfo[request.auth.uid].name is string &&
-                       (!('avatarUrl' in request.resource.data.participantInfo[request.auth.uid]) || request.resource.data.participantInfo[request.auth.uid].avatarUrl == null || request.resource.data.participantInfo[request.auth.uid].avatarUrl is string);
-
-
-      match /messages/{messageId} {
-        allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
-        allow create: if isAuthenticated() &&
-                         request.auth.uid == request.resource.data.senderId &&
-                         request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&
-                         request.resource.data.text is string && request.resource.data.text.size() > 0 &&
-                         request.resource.data.timestamp == request.time &&
-                         request.resource.data.type is string &&
-                         request.resource.data.chatId == chatId &&
-                         request.resource.data.readBy is list && request.resource.data.readBy.size() >= 1 && request.auth.uid in request.resource.data.readBy &&
-                         (!('mediaUrl' in request.resource.data) || request.resource.data.mediaUrl is string) &&
-                         (!('clientTempId' in request.resource.data) || request.resource.data.clientTempId is string) &&
-                         request.resource.data.keys().hasAny(['senderId', 'text', 'timestamp', 'type', 'chatId', 'readBy', 'mediaUrl', 'clientTempId']); // Allow these specific keys
-
-        allow update: if isAuthenticated() &&
-                         request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&
-                         // Allow updating only 'readBy' field by adding the current user
-                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']) &&
-                         request.resource.data.readBy == resource.data.readBy.concat([request.auth.uid]);
-      }
+      allow read, write: if request.auth != null && request.auth.uid in resource.data.participants;
     }
-
-    // =========== AURAS (/auras/{userId}) ===========
+    
+    // Messages: Participants can read/write
+    match /chats/{chatId}/messages/{messageId} {
+       allow read, write: if request.auth != null && get(/databases/$(database)/documents/chats/$(chatId)).data.participants.hasAny([request.auth.uid]);
+    }
+    
+    // Auras: Users can manage their own aura
     match /auras/{userId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isOwner(userId) &&
-                               request.resource.data.userId == userId &&
-                               request.resource.data.auraOptionId is string &&
-                               request.resource.data.createdAt == request.time &&
-                               request.resource.data.keys().hasAll(['userId', 'auraOptionId', 'createdAt']);
-      allow delete: if isOwner(userId);
+      allow read;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
-
-    // =========== REQUEST COOLDOWNS (/requestCooldowns/{cooldownId}) ===========
-    match /requestCooldowns/{cooldownId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated() &&
-                        (request.auth.uid == cooldownId.split('_')[0] || request.auth.uid == cooldownId.split('_')[1]) && // User involved in cooldown
-                        request.resource.data.cooldownEndsAt is timestamp &&
-                        request.resource.data.keys().hasOnly(['cooldownEndsAt']);
-        allow update, delete: if false; // Cooldowns are set and expire, not typically updated/deleted by client
-    }
-
-    // =========== STATUS (/status/{userId}) - DIAGNOSTICALLY SIMPLIFIED ===========
+    
+    // Status: Users manage their own, others can read
     match /status/{userId} {
-      // DIAGNOSTIC: Extremely simplified create rule.
-      // Allows owner to create a status doc with minimal checks.
-      allow create: if isAuthenticated() &&
-                       isOwner(userId) &&
-                       request.resource.data.userId == userId &&
-                       request.resource.data.isActive == true &&
-                       request.resource.data.media is list && request.resource.data.media.size() > 0 &&
-                       (request.resource.data.media[0].id is string &&
-                        request.resource.data.media[0].type == 'text' &&
-                        request.resource.data.media[0].createdAt is timestamp &&
-                        request.resource.data.media[0].textContent is string
-                       ) &&
-                       request.resource.data.createdAt == request.time &&
-                       request.resource.data.lastMediaTimestamp == request.time &&
-                       request.resource.data.expiresAt is timestamp &&
-                       request.resource.data.viewers is list && request.resource.data.viewers.size() == 0;
-                       // Temporarily removed: request.resource.data.keys().hasOnly([...])
-
-      // DIAGNOSTIC: Extremely simplified update rule for owner adding media or viewing.
-      allow update: if isAuthenticated() &&
-                       isOwner(userId) &&
-                       request.resource.data.userId == userId && // userId cannot change
-                       resource.data.isActive == true && // Can only update active statuses
-                       // Path 1: Owner adds new media to their own active, non-expired status
-                       (
-                         request.resource.data.media.size() == resource.data.media.size() + 1 &&
-                         request.resource.data.isActive == true &&
-                         request.resource.data.lastMediaTimestamp == request.time &&
-                         request.resource.data.expiresAt is timestamp &&
-                         (request.resource.data.media[request.resource.data.media.size()-1].id is string &&
-                          request.resource.data.media[request.resource.data.media.size()-1].type == 'text' &&
-                          request.resource.data.media[request.resource.data.media.size()-1].createdAt is timestamp &&
-                          request.resource.data.media[request.resource.data.media.size()-1].textContent is string
-                         )
-                         // Temporarily removed: request.resource.data.diff(resource.data).affectedKeys().hasOnly(['media', 'lastMediaTimestamp', 'expiresAt', 'isActive'])
-                       ) ||
-                       // Path 2: Owner marks own status viewed OR deactivates it
-                       (
-                         request.resource.data.diff(resource.data).affectedKeys().hasAny(['viewers', 'isActive']) &&
-                         (
-                           (
-                             'viewers' in request.resource.data.diff(resource.data).affectedKeys() &&
-                             request.resource.data.viewers == resource.data.viewers.concat([request.auth.uid]) &&
-                             request.resource.data.media == resource.data.media // media must not change
-                           ) ||
-                           (
-                             'isActive' in request.resource.data.diff(resource.data).affectedKeys() &&
-                             request.resource.data.isActive == false &&
-                             request.resource.data.media == resource.data.media // media must not change
-                           )
-                         ) &&
-                         // Ensure no other fields are changed in this specific path
-                         request.resource.data.userId == resource.data.userId &&
-                         request.resource.data.createdAt == resource.data.createdAt &&
-                         request.resource.data.expiresAt == resource.data.expiresAt &&
-                         request.resource.data.lastMediaTimestamp == resource.data.lastMediaTimestamp
-                       ) ||
-                       // Path 3: Non-owner views an active, non-expired status
-                       (
-                         !isOwner(userId) && // Must NOT be the owner
-                         resource.data.expiresAt.toMillis() > request.time.toMillis() &&
-                         resource.data.isActive == true &&
-                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewers']) &&
-                         request.resource.data.viewers == resource.data.viewers.concat([request.auth.uid]) &&
-                         // Ensure no other fields are changed by non-owner
-                         request.resource.data.userId == resource.data.userId &&
-                         request.resource.data.createdAt == resource.data.createdAt &&
-                         request.resource.data.expiresAt == resource.data.expiresAt &&
-                         request.resource.data.media == resource.data.media &&
-                         request.resource.data.isActive == resource.data.isActive &&
-                         request.resource.data.lastMediaTimestamp == resource.data.lastMediaTimestamp
-                       );
-
-      allow read: if isAuthenticated();
-      allow delete: if false; // No deletes for now
+      allow read;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Fallback for other collections - TO BE REFINED OR REMOVED
-    match /{document=**} {
-      allow read, write: if isAuthenticated(); // Very permissive, for debugging. Secure this later.
+    // Calls: Only participants can read/write
+    match /calls/{callId} {
+      allow read, write: if request.auth != null && (request.auth.uid == resource.data.callerId || request.auth.uid == resource.data.calleeId);
+    }
+    
+    // Request Cooldowns: Only the sender can create
+    match /requestCooldowns/{cooldownId} {
+        allow read;
+        allow create: if request.auth != null && request.auth.uid == cooldownId.split('_')[0];
     }
   }
 }
