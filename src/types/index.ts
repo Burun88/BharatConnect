@@ -83,6 +83,13 @@ export type Chat = {
   chatSpecificPresence?: { [uid: string]: ChatSpecificPresence };
 };
 
+export type BackupData = {
+  chats: Chat[];
+  // In a real app, you might include other data like contacts, settings, etc.
+  // messages: { [chatId: string]: Message[] };
+};
+
+
 export const AURA_OPTIONS: UserAura[] = [
   { id: 'happy', name: 'Happy', iconUrl: '/aura/happy.PNG', gradient: 'bg-gradient-to-r from-yellow-300 via-orange-400 to-red-400' },
   { id: 'sad', name: 'Sad', iconUrl: '/aura/sad.PNG', gradient: 'bg-gradient-to-r from-blue-400 to-indigo-500' },

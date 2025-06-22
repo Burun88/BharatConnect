@@ -13,6 +13,7 @@ import LanguageSettingsCard from "@/components/account/LanguageSettingsCard";
 import SecuritySettingsCard from "@/components/account/SecuritySettingsCard";
 import LinkedAppsCard from "@/components/account/LinkedAppsCard";
 import AdvancedOptionsCard from "@/components/account/AdvancedOptionsCard";
+import ChatBackupCard from '@/components/account/ChatBackupCard'; // Import the new backup card
 import { useAuth } from '@/contexts/AuthContext';
 import type { User } from '@/types'; // Changed from BharatConnectFirestoreUser
 import { getUserFullProfile } from '@/services/profileService';
@@ -118,6 +119,7 @@ export default function AccountPage() {
             authUid={authUser?.id || null} 
           />
           <ConnectionsCard />
+          <ChatBackupCard />
           <PrivacySettingsCard />
           <ThemeSettingsCard />
           <LanguageSettingsCard />

@@ -2,6 +2,7 @@
 
 import { firestore } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import type { BackupData } from '@/types';
 
 // --- Helper Functions ---
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -180,5 +181,104 @@ export async function decryptMessage(payload: any, myUid: string): Promise<strin
   } catch (error) {
     console.error('[Encryption] Failed to decrypt message:', error);
     throw new Error('[Message could not be decrypted]');
+  }
+}
+
+
+// --- Backup Encryption / Decryption ---
+
+/**
+ * Derives a 256-bit AES key from a password and salt using PBKDF2.
+ * @param password The user-supplied password.
+ * @param salt A random 16-byte salt.
+ * @returns The derived CryptoKey for AES-GCM.
+ */
+async function deriveKeyFromPassword(password: string, salt: Uint8Array): Promise<CryptoKey> {
+  const encoder = new TextEncoder();
+  const passwordBuffer = encoder.encode(password);
+  const baseKey = await window.crypto.subtle.importKey(
+    'raw',
+    passwordBuffer,
+    { name: 'PBKDF2' },
+    false,
+    ['deriveKey']
+  );
+
+  return window.crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: salt,
+      iterations: 100000,
+      hash: 'SHA-256',
+    },
+    baseKey,
+    { name: 'AES-GCM', length: 256 },
+    true,
+    ['encrypt', 'decrypt']
+  );
+}
+
+/**
+ * Encrypts chat backup data using a password.
+ * @param data The chat data to encrypt.
+ * @param password The user's backup password.
+ * @returns A stringified JSON object containing the encrypted package.
+ */
+export async function encryptBackup(data: BackupData, password: string): Promise<string> {
+  const salt = window.crypto.getRandomValues(new Uint8Array(16));
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKeyFromPassword(password, salt);
+
+  const dataString = JSON.stringify(data);
+  const dataBuffer = new TextEncoder().encode(dataString);
+
+  const ciphertext = await window.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: iv },
+    key,
+    dataBuffer
+  );
+
+  const backupPackage = {
+    salt: arrayBufferToBase64(salt),
+    iv: arrayBufferToBase64(iv),
+    ciphertext: arrayBufferToBase64(ciphertext),
+  };
+
+  return JSON.stringify(backupPackage);
+}
+
+/**
+ * Decrypts a backup file's content using a password.
+ * @param encryptedPackageString The string content of the .enc backup file.
+ * @param password The user's backup password.
+ * @returns The decrypted chat data.
+ */
+export async function decryptBackup(encryptedPackageString: string, password: string): Promise<BackupData> {
+  try {
+    const backupPackage = JSON.parse(encryptedPackageString);
+    const { salt: saltBase64, iv: ivBase64, ciphertext: ciphertextBase64 } = backupPackage;
+
+    if (!saltBase64 || !ivBase64 || !ciphertextBase64) {
+      throw new Error('Invalid backup file structure.');
+    }
+
+    const salt = base64ToArrayBuffer(saltBase64);
+    const iv = base64ToArrayBuffer(ivBase64);
+    const ciphertext = base64ToArrayBuffer(ciphertextBase64);
+
+    const key = await deriveKeyFromPassword(password, new Uint8Array(salt));
+
+    const decryptedBuffer = await window.crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: iv },
+      key,
+      ciphertext
+    );
+
+    const decryptedString = new TextDecoder().decode(decryptedBuffer);
+    return JSON.parse(decryptedString);
+  } catch (error) {
+    console.error('Decryption failed:', error);
+    // Error during decryption often means wrong password or corrupted file
+    throw new Error('Decryption failed. Please check your password and try again.');
   }
 }
