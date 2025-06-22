@@ -341,6 +341,7 @@ export default function StatusViewPage() {
       const touchEndY = e.changedTouches[0].clientY;
       const deltaY = touchStartYRef.current - touchEndY;
       if (deltaY > 50) { // Swipe up threshold
+        setIsPlaying(false);
         setIsViewersSheetOpen(true);
       }
     }
