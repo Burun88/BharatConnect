@@ -46,6 +46,7 @@ export default function StatusViewPage() {
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressActiveRef = useRef(false);
   const isMountedRef = useRef(false);
+  const touchStartYRef = useRef<number | null>(null); // For swipe-up gesture
 
   // States for viewers sheet
   const [viewerProfiles, setViewerProfiles] = useState<BharatConnectUser[]>([]);
@@ -328,6 +329,29 @@ export default function StatusViewPage() {
     if (isMountedRef.current) router.push('/status');
   };
 
+  // --- New Gesture Handlers for Swipe Up ---
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    handlePointerDown(); // Also handle long-press
+    touchStartYRef.current = e.targetTouches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    handlePointerUp(); // Also handle long-press end
+    if (touchStartYRef.current && isMyStatus) {
+      const touchEndY = e.changedTouches[0].clientY;
+      const deltaY = touchStartYRef.current - touchEndY;
+      if (deltaY > 50) { // Swipe up threshold
+        setIsViewersSheetOpen(true);
+      }
+    }
+    touchStartYRef.current = null;
+  };
+
+  const handleTouchCancel = () => {
+    handlePointerUp();
+    touchStartYRef.current = null;
+  };
+
   const currentMediaItem = useMemo(() => {
     if (statusDoc && statusDoc.media && currentMediaIndex >= 0 && currentMediaIndex < numMediaItems) {
       return statusDoc.media[currentMediaIndex];
@@ -403,9 +427,9 @@ export default function StatusViewPage() {
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
-      onTouchStart={handlePointerDown}
-      onTouchEnd={handlePointerUp}
-      onTouchCancel={handlePointerUp}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
       style={{ touchAction: 'pan-y' }}
     >
       <div className="absolute top-2 left-3 right-3 z-20 flex space-x-1 h-0.5">
