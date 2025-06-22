@@ -5,6 +5,7 @@ import type { Chat, UserAura } from '@/types';
 import { AURA_OPTIONS } from '@/types'; 
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -19,6 +20,7 @@ interface ChatItemProps {
 const ACCEPTED_ICON_DURATION_MS = 10 * 60 * 1000; // 10 minutes
 
 export default function ChatItem({ chat, currentUserId }: ChatItemProps) {
+  const router = useRouter();
   const contactId = chat.participants.find(pId => pId !== currentUserId);
   const contactInfo = contactId ? chat.participantInfo?.[contactId] : null;
 
@@ -27,10 +29,19 @@ export default function ChatItem({ chat, currentUserId }: ChatItemProps) {
 
   const contactAuraId = contactInfo?.currentAuraId;
   const contactAura: UserAura | undefined = contactAuraId ? AURA_OPTIONS.find(a => a.id === contactAuraId) : undefined;
+  
+  const hasActiveStatus = contactInfo?.hasActiveUnviewedStatus || contactInfo?.hasActiveViewedStatus;
 
   const formatTimestamp = (timestamp: number | undefined) => {
     if (!timestamp) return '';
     return formatDistanceToNowStrict(new Date(timestamp), { addSuffix: true });
+  };
+
+  const handleAvatarClick = (e: React.MouseEvent) => {
+    if (hasActiveStatus && contactId) {
+      e.preventDefault(); // Prevents the parent Link from navigating
+      router.push(`/status/view/${contactId}`);
+    }
   };
 
   const isAcceptedChat = (chat.requestStatus === 'accepted' || !chat.requestStatus || chat.requestStatus === 'none');
@@ -89,22 +100,36 @@ export default function ChatItem({ chat, currentUserId }: ChatItemProps) {
         "bg-background hover:bg-muted/30"
       )}
     >
-      <div className="relative mr-3">
-        <Avatar className={cn("w-12 h-12", statusRingClass)}>
-           <AvatarImage src={displayAvatarUrl || undefined} alt={displayName} data-ai-hint="person avatar"/>
-           <AvatarFallback className="bg-muted text-muted-foreground">
-             <UserCircle2 className="w-8 h-8 text-muted-foreground" />
-           </AvatarFallback>
-        </Avatar>
-        {statusIconOverlay} 
-        {isAcceptedChat && contactAura && (
-            <span 
-                className="absolute bottom-0 left-0 w-5 h-5 text-xs rounded-full flex items-center justify-center border-2 border-background shadow-md bg-card transform -translate-x-1/4 translate-y-1/4 p-0.5"
-                title={`${displayName} is feeling ${contactAura.name}`}
-            >
-                <Image src={contactAura.iconUrl} alt={contactAura.name} width={12} height={12} className="w-full h-full object-contain" />
-            </span>
-        )}
+      <div 
+        className="relative mr-3"
+        onClick={handleAvatarClick}
+        role={hasActiveStatus ? "button" : undefined}
+        aria-label={hasActiveStatus ? `View status of ${displayName}` : undefined}
+        tabIndex={hasActiveStatus ? 0 : -1}
+        onKeyDown={(e) => {
+          if (hasActiveStatus && contactId && (e.key === 'Enter' || e.key === ' ')) {
+              e.preventDefault();
+              router.push(`/status/view/${contactId}`);
+          }
+        }}
+      >
+        <div className={cn(hasActiveStatus ? "cursor-pointer" : "cursor-default")}>
+          <Avatar className={cn("w-12 h-12", statusRingClass)}>
+             <AvatarImage src={displayAvatarUrl || undefined} alt={displayName} data-ai-hint="person avatar"/>
+             <AvatarFallback className="bg-muted text-muted-foreground">
+               <UserCircle2 className="w-8 h-8 text-muted-foreground" />
+             </AvatarFallback>
+          </Avatar>
+          {statusIconOverlay} 
+          {isAcceptedChat && contactAura && (
+              <span 
+                  className="absolute bottom-0 left-0 w-5 h-5 text-xs rounded-full flex items-center justify-center border-2 border-background shadow-md bg-card transform -translate-x-1/4 translate-y-1/4 p-0.5"
+                  title={`${displayName} is feeling ${contactAura.name}`}
+              >
+                  <Image src={contactAura.iconUrl} alt={contactAura.name} width={12} height={12} className="w-full h-full object-contain" />
+              </span>
+          )}
+        </div>
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-center">
