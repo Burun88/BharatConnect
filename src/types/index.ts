@@ -135,6 +135,7 @@ export interface StatusMediaItem {
   backgroundColor?: string; // e.g., 'bg-gradient-to-br from-blue-500 to-purple-600'
   fontStyle?: string; // e.g., 'font-sans'
   duration?: number; // Optional: duration in seconds for video/image display
+  viewers?: string[]; // Array of user IDs who viewed THIS SPECIFIC status item
 }
 
 export interface UserStatusDoc {
@@ -143,7 +144,6 @@ export interface UserStatusDoc {
   createdAt: any; // Firestore Timestamp (when the first status in this batch was created)
   expiresAt: any; // Firestore Timestamp (when this batch of statuses expires)
   media: StatusMediaItem[]; // Array of individual status media items
-  viewers?: string[]; // Array of user IDs who viewed this status
   isActive?: boolean; // Whether this status document is currently active (expiresAt > now)
   auraColor?: string; // Optional: if status ring is linked to user's aura
   lastMediaTimestamp?: any; // Firestore Timestamp of the latest media item in the 'media' array

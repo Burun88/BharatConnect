@@ -66,10 +66,17 @@ export default function StatusViewPage() {
     setIsPlaying(!isOpen); 
   };
 
+  const currentMediaItem = useMemo(() => {
+    if (statusDoc && statusDoc.media && currentMediaIndex >= 0 && currentMediaIndex < (statusDoc.media.length)) {
+      return statusDoc.media[currentMediaIndex];
+    }
+    return null;
+  }, [statusDoc, currentMediaIndex]);
+
   useEffect(() => {
     if (isViewersSheetOpen && isMyStatus) {
       const fetchViewers = async () => {
-        if (!statusDoc?.viewers || statusDoc.viewers.length === 0) {
+        if (!currentMediaItem?.viewers || currentMediaItem.viewers.length === 0) {
           setViewerProfiles([]);
           return;
         }
@@ -77,7 +84,7 @@ export default function StatusViewPage() {
         setIsLoadingViewers(true);
         try {
           const profiles = await Promise.all(
-            statusDoc.viewers.map(uid => getUserFullProfile(uid))
+            currentMediaItem.viewers.map(uid => getUserFullProfile(uid))
           );
           if (isMountedRef.current) {
             setViewerProfiles(profiles.filter(p => p !== null) as BharatConnectUser[]);
@@ -93,7 +100,7 @@ export default function StatusViewPage() {
 
       fetchViewers();
     }
-  }, [isViewersSheetOpen, isMyStatus, statusDoc]);
+  }, [isViewersSheetOpen, isMyStatus, currentMediaItem]);
 
   const numMediaItems = useMemo(() => statusDoc?.media?.length || 0, [statusDoc]);
 
@@ -108,6 +115,7 @@ export default function StatusViewPage() {
     }
   }, [authUser, statusOwnerId]);
 
+  // Main effect to fetch status data and owner profile
   useEffect(() => {
     if (!statusOwnerId || isAuthContextLoading) {
       if (isMountedRef.current) setIsLoading(true);
@@ -129,7 +137,6 @@ export default function StatusViewPage() {
     
     const statusDocRef = doc(firestore, 'status', statusOwnerId);
     
-    // Switch from getDoc to onSnapshot for real-time updates
     const unsubscribe = onSnapshot(statusDocRef, async (statusSnap) => {
       if (!isEffectMounted || !isMountedRef.current) return;
 
@@ -156,7 +163,7 @@ export default function StatusViewPage() {
 
         if (isActiveNow) {
           setStatusDoc(data);
-
+          
           if (!initialIndexSetRef.current && authUser?.id) {
             let initialIndexToSet = 0;
             const lsKey = `bharatconnect-last-viewed-media-id-${statusOwnerId}-${authUser.id}`;
@@ -179,11 +186,6 @@ export default function StatusViewPage() {
             setCurrentMediaIndex(initialIndexToSet);
             initialIndexSetRef.current = true;
           }
-
-          if (authUser?.id && !data.viewers?.includes(authUser.id)) {
-            updateDoc(statusDocRef, { viewers: arrayUnion(authUser.id) })
-              .catch(err => console.error("Error updating viewers:", err));
-          }
         } else {
           setError('No active status found or status has expired.');
         }
@@ -200,7 +202,27 @@ export default function StatusViewPage() {
         isEffectMounted = false;
         unsubscribe();
     };
-  }, [statusOwnerId, isAuthenticated, isAuthContextLoading, authUser, router, statusOwnerProfile]);
+  }, [statusOwnerId, isAuthenticated, isAuthContextLoading, router, statusOwnerProfile]);
+  
+  // Effect to mark the current status item as viewed
+  useEffect(() => {
+    if (!statusDoc || !authUser?.id) return;
+    
+    const itemToUpdate = statusDoc.media?.[currentMediaIndex];
+    if (itemToUpdate && !itemToUpdate.viewers?.includes(authUser.id)) {
+        const statusDocRef = doc(firestore, 'status', statusOwnerId);
+        
+        const updatedMediaArray = statusDoc.media.map((item) => {
+            if (item.id === itemToUpdate.id) {
+                return { ...item, viewers: [...(item.viewers || []), authUser.id] };
+            }
+            return item;
+        });
+
+        updateDoc(statusDocRef, { media: updatedMediaArray })
+            .catch(err => console.error("Error marking status item as viewed:", err));
+    }
+  }, [statusDoc, currentMediaIndex, authUser, statusOwnerId]);
 
 
   const advanceToNextMedia = useCallback(() => {
@@ -294,8 +316,7 @@ export default function StatusViewPage() {
       const touchEndY = e.changedTouches[0].clientY;
       const deltaY = touchStartYRef.current - touchEndY;
       if (deltaY > 50) {
-        setIsPlaying(false);
-        setIsViewersSheetOpen(true);
+        handleSheetOpenChange(true);
       }
     }
     touchStartYRef.current = null;
@@ -305,13 +326,6 @@ export default function StatusViewPage() {
     handlePointerUp();
     touchStartYRef.current = null;
   };
-
-  const currentMediaItem = useMemo(() => {
-    if (statusDoc && statusDoc.media && currentMediaIndex >= 0 && currentMediaIndex < numMediaItems) {
-      return statusDoc.media[currentMediaIndex];
-    }
-    return null;
-  }, [statusDoc, currentMediaIndex, numMediaItems]);
 
   if (isLoading) {
     return (
@@ -451,19 +465,19 @@ export default function StatusViewPage() {
         )}
       </div>
 
-      {isMyStatus && statusDoc && (
+      {isMyStatus && (
         <Sheet open={isViewersSheetOpen} onOpenChange={handleSheetOpenChange}>
           <SheetTrigger asChild>
             <Button variant="ghost" className="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center h-auto p-2 bg-black/30 text-white hover:bg-black/50 hover:text-white rounded-lg backdrop-blur-sm animate-fade-in-slide-up">
               <ChevronUp className="w-5 h-5" />
-              <span className="text-xs font-semibold mt-1">{statusDoc.viewers?.length || 0}</span>
+              <span className="text-xs font-semibold mt-1">{currentMediaItem?.viewers?.length || 0}</span>
             </Button>
           </SheetTrigger>
           <SheetContent side="bottom" className="rounded-t-2xl max-h-[60vh] bg-background flex flex-col">
             <SheetHeader className="shrink-0">
               <SheetTitle>Viewed by</SheetTitle>
               <SheetDescription>
-                {statusDoc.viewers?.length || 0} contact{statusDoc.viewers?.length !== 1 ? 's have' : ' has'} viewed your status.
+                {currentMediaItem?.viewers?.length || 0} contact{currentMediaItem?.viewers?.length !== 1 ? 's have' : ' has'} viewed your status.
               </SheetDescription>
             </SheetHeader>
             <div className="py-4 flex-grow overflow-y-auto custom-scrollbar-dark">

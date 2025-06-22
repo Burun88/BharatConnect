@@ -14,7 +14,7 @@ import type { StatusMediaItem, UserStatusDoc } from '@/types';
 import { Send, Loader2, Palette, CaseSensitive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const STATUS_DURATION_MS = 60 * 60 * 1000; // 1 hour
+const STATUS_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_CHARS = 280;
 
 export default function CreateTextStatusPage() {
@@ -93,6 +93,7 @@ export default function CreateTextStatusPage() {
       createdAt: Timestamp.now(),
       backgroundColor: selectedBg,
       fontStyle: selectedFont,
+      viewers: [], // Initialize viewers for this specific item
     };
 
     const statusDocRef = doc(firestore, 'status', authUser.id);
@@ -103,26 +104,28 @@ export default function CreateTextStatusPage() {
       const newExpiresAt = Timestamp.fromMillis(now + STATUS_DURATION_MS);
 
       if (docSnap.exists() && docSnap.data().isActive === true && (docSnap.data().expiresAt as Timestamp).toMillis() > now) {
+        // If an active status document exists, just add the new media and update timestamps.
+        // DO NOT reset viewers.
         await updateDoc(statusDocRef, {
           media: arrayUnion(newMediaItem),
           lastMediaTimestamp: serverTimestamp(),
           expiresAt: newExpiresAt,
-          viewers: [],
         });
       } else {
+        // If no active status doc, create a new one.
+        // The `viewers` field is no longer at this top level.
         const newStatusDocPayload: UserStatusDoc = {
           userId: authUser.id,
           createdAt: serverTimestamp(),
           expiresAt: newExpiresAt,
           media: [newMediaItem],
-          viewers: [],
           isActive: true,
           lastMediaTimestamp: serverTimestamp(),
         };
         await setDoc(statusDocRef, newStatusDocPayload);
       }
 
-      toast({ title: 'Status Posted!', description: 'Your text status is now live for 1 hour.' });
+      toast({ title: 'Status Posted!', description: 'Your text status is now live for 24 hours.' });
       router.push('/status');
     } catch (error: any) {
       console.error("Error posting status:", error);
