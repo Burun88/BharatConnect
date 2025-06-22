@@ -10,9 +10,6 @@
 
 # Specifies the runtime configuration for the backend.
 runConfig:
-  # The maximum number of container instances that can be running at the same time.
-  # Increase this value to automatically scale up in response to increased traffic.
-  # For production apps, a value higher than 1 is recommended.
   maxInstances: 2
 
 # Defines environment variables for the backend.
@@ -21,13 +18,31 @@ runConfig:
 env:
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     secret: FIREBASE_API_KEY
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
     secret: FIREBASE_AUTH_DOMAIN
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
     secret: FIREBASE_PROJECT_ID
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
     secret: FIREBASE_STORAGE_BUCKET
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
     secret: FIREBASE_MESSAGING_SENDER_ID
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
     secret: FIREBASE_APP_ID
+    availability:
+      - BUILD
+      - RUNTIME
