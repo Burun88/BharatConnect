@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useRef, useLayoutEffect, useState, useEffect } from 'react';
@@ -7,7 +6,7 @@ import TypingIndicatorBubble from '@/components/chat/TypingIndicatorBubble';
 import type { Message } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface MessageAreaProps {
@@ -89,6 +88,7 @@ export default function MessageArea({
     resizeObserver.observe(container);
 
     return () => {
+      resizeObserver.unobserve(container);
       resizeObserver.disconnect();
     };
   }, []);
@@ -101,6 +101,14 @@ export default function MessageArea({
         className="h-full overflow-y-auto hide-scrollbar p-2 space-y-2"
         style={{ paddingBottom: `${dynamicPaddingBottom}px` }}
       >
+        {messages.length === 0 && !isContactTyping && (
+          <div className="px-4 py-2 my-1 w-full animate-fade-in-scale-up">
+            <p className={cn("mx-auto max-w-sm rounded-md p-2 text-center text-xs", "flex items-center justify-center bg-muted text-muted-foreground")}>
+              <Lock className="w-3 h-3 mr-1.5 flex-shrink-0" />
+              <span className="text-balance">Messages are end-to-end encrypted.</span>
+            </p>
+          </div>
+        )}
         {messages.map(msg => (
           <MessageBubble
             key={msg.id} 
