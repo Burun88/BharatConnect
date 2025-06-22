@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { X, Loader2, AlertCircle, UserCircle2, Play, Pause, Eye } from 'lucide-react';
+import { X, Loader2, AlertCircle, UserCircle2, Play, Pause, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { UserStatusDoc, StatusMediaItem, User as BharatConnectUser } from '@/types';
 import { firestore, Timestamp } from '@/lib/firebase';
@@ -59,6 +59,12 @@ export default function StatusViewPage() {
     return () => { isMountedRef.current = false; };
   }, []);
   
+  const handleSheetOpenChange = (isOpen: boolean) => {
+    setIsViewersSheetOpen(isOpen);
+    // Pause the status timer when the sheet is open, and resume when it's closed.
+    setIsPlaying(!isOpen); 
+  };
+
   useEffect(() => {
     if (isViewersSheetOpen && isMyStatus) {
       // Fetch viewers when the sheet is opened
@@ -466,10 +472,10 @@ export default function StatusViewPage() {
       </div>
 
       {isMyStatus && statusDoc && (
-        <Sheet open={isViewersSheetOpen} onOpenChange={setIsViewersSheetOpen}>
+        <Sheet open={isViewersSheetOpen} onOpenChange={handleSheetOpenChange}>
           <SheetTrigger asChild>
             <Button variant="ghost" className="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center h-auto p-2 bg-black/30 text-white hover:bg-black/50 hover:text-white rounded-lg backdrop-blur-sm animate-fade-in-slide-up">
-              <Eye className="w-5 h-5" />
+              <ChevronUp className="w-5 h-5" />
               <span className="text-xs font-semibold mt-1">{statusDoc.viewers?.length || 0}</span>
             </Button>
           </SheetTrigger>
