@@ -10,7 +10,7 @@ import { X, Loader2, AlertCircle, UserCircle2, Play, Pause, ChevronUp } from 'lu
 import { useAuth } from '@/contexts/AuthContext';
 import type { UserStatusDoc, StatusMediaItem, User as BharatConnectUser } from '@/types';
 import { firestore, Timestamp } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
 import { getUserFullProfile } from '@/services/profileService';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
@@ -46,12 +46,13 @@ export default function StatusViewPage() {
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressActiveRef = useRef(false);
   const isMountedRef = useRef(false);
-  const touchStartYRef = useRef<number | null>(null); // For swipe-up gesture
+  const touchStartYRef = useRef<number | null>(null);
 
-  // States for viewers sheet
   const [viewerProfiles, setViewerProfiles] = useState<BharatConnectUser[]>([]);
   const [isLoadingViewers, setIsLoadingViewers] = useState(false);
   const [isViewersSheetOpen, setIsViewersSheetOpen] = useState(false);
+  
+  const initialIndexSetRef = useRef(false);
 
   const isMyStatus = useMemo(() => statusOwnerId === authUser?.id, [statusOwnerId, authUser?.id]);
 
@@ -62,13 +63,11 @@ export default function StatusViewPage() {
   
   const handleSheetOpenChange = (isOpen: boolean) => {
     setIsViewersSheetOpen(isOpen);
-    // Pause the status timer when the sheet is open, and resume when it's closed.
     setIsPlaying(!isOpen); 
   };
 
   useEffect(() => {
     if (isViewersSheetOpen && isMyStatus) {
-      // Fetch viewers when the sheet is opened
       const fetchViewers = async () => {
         if (!statusDoc?.viewers || statusDoc.viewers.length === 0) {
           setViewerProfiles([]);
@@ -85,7 +84,6 @@ export default function StatusViewPage() {
           }
         } catch (err) {
           console.error("Failed to fetch viewer profiles", err);
-          // Handle error display within the sheet if needed
         } finally {
           if (isMountedRef.current) {
             setIsLoadingViewers(false);
@@ -95,38 +93,20 @@ export default function StatusViewPage() {
 
       fetchViewers();
     }
-  // This is a deliberate dependency array. We only want this effect to re-run when the sheet's open state changes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isViewersSheetOpen, isMyStatus, statusDoc]);
 
-
   const numMediaItems = useMemo(() => statusDoc?.media?.length || 0, [statusDoc]);
-
-  useEffect(() => {
-    if (!isMountedRef.current) return;
-    if (statusDoc) {
-      console.log(`[StatusViewPage] statusDoc updated for owner ${statusOwnerId}. Media count: ${numMediaItems}. Current index: ${currentMediaIndex}`, JSON.parse(JSON.stringify(statusDoc)));
-    }
-    if (statusDoc && statusDoc.media && currentMediaIndex < numMediaItems) {
-      console.log(`[StatusViewPage] currentMediaItem (index ${currentMediaIndex}) for owner ${statusOwnerId}: `, JSON.parse(JSON.stringify(statusDoc.media[currentMediaIndex])));
-    } else if (statusDoc && statusDoc.media) {
-      console.log(`[StatusViewPage] currentMediaIndex ${currentMediaIndex} is out of bounds for media array length ${numMediaItems} for owner ${statusOwnerId}.`);
-    }
-  }, [statusDoc, currentMediaIndex, numMediaItems, statusOwnerId]);
 
   const updateLastViewedMedia = useCallback((mediaItemIdToStore: string | null) => {
     if (authUser?.id && statusOwnerId) {
       const lsKey = `bharatconnect-last-viewed-media-id-${statusOwnerId}-${authUser.id}`;
       if (mediaItemIdToStore) {
         localStorage.setItem(lsKey, mediaItemIdToStore);
-        console.log(`[StatusViewPage] Stored last viewed media ID in LS for key ${lsKey}: ${mediaItemIdToStore}`);
       } else {
         localStorage.removeItem(lsKey);
-        console.log(`[StatusViewPage] Cleared last viewed media ID from LS for key ${lsKey}.`);
       }
     }
   }, [authUser, statusOwnerId]);
-
 
   useEffect(() => {
     if (!statusOwnerId || isAuthContextLoading) {
@@ -144,110 +124,84 @@ export default function StatusViewPage() {
       setError(null);
       setProgress(0);
       setIsPlaying(true);
+      initialIndexSetRef.current = false;
     }
+    
+    const statusDocRef = doc(firestore, 'status', statusOwnerId);
+    
+    // Switch from getDoc to onSnapshot for real-time updates
+    const unsubscribe = onSnapshot(statusDocRef, async (statusSnap) => {
+      if (!isEffectMounted || !isMountedRef.current) return;
 
-    const fetchData = async () => {
-      if (!authUser?.id) {
-        if (isEffectMounted && isMountedRef.current) {
-            setError("User authentication data not available.");
+      if (!statusOwnerProfile) {
+        try {
+            const profile = await getUserFullProfile(statusOwnerId);
+            if (!isEffectMounted || !isMountedRef.current) return;
+            if (!profile) {
+                setError(`Profile not found for user ID: ${statusOwnerId}`);
+                setIsLoading(false);
+                return;
+            }
+            setStatusOwnerProfile(profile);
+        } catch (err: any) {
+            if (isMountedRef.current && isEffectMounted) setError(err.message || 'Failed to load profile.');
             setIsLoading(false);
+            return;
         }
-        return;
       }
-      console.log(`[StatusViewPage] fetchData called for statusOwnerId: ${statusOwnerId} by viewer: ${authUser.id}`);
-      try {
-        const profile = await getUserFullProfile(statusOwnerId);
-        if (!isEffectMounted || !isMountedRef.current) return;
-        if (!profile) {
-          setError(`Profile not found for user ID: ${statusOwnerId}`);
-          setIsLoading(false);
-          return;
-        }
-        setStatusOwnerProfile(profile);
 
-        const statusDocRef = doc(firestore, 'status', statusOwnerId);
-        const statusSnap = await getDoc(statusDocRef);
-        if (!isEffectMounted || !isMountedRef.current) return;
+      if (statusSnap.exists()) {
+        const data = statusSnap.data() as UserStatusDoc;
+        const isActiveNow = data.isActive === true && data.expiresAt && (data.expiresAt as Timestamp).toMillis() > Date.now() && data.media && data.media.length > 0;
 
-        if (statusSnap.exists()) {
-          const data = statusSnap.data() as UserStatusDoc;
-          console.log(`[StatusViewPage] Fetched raw statusDoc data for ${statusOwnerId}:`, JSON.parse(JSON.stringify(data)));
+        if (isActiveNow) {
+          setStatusDoc(data);
 
-          const isActiveNow = data.isActive === true && data.expiresAt && (data.expiresAt as Timestamp).toMillis() > Date.now() && data.media && data.media.length > 0;
-
-          if (isActiveNow) {
-            setStatusDoc(data);
+          if (!initialIndexSetRef.current && authUser?.id) {
             let initialIndexToSet = 0;
             const lsKey = `bharatconnect-last-viewed-media-id-${statusOwnerId}-${authUser.id}`;
             const lastViewedMediaIdFromLS = localStorage.getItem(lsKey);
 
-            if (statusOwnerId === authUser.id) {
-                console.log(`[StatusViewPage OWN_STATUS_DEBUG] Fetching own status. LS Key: ${lsKey}, Stored LS ID: ${lastViewedMediaIdFromLS}`);
-                console.log(`[StatusViewPage OWN_STATUS_DEBUG] Media array from Firestore:`, JSON.parse(JSON.stringify(data.media || [])));
-            }
-
-
             if (lastViewedMediaIdFromLS && data.media && data.media.length > 0) {
-                const lastViewedIdx = data.media.findIndex(item => item.id === lastViewedMediaIdFromLS);
-                console.log(`[StatusViewPage] For status owner ${statusOwnerId}, viewer ${authUser.id}, LS key: '${lsKey}', lastViewedMediaIdFromLS: '${lastViewedMediaIdFromLS}', found at index: ${lastViewedIdx}`);
-
-                if (lastViewedIdx !== -1) {
-                    const potentialStartIndex = lastViewedIdx + 1;
-                    if (potentialStartIndex < data.media.length) {
-                        initialIndexToSet = potentialStartIndex;
-                        console.log(`[StatusViewPage] Resuming. Last viewed index ${lastViewedIdx}. Starting at new index ${initialIndexToSet}.`);
-                    } else {
-                        initialIndexToSet = 0;
-                        console.log(`[StatusViewPage] All known items up to LS ID ${lastViewedMediaIdFromLS} were viewed or LS item was last. Restarting at index 0 for viewer ${authUser.id} on status ${statusOwnerId}. Current media length: ${data.media.length}. PotentialStartIndex was: ${potentialStartIndex}`);
-                    }
+              const lastViewedIdx = data.media.findIndex(item => item.id === lastViewedMediaIdFromLS);
+              if (lastViewedIdx !== -1) {
+                const potentialStartIndex = lastViewedIdx + 1;
+                if (potentialStartIndex < data.media.length) {
+                  initialIndexToSet = potentialStartIndex;
                 } else {
-                    localStorage.removeItem(lsKey);
-                    initialIndexToSet = 0;
-                    console.log(`[StatusViewPage] LS ID ${lastViewedMediaIdFromLS} NOT FOUND in current media for viewer ${authUser.id} on status ${statusOwnerId}. Starting at index 0. LS Cleared.`);
+                  initialIndexToSet = 0;
                 }
-            } else {
+              } else {
+                localStorage.removeItem(lsKey);
                 initialIndexToSet = 0;
-                console.log(`[StatusViewPage] No LS ID for key ${lsKey} or no media for viewer ${authUser.id} on status ${statusOwnerId}. Starting at index 0.`);
+              }
             }
-
-            if (statusOwnerId === authUser.id && lastViewedMediaIdFromLS && data.media && data.media.length > 0) { // Add this block for own status debug
-                const lastViewedIdx = data.media.findIndex(item => item.id === lastViewedMediaIdFromLS);
-                const potentialStartIndex = lastViewedIdx !== -1 ? lastViewedIdx + 1 : 0;
-                 console.log(`[StatusViewPage OWN_STATUS_DEBUG] After logic: lastViewedIdx: ${lastViewedIdx}, potentialStartIndex: ${potentialStartIndex}, initialIndexToSet: ${initialIndexToSet}, media.length: ${data.media.length}`);
-            } else if (statusOwnerId === authUser.id) {
-                 console.log(`[StatusViewPage OWN_STATUS_DEBUG] After logic (no LS/media): initialIndexToSet: ${initialIndexToSet}`);
-            }
-
-
             setCurrentMediaIndex(initialIndexToSet);
+            initialIndexSetRef.current = true;
+          }
 
-            if (authUser?.id && (!data.viewers?.includes(authUser.id))) {
-                console.log(`[StatusViewPage] User ${authUser.id} NOT in viewers for ${statusOwnerId}. Attempting to add. Current viewers:`, data.viewers);
-                updateDoc(statusDocRef, { viewers: arrayUnion(authUser.id) })
-                    .then(() => { if (isMountedRef.current) console.log(`[StatusViewPage] Successfully ADDED ${authUser?.id} to viewers for ${statusOwnerId}.`); })
-                    .catch(err => { if (isMountedRef.current) console.error(`[StatusViewPage] Error ADDING ${authUser?.id} to viewers for ${statusOwnerId}:`, err); });
-            } else if (authUser?.id && data.viewers?.includes(authUser.id)) {
-                 console.log(`[StatusViewPage] User ${authUser.id} IS ALREADY in viewers for ${statusOwnerId}. Viewers:`, data.viewers);
-            }
-          } else {
-            setError('No active status found or status has expired.');
-            console.log(`[StatusViewPage] Status for ${statusOwnerId} is inactive or expired. Data:`, JSON.parse(JSON.stringify(data)));
+          if (authUser?.id && !data.viewers?.includes(authUser.id)) {
+            updateDoc(statusDocRef, { viewers: arrayUnion(authUser.id) })
+              .catch(err => console.error("Error updating viewers:", err));
           }
         } else {
-          setError('No status document found for this user.');
-           console.log(`[StatusViewPage] No status document found for ${statusOwnerId}.`);
+          setError('No active status found or status has expired.');
         }
-      } catch (err: any) {
-        if (isMountedRef.current && isEffectMounted) setError(err.message || 'Failed to load status.');
-        console.error(`[StatusViewPage] Error in fetchData for ${statusOwnerId}:`, err);
-      } finally {
-        if (isMountedRef.current && isEffectMounted) setIsLoading(false);
+      } else {
+        setError('No status document found for this user.');
       }
-    };
+      setIsLoading(false);
+    }, (err) => {
+        if (isMountedRef.current && isEffectMounted) setError(err.message || 'Failed to listen to status updates.');
+        setIsLoading(false);
+    });
 
-    if (authUser) fetchData();
-    return () => { isEffectMounted = false; };
-  }, [statusOwnerId, isAuthenticated, isAuthContextLoading, authUser, router]);
+    return () => { 
+        isEffectMounted = false;
+        unsubscribe();
+    };
+  }, [statusOwnerId, isAuthenticated, isAuthContextLoading, authUser, router, statusOwnerProfile]);
+
 
   const advanceToNextMedia = useCallback(() => {
     const currentNumItems = statusDoc?.media?.length || 0;
@@ -322,25 +276,24 @@ export default function StatusViewPage() {
   };
 
   const handleClose = () => {
-    const currentNumItemsOnClose = statusDoc?.media?.length || 0; // Use a local const for numItems
+    const currentNumItemsOnClose = statusDoc?.media?.length || 0;
     if (authUser?.id && statusOwnerId && statusDoc?.media && currentMediaIndex < currentNumItemsOnClose && statusDoc.media[currentMediaIndex]) {
         updateLastViewedMedia(statusDoc.media[currentMediaIndex].id);
     }
     if (isMountedRef.current) router.push('/status');
   };
 
-  // --- New Gesture Handlers for Swipe Up ---
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    handlePointerDown(); // Also handle long-press
+    handlePointerDown();
     touchStartYRef.current = e.targetTouches[0].clientY;
   };
 
   const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
-    handlePointerUp(); // Also handle long-press end
+    handlePointerUp();
     if (touchStartYRef.current && isMyStatus) {
       const touchEndY = e.changedTouches[0].clientY;
       const deltaY = touchStartYRef.current - touchEndY;
-      if (deltaY > 50) { // Swipe up threshold
+      if (deltaY > 50) {
         setIsPlaying(false);
         setIsViewersSheetOpen(true);
       }
@@ -385,7 +338,6 @@ export default function StatusViewPage() {
   }
 
   if (!statusDoc || !statusOwnerProfile || !currentMediaItem) {
-     console.log(`[StatusViewPage] Critical data missing for rendering owner ${statusOwnerId}. statusDoc: ${!!statusDoc}, statusOwnerProfile: ${!!statusOwnerProfile}, currentMediaItem: ${!!currentMediaItem}`);
      return (
       <div className="fixed inset-0 bg-black flex flex-col items-center justify-center p-4 z-50">
         <Alert variant="destructive" className="bg-background/10 backdrop-blur-sm border-destructive/50 text-destructive-foreground max-w-md">
