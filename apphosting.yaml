@@ -1,20 +1,26 @@
 # Settings to manage and configure a Firebase App Hosting backend.
 # https://firebase.google.com/docs/app-hosting/configure
 
-# IMPORTANT: For this file to work correctly on deployment, you must manually
-# create the secrets listed below in Google Cloud Secret Manager.
-# The 'secret' field (e.g., 'FIREBASE_API_KEY') must be the EXACT name you
-# give the secret in the console. If you face permission errors after creating
-# the secrets, follow these steps in your terminal:
-#
-# 1. Login to Firebase:
-#    firebase login
-#
-# 2. Select your project:
-#    firebase use bharatconnect-i8510
-#
-# 3. Grant your App Hosting backend access to the secrets:
-#    firebase apphosting:secrets:grantaccess --backend bharatconnect FIREBASE_API_KEY,FIREBASE_AUTH_DOMAIN,FIREBASE_PROJECT_ID,FIREBASE_STORAGE_BUCKET,FIREBASE_MESSAGING_SENDER_ID,FIREBASE_APP_ID
+# --- PERMISSIONS GUIDE ---
+# If your app needs to access other Google Cloud services (like Storage, Firestore Admin, etc.),
+# you must grant permissions to the App Hosting service account.
+
+# 1. FIND YOUR SERVICE ACCOUNT:
+#    - Go to the IAM & Admin page in Google Cloud Console: https://console.cloud.google.com/iam-admin/iam
+#    - Find the principal with the email: service-YOUR_PROJECT_NUMBER@gcp-sa-apphosting.iam.gserviceaccount.com
+
+# 2. GRANT SECRET ACCESS:
+#    - For EACH secret below, go to Secret Manager, click the secret, go to the PERMISSIONS tab,
+#    - and grant the 'Secret Manager Secret Accessor' role to the service account from Step 1.
+#    - This allows the build process to access your environment variables.
+
+# 3. GRANT STORAGE ACCESS (To Fix `storage/unknown` Upload Errors):
+#    - Go back to the IAM & Admin page.
+#    - Find your App Hosting service account again and click the pencil icon (Edit principal).
+#    - Click '+ ADD ANOTHER ROLE'.
+#    - In the filter, search for and select the 'Storage Object Admin' role.
+#    - Click 'Save'. This allows your running application to upload and delete files.
+# --- END PERMISSIONS GUIDE ---
 
 # Specifies the runtime configuration for the backend.
 runConfig:
