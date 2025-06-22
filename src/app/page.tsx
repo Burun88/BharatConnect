@@ -207,15 +207,30 @@ export default function HomePage() {
             const fetchedContactName = profile?.name || participantInfoMap[contactId]?.name || 'User';
             const fetchedContactAvatar = profile?.avatarUrl || participantInfoMap[contactId]?.avatarUrl || undefined;
             const contactAuraFromState = allDisplayAuras.find(da => da.userId === contactId);
-            let hasActiveUnviewedStatus = false, hasActiveViewedStatus = false;
+            
+            let hasActiveUnviewedStatus = false;
+            let hasActiveViewedStatus = false;
             const statusDocRef = doc(firestore, 'status', contactId);
             const statusSnap = await getDoc(statusDocRef);
+
             if (statusSnap.exists()) {
                 const statusData = statusSnap.data() as UserStatusDoc;
-                if (statusData.isActive && statusData.expiresAt && (statusData.expiresAt as Timestamp).toMillis() > Date.now() && statusData.media && statusData.media.length > 0) {
-                    if (statusData.viewers?.includes(activeAuthUserIdInner)) hasActiveViewedStatus = true; else hasActiveUnviewedStatus = true;
+                const isActiveNow = statusData.isActive && statusData.expiresAt && (statusData.expiresAt as Timestamp).toMillis() > Date.now() && statusData.media && statusData.media.length > 0;
+
+                if (isActiveNow) {
+                    // Check if EVERY media item has been viewed.
+                    const allItemsViewed = statusData.media.every(item => item.viewers?.includes(activeAuthUserIdInner));
+
+                    if (allItemsViewed) {
+                        hasActiveViewedStatus = true;
+                        hasActiveUnviewedStatus = false;
+                    } else {
+                        hasActiveViewedStatus = false; // Not all are viewed, so it's not a fully "viewed" status
+                        hasActiveUnviewedStatus = true; // At least one is unviewed
+                    }
                 }
             }
+            
             participantInfoMap[contactId] = { name: fetchedContactName, avatarUrl: fetchedContactAvatar, currentAuraId: contactAuraFromState?.auraOptionId || null, hasActiveUnviewedStatus, hasActiveViewedStatus };
             chatTopLevelName = fetchedContactName; chatTopLevelAvatar = fetchedContactAvatar;
           } else if (data.type === 'group') {
@@ -417,4 +432,5 @@ export default function HomePage() {
     
     
     
+
 
