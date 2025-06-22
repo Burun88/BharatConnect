@@ -6,13 +6,13 @@ import { useRouter } from 'next/navigation';
 import PageHeader from "@/components/page-header";
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { firestore, serverTimestamp, Timestamp } from '@/lib/firebase'; 
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, collection } from 'firebase/firestore'; 
 import type { StatusMediaItem, UserStatusDoc } from '@/types';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, Palette, CaseSensitive } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const STATUS_DURATION_MS = 60 * 60 * 1000; // 1 hour
 const MAX_CHARS = 280;
@@ -26,6 +26,25 @@ export default function CreateTextStatusPage() {
   const [isPosting, setIsPosting] = useState(false);
   const [charCount, setCharCount] = useState(0);
   
+  // Customization State
+  const [backgrounds] = useState([
+    'bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600',
+    'bg-gradient-to-br from-green-400 to-blue-500',
+    'bg-gradient-to-br from-yellow-400 via-red-500 to-pink-500',
+    'bg-gradient-to-br from-gray-700 via-gray-900 to-black',
+    'bg-gradient-to-br from-indigo-500 from-10% via-sky-500 via-30% to-emerald-500 to-90%',
+    'bg-gradient-to-br from-rose-400 via-fuchsia-500 to-indigo-500',
+  ]);
+  const [fonts] = useState([
+    'font-sans',
+    'font-serif',
+    'font-mono',
+  ]);
+  const [selectedBgIndex, setSelectedBgIndex] = useState(0);
+  const [selectedFontIndex, setSelectedFontIndex] = useState(0);
+
+  const selectedBg = backgrounds[selectedBgIndex];
+  const selectedFont = fonts[selectedFontIndex];
 
   useEffect(() => {
     if (!isAuthLoading && !isAuthenticated) {
@@ -41,11 +60,17 @@ export default function CreateTextStatusPage() {
     }
   };
 
+  const cycleBackground = () => {
+    setSelectedBgIndex((prevIndex) => (prevIndex + 1) % backgrounds.length);
+  };
+
+  const cycleFont = () => {
+    setSelectedFontIndex((prevIndex) => (prevIndex + 1) % fonts.length);
+  };
+
   const handlePostStatus = async () => {
     if (!authUser || !authUser.id) {
       toast({ variant: 'destructive', title: 'Authentication Error', description: 'User not fully identified. Please try logging out and back in.' });
-      console.error("[CreateTextStatusPage] handlePostStatus called but authUser or authUser.id is missing or null.", authUser);
-      setIsPosting(false); 
       return;
     }
 
@@ -65,7 +90,9 @@ export default function CreateTextStatusPage() {
       id: doc(collection(firestore, '_')).id, 
       type: 'text',
       textContent: trimmedStatusText,
-      createdAt: Timestamp.now(), 
+      createdAt: Timestamp.now(),
+      backgroundColor: selectedBg,
+      fontStyle: selectedFont,
     };
 
     const statusDocRef = doc(firestore, 'status', authUser.id);
@@ -75,48 +102,23 @@ export default function CreateTextStatusPage() {
       const now = Date.now();
       const newExpiresAt = Timestamp.fromMillis(now + STATUS_DURATION_MS);
 
-      if (docSnap.exists()) {
-        const existingData = docSnap.data() as UserStatusDoc;
-        if (existingData.expiresAt && (existingData.expiresAt as Timestamp).toMillis() > now && existingData.isActive === true) {
-          // Updating existing active status: Add new media, update timestamps, AND RESET VIEWERS
-          const updatePayload: Partial<UserStatusDoc> = { // Use Partial for clarity on what's changing
-            media: arrayUnion(newMediaItem) as any, // Cast to any due to arrayUnion complexity with types
-            lastMediaTimestamp: serverTimestamp(), 
-            expiresAt: newExpiresAt, 
-            isActive: true,
-            viewers: [], // Reset viewers so the status appears as "new" for everyone, including self
-          };
-          console.log("[CreateTextStatusPage DEBUG] Attempting to UPDATE status. UID:", authUser.id);
-          console.log("[CreateTextStatusPage DEBUG] Update Payload (raw):", updatePayload);
-          await updateDoc(statusDocRef, updatePayload);
-        } else {
-          // Creating new status because existing one is expired/inactive
-          const newStatusDocPayload: UserStatusDoc = {
-            userId: authUser.id,
-            createdAt: serverTimestamp(), 
-            expiresAt: newExpiresAt,
-            media: [newMediaItem],
-            viewers: [], // Initially empty viewers list
-            isActive: true,
-            lastMediaTimestamp: serverTimestamp(), 
-          };
-          console.log("[CreateTextStatusPage DEBUG] Attempting to CREATE (setDoc) new status (existing doc found but inactive/expired). UID:", authUser.id);
-          console.log("[CreateTextStatusPage DEBUG] New Status Doc Payload (raw):", newStatusDocPayload);
-          await setDoc(statusDocRef, newStatusDocPayload);
-        }
+      if (docSnap.exists() && docSnap.data().isActive === true && (docSnap.data().expiresAt as Timestamp).toMillis() > now) {
+        await updateDoc(statusDocRef, {
+          media: arrayUnion(newMediaItem),
+          lastMediaTimestamp: serverTimestamp(),
+          expiresAt: newExpiresAt,
+          viewers: [],
+        });
       } else {
-        // Creating new status document for the first time
         const newStatusDocPayload: UserStatusDoc = {
           userId: authUser.id,
           createdAt: serverTimestamp(),
           expiresAt: newExpiresAt,
           media: [newMediaItem],
-          viewers: [], // Initially empty viewers list
+          viewers: [],
           isActive: true,
           lastMediaTimestamp: serverTimestamp(),
         };
-        console.log("[CreateTextStatusPage DEBUG] Attempting to CREATE (setDoc) new status (doc did not exist). UID:", authUser.id);
-        console.log("[CreateTextStatusPage DEBUG] New Status Doc Payload (raw):", newStatusDocPayload);
         await setDoc(statusDocRef, newStatusDocPayload);
       }
 
@@ -140,40 +142,47 @@ export default function CreateTextStatusPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(var(--vh)*100)] bg-gradient-to-br from-primary via-accent to-secondary">
+    <div className={cn("flex flex-col h-[calc(var(--vh)*100)] transition-all duration-500", selectedBg)}>
       <PageHeader title="Create Text Status" className="bg-transparent border-b-white/20 text-primary-foreground [&_h1]:text-primary-foreground [&_button]:text-primary-foreground [&_button:hover]:bg-white/10" />
-      <main className="flex-1 flex flex-col items-center justify-center p-4">
-        <Card className="w-full max-w-md shadow-xl bg-background/80 backdrop-blur-md">
-          <CardContent className="p-6 pt-8 space-y-4">
-            <Textarea
-              placeholder="What's on your mind?"
-              value={statusText}
-              onChange={handleTextChange}
-              className="min-h-[150px] text-lg bg-card border-border focus:ring-primary resize-none custom-scrollbar-dark"
-              maxLength={MAX_CHARS}
-            />
-            <div className="text-right text-sm text-muted-foreground">
-              {charCount}/{MAX_CHARS}
+      <main className="flex-1 flex flex-col items-center justify-center p-4 overflow-hidden">
+        <div className="w-full max-w-md flex flex-col items-center justify-center flex-1 min-h-0">
+          <Textarea
+            placeholder="What's on your mind?"
+            value={statusText}
+            onChange={handleTextChange}
+            className={cn(
+              "w-full flex-1 bg-transparent text-white border-none focus-visible:ring-0 focus-visible:ring-offset-0 text-3xl text-center shadow-lg font-bold resize-none flex items-center justify-center placeholder:text-white/70 hide-scrollbar",
+              selectedFont
+            )}
+            maxLength={MAX_CHARS}
+          />
+          <div className="text-right text-sm text-white/80 w-full mt-2 shrink-0">
+            {charCount}/{MAX_CHARS}
+          </div>
+        </div>
+        <div className="w-full max-w-md shrink-0 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" className="rounded-full text-white hover:bg-white/20" onClick={cycleBackground}>
+                    <Palette className="w-5 h-5"/>
+                </Button>
+                <Button variant="ghost" size="icon" className="rounded-full text-white hover:bg-white/20" onClick={cycleFont}>
+                    <CaseSensitive className="w-5 h-5"/>
+                </Button>
             </div>
-          </CardContent>
-          <CardFooter className="border-t border-border/50 p-4">
             <Button
               onClick={handlePostStatus}
-              className="w-full text-base py-3 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-primary-foreground"
+              className="h-14 w-14 rounded-full bg-white text-black hover:bg-gray-200"
               disabled={isPosting || statusText.trim() === ''}
+              aria-label="Post Status"
             >
               {isPosting ? (
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                <Loader2 className="h-6 w-6 animate-spin" />
               ) : (
-                <Send className="mr-2 h-5 w-5" />
+                <Send className="h-6 w-6" />
               )}
-              {isPosting ? 'Posting...' : 'Post Status'}
             </Button>
-          </CardFooter>
-        </Card>
+        </div>
       </main>
     </div>
   );
 }
-
-    

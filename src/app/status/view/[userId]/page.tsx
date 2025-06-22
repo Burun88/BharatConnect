@@ -470,9 +470,12 @@ export default function StatusViewPage() {
         {currentMediaItem.type === 'text' && (
           <div className={cn(
             "flex items-center justify-center p-8 text-center w-full h-full",
-            "bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600"
+            currentMediaItem.backgroundColor || "bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600"
           )}>
-            <p className="text-2xl md:text-3xl lg:text-4xl font-semibold text-white shadow-lg break-words whitespace-pre-wrap">
+            <p className={cn(
+              "text-2xl md:text-3xl lg:text-4xl font-bold text-white shadow-lg break-words whitespace-pre-wrap",
+              currentMediaItem.fontStyle || 'font-sans'
+            )}>
               {currentMediaItem.textContent}
             </p>
           </div>

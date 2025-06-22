@@ -132,6 +132,8 @@ export interface StatusMediaItem {
   type: StatusMediaType;
   createdAt: any; // Firestore Timestamp
   textContent?: string; // For text statuses
+  backgroundColor?: string; // e.g., 'bg-gradient-to-br from-blue-500 to-purple-600'
+  fontStyle?: string; // e.g., 'font-sans'
   duration?: number; // Optional: duration in seconds for video/image display
 }
 
