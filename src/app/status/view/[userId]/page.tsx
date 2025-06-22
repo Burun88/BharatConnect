@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { X, Loader2, AlertCircle, UserCircle2, Play, Pause } from 'lucide-react';
+import { X, Loader2, AlertCircle, UserCircle2, Play, Pause, Eye } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { UserStatusDoc, StatusMediaItem, User as BharatConnectUser } from '@/types';
 import { firestore, Timestamp } from '@/lib/firebase';
@@ -14,6 +14,15 @@ import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { getUserFullProfile } from '@/services/profileService';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Skeleton } from '@/components/ui/skeleton';
 
 const STATUS_ITEM_DURATION_MS = 5000;
 const PROGRESS_UPDATE_INTERVAL_MS = 50;
@@ -23,7 +32,7 @@ export default function StatusViewPage() {
   const params = useParams();
   const statusOwnerId = params.userId as string;
 
-  const { authUser, isAuthenticated, isAuthLoading: isAuthContextLoading } = useAuth();
+  const { authUser, isAuthenticated, isAuthContextLoading } = useAuth();
 
   const [statusDoc, setStatusDoc] = useState<UserStatusDoc | null>(null);
   const [statusOwnerProfile, setStatusOwnerProfile] = useState<BharatConnectUser | null>(null);
@@ -38,10 +47,51 @@ export default function StatusViewPage() {
   const isLongPressActiveRef = useRef(false);
   const isMountedRef = useRef(false);
 
+  // States for viewers sheet
+  const [viewerProfiles, setViewerProfiles] = useState<BharatConnectUser[]>([]);
+  const [isLoadingViewers, setIsLoadingViewers] = useState(false);
+  const [isViewersSheetOpen, setIsViewersSheetOpen] = useState(false);
+
+  const isMyStatus = useMemo(() => statusOwnerId === authUser?.id, [statusOwnerId, authUser?.id]);
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
+  
+  useEffect(() => {
+    if (isViewersSheetOpen && isMyStatus) {
+      // Fetch viewers when the sheet is opened
+      const fetchViewers = async () => {
+        if (!statusDoc?.viewers || statusDoc.viewers.length === 0) {
+          setViewerProfiles([]);
+          return;
+        }
+        
+        setIsLoadingViewers(true);
+        try {
+          const profiles = await Promise.all(
+            statusDoc.viewers.map(uid => getUserFullProfile(uid))
+          );
+          if (isMountedRef.current) {
+            setViewerProfiles(profiles.filter(p => p !== null) as BharatConnectUser[]);
+          }
+        } catch (err) {
+          console.error("Failed to fetch viewer profiles", err);
+          // Handle error display within the sheet if needed
+        } finally {
+          if (isMountedRef.current) {
+            setIsLoadingViewers(false);
+          }
+        }
+      };
+
+      fetchViewers();
+    }
+  // This is a deliberate dependency array. We only want this effect to re-run when the sheet's open state changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isViewersSheetOpen, isMyStatus, statusDoc]);
+
 
   const numMediaItems = useMemo(() => statusDoc?.media?.length || 0, [statusDoc]);
 
@@ -415,6 +465,55 @@ export default function StatusViewPage() {
         )}
       </div>
 
+      {isMyStatus && statusDoc && (
+        <Sheet open={isViewersSheetOpen} onOpenChange={setIsViewersSheetOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" className="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center h-auto p-2 bg-black/30 text-white hover:bg-black/50 hover:text-white rounded-lg backdrop-blur-sm animate-fade-in-slide-up">
+              <Eye className="w-5 h-5" />
+              <span className="text-xs font-semibold mt-1">{statusDoc.viewers?.length || 0}</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="rounded-t-2xl max-h-[60vh] bg-background flex flex-col">
+            <SheetHeader className="shrink-0">
+              <SheetTitle>Viewed by</SheetTitle>
+              <SheetDescription>
+                {statusDoc.viewers?.length || 0} contact{statusDoc.viewers?.length !== 1 ? 's have' : ' has'} viewed your status.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="py-4 flex-grow overflow-y-auto custom-scrollbar-dark">
+              {isLoadingViewers ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center space-x-3 p-2">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-[150px]" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : viewerProfiles.length > 0 ? (
+                <div className="space-y-1">
+                  {viewerProfiles.map(viewer => (
+                    <div key={viewer.id} className="flex items-center space-x-3 p-2 rounded-md hover:bg-muted/50">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={viewer.avatarUrl || undefined} alt={viewer.name} />
+                        <AvatarFallback><UserCircle2 className="w-6 h-6 text-muted-foreground" /></AvatarFallback>
+                      </Avatar>
+                      <p className="font-medium">{viewer.name}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                   <p className="text-center text-muted-foreground">No viewers yet.</p>
+                </div>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
+
       {!isPlaying && isLongPressActiveRef.current && (
         <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 bg-black/50 text-white p-2 rounded-full">
           <Pause className="w-6 h-6" />
@@ -423,4 +522,3 @@ export default function StatusViewPage() {
     </div>
   );
 }
-
