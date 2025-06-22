@@ -3,25 +3,17 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // By default, allow public read access to all files.
-    // This is useful for profile pictures and other public assets.
+    // Files are public by default.
+    // If you need to restrict access, change this rule.
     match /{allPaths=**} {
       allow read;
     }
 
-    // Secure write operations. Only authenticated users can write to their own
-    // designated 'profileImages' folder. This rule primarily serves as a
-    // safeguard for any potential client-side upload attempts.
-    // Server-side uploads using the Firebase Admin SDK (as implemented in the app)
-    // will bypass these rules entirely, relying on IAM permissions instead.
+    // Allow authenticated users to write to their own profileImages folder.
+    // This rule is for potential client-side uploads.
+    // Server-side uploads with the Admin SDK will bypass these rules.
     match /profileImages/{userId}/{fileName} {
       allow write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Deny all other write operations from the client side by default.
-    // To allow other client-side uploads, add a specific match block above this one.
-    match /{allPaths=**} {
-      allow write: if false;
     }
   }
 }
