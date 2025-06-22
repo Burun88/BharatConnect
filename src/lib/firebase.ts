@@ -18,13 +18,22 @@ import {
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
+if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY ||
+    !process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ||
+    !process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
+    !process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+    !process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ||
+    !process.env.NEXT_PUBLIC_FIREBASE_APP_ID) {
+    throw new Error("Firebase configuration environment variables are not set. Please check your .env file.");
+}
+
 const firebaseConfig: FirebaseOptions = {
-  apiKey: "AIzaSyCmVRTIvMTgZ_IBhzlc-Ml0yt106l0EyOk",
-  authDomain: "bharatconnect-i8510.firebaseapp.com",
-  projectId: "bharatconnect-i8510",
-  storageBucket: "bharatconnect-i8510.firebasestorage.app",
-  messagingSenderId: "1011856991455",
-  appId: "1:1011856991455:web:b8611aad228c31ccbf756a"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
 let app;
