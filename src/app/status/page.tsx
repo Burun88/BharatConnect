@@ -77,12 +77,17 @@ export default function StatusPage() {
       if (docSnap.exists()) {
         const data = docSnap.data() as UserStatusDoc;
         const isActiveNow = data.isActive === true && data.expiresAt && (data.expiresAt as Timestamp).toMillis() > Date.now() && data.media && data.media.length > 0;
+        
         if (isActiveNow) {
           setCurrentUserStatusDoc(data);
           setCurrentUserHasActiveStatus(true);
-          const viewed = data.viewers?.includes(authUser.id!) ?? false;
-          setIsOwnStatusViewedByCurrentUser(viewed);
-          console.log(`[StatusPage] Current user status IS ACTIVE. Viewers:`, data.viewers, `Is viewed by self: ${viewed}`);
+          
+          // Check if EVERY media item has been viewed by the current user.
+          // This ensures the ring becomes active again if a new status is added.
+          const allItemsViewed = data.media.every(item => item.viewers?.includes(authUser.id!));
+          setIsOwnStatusViewedByCurrentUser(allItemsViewed);
+          console.log(`[StatusPage] Current user status IS ACTIVE. All items viewed by self: ${allItemsViewed}`);
+
         } else {
           setCurrentUserStatusDoc(null);
           setCurrentUserHasActiveStatus(false);
@@ -169,11 +174,12 @@ export default function StatusPage() {
           if (docSnap.exists()) {
             const data = docSnap.data() as UserStatusDoc;
             console.log(`[StatusPage Contacts] Contact ${contactId} raw status data:`, data);
-            console.log(`[StatusPage Contacts] Contact ${contactId} viewers:`, data.viewers);
+            
             const isActiveNow = data.isActive === true && data.expiresAt && (data.expiresAt as Timestamp).toMillis() > Date.now() && data.media && data.media.length > 0;
             if (isActiveNow) {
-               const viewedByCurrentUser = data.viewers?.includes(currentAuthUserId!) ?? false;
-               console.log(`[StatusPage Contacts] Contact ${contactId} has active status. Viewed by current user (${currentAuthUserId!}): ${viewedByCurrentUser}`);
+               // A contact's status is "viewed" if all their media items have been seen by the current user.
+               const viewedByCurrentUser = data.media.every(item => item.viewers?.includes(currentAuthUserId!));
+               console.log(`[StatusPage Contacts] Contact ${contactId} has active status. All items viewed by current user (${currentAuthUserId!}): ${viewedByCurrentUser}`);
               newContactStatusItem = {
                 userProfile,
                 statusDoc: data,
@@ -252,17 +258,8 @@ export default function StatusPage() {
   const handleMyStatusClick = async () => {
     if (!authUser?.id) return;
     if (currentUserHasActiveStatus && !isOwnStatusViewedByCurrentUser) {
-      setIsOwnStatusViewedByCurrentUser(true);
-      try {
-        const statusDocRef = doc(firestore, 'status', authUser.id);
-        console.log(`[StatusPage] My Status Clicked: Attempting to add ${authUser.id} to own viewers.`);
-        await updateDoc(statusDocRef, { viewers: arrayUnion(authUser.id) });
-        console.log(`[StatusPage] My Status Clicked: Successfully added ${authUser.id} to own viewers.`);
-      } catch (error) {
-        console.error("[StatusPage] Error marking own status as viewed in Firestore:", error);
-        toast({variant: "destructive", title: "Error", description: "Could not update status view."});
-        setIsOwnStatusViewedByCurrentUser(false);
-      }
+      // This is now handled inside the StatusViewPage. When an item is displayed, it's marked as viewed.
+      // The logic here is simplified to just navigating.
     }
     if (currentUserHasActiveStatus) { router.push(`/status/view/${authUser.id}`); }
     else { router.push('/status/create'); }
@@ -395,5 +392,3 @@ export default function StatusPage() {
     </div>
   );
 }
-
-    
