@@ -1,34 +1,39 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck, Loader2 } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { LocalUserProfile } from '@/types';
-import type { AuthStep } from '@/contexts/AuthContext'; // Import AuthStep
+import type { AuthStep } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function WelcomePage() {
   const [agreed, setAgreed] = useState(false);
   const router = useRouter();
-  const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  // Use the same key as AuthContext and an appropriate initial value
+  const { isAuthLoading } = useAuth();
   const [, setAuthStepLs] = useLocalStorage<AuthStep>('bharatconnect-auth-step', 'initial_loading');
 
-  useEffect(() => {
-    if (userProfileLs?.uid && userProfileLs?.onboardingComplete) {
-      router.replace('/');
-    }
-  }, [router, userProfileLs]);
+  // useEffect for redirection was removed. AuthContext now handles this globally.
 
   const handleAgreeChange = (checked: boolean | 'indeterminate') => {
     setAgreed(checked === true);
   };
+
+  if (isAuthLoading) {
+    return (
+      <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center">
+        <Loader2 className="animate-spin h-10 w-10 text-primary" />
+        <p className="mt-4 text-muted-foreground text-center">Loading Welcome...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
