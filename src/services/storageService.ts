@@ -1,7 +1,6 @@
-
 'use server';
 
-import { storage, auth } from '@/lib/firebase'; 
+import { storage, auth } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 export async function uploadProfileImage(formData: FormData): Promise<string> {
@@ -23,7 +22,11 @@ export async function uploadProfileImage(formData: FormData): Promise<string> {
   const imageRef = ref(storage, storagePath);
 
   try {
-    const snapshot = await uploadBytes(imageRef, file);
+    // Convert the File to an ArrayBuffer before uploading to make it more robust.
+    const fileBuffer = await file.arrayBuffer();
+    // Explicitly pass the contentType when uploading from a buffer.
+    const snapshot = await uploadBytes(imageRef, fileBuffer, { contentType: file.type });
+    
     const downloadURL = await getDownloadURL(snapshot.ref);
     return downloadURL;
   } catch (error: any) {
@@ -74,4 +77,3 @@ export async function deleteProfileImageByUrl(fullStorageUrl: string): Promise<v
 // Aura image functions removed as they are no longer needed
 // export async function uploadAuraImage(...) { ... }
 // export async function deleteAuraImage(...) { ... }
-
