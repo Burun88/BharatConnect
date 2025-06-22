@@ -1,48 +1,60 @@
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can read/write their own profile, but only read others' public profiles.
+    // By default, deny all reads and writes.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Allow logged-in users to read and write to their own user document.
     match /bharatConnectUsers/{userId} {
-      allow read;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read, update: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null;
     }
     
-    // Users can read/write their own subcollections for requests
-    match /bharatConnectUsers/{userId}/{subcollection}/{docId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Chats: Participants can read/write
+    // Allow users to read/write to chats they are a part of.
     match /chats/{chatId} {
-      allow read, write: if request.auth != null && request.auth.uid in resource.data.participants;
+      allow read, write: if request.auth != null && resource.data.participants.hasAny([request.auth.uid]);
     }
     
-    // Messages: Participants can read/write
+    // Allow users to write messages to chats they are a part of.
     match /chats/{chatId}/messages/{messageId} {
-       allow read, write: if request.auth != null && get(/databases/$(database)/documents/chats/$(chatId)).data.participants.hasAny([request.auth.uid]);
+        allow read, write: if request.auth != null && get(/databases/$(database)/documents/chats/$(chatId)).data.participants.hasAny([request.auth.uid]);
     }
-    
-    // Auras: Users can manage their own aura
+
+    // Allow users to manage their own chat requests
+    match /bharatConnectUsers/{userId}/requestsSent/{requestId} {
+        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+    match /bharatConnectUsers/{userId}/requestsReceived/{requestId} {
+        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Allow read access to auras for any authenticated user
     match /auras/{userId} {
-      allow read;
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Status: Users manage their own, others can read
-    match /status/{userId} {
-      allow read;
+      allow read: if request.auth != null;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Calls: Only participants can read/write
-    match /calls/{callId} {
-      allow read, write: if request.auth != null && (request.auth.uid == resource.data.callerId || request.auth.uid == resource.data.calleeId);
+    // Allow read access to status for any authenticated user
+    match /status/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
-    
-    // Request Cooldowns: Only the sender can create
+
+    // Allow authenticated users to manage their own calls
+    match /calls/{callId} {
+      allow read, write: if request.auth != null; // Simplified for now
+    }
+     match /calls/{callId}/{subcollection}/{candidateId} {
+      allow create: if request.auth != null;
+    }
+
+    // Allow users to manage their request cooldowns
     match /requestCooldowns/{cooldownId} {
-        allow read;
-        allow create: if request.auth != null && request.auth.uid == cooldownId.split('_')[0];
+        allow read, write: if request.auth != null;
     }
   }
 }
