@@ -10,9 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import Logo from '@/components/shared/Logo';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { auth, signInUser, resetUserPassword } from '@/lib/firebase';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import type { LocalUserProfile } from '@/types';
-import { auth, signInUser, resetUserPassword } from '@/lib/firebase'; 
+import type { AuthStep } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react'; // Import Loader2
 
 export default function LoginPageHub() {
   const [email, setEmail] = useState('');
@@ -21,46 +23,11 @@ export default function LoginPageHub() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const { isAuthLoading } = useAuth(); // Get isAuthLoading to show a loader if context is still resolving
+  const [, setAuthStepFromLS] = useLocalStorage<AuthStep>('bharatconnect-auth-step', 'initial_loading');
 
-  const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  const [isLoadingPage, setIsLoadingPage] = useState(true); 
-  const [loginProcessComplete, setLoginProcessComplete] = useState(false);
-  
-  useEffect(() => {
-    console.log("[Login Hub] useEffect triggered. userProfileLs:", userProfileLs, "loginProcessComplete:", loginProcessComplete);
-
-    if (loginProcessComplete && userProfileLs?.uid) {
-      if (userProfileLs.onboardingComplete) {
-        toast({
-          title: 'Login Successful!',
-          description: `Welcome back, ${userProfileLs.displayName || userProfileLs.email || 'user'}!`,
-        });
-        router.replace('/');
-      } else {
-        // User logged in but not onboarded, redirect to profile setup
-        // No specific "welcome" toast here, as they are new or continuing setup
-        router.replace('/profile-setup');
-      }
-      setLoginProcessComplete(false); // Reset flag after handling
-      return; // Prevent further processing in this effect run
-    }
-
-    // This handles initial load or if user navigates back to login while already logged in (but not via a fresh login action)
-    if (!loginProcessComplete && userProfileLs?.uid) {
-      if (userProfileLs.onboardingComplete) {
-        console.log(`[Login Hub] User ${userProfileLs.uid} from LS is already onboarded (not a new login action). Redirecting to /`);
-        router.replace('/');
-      } else {
-        console.log(`[Login Hub] User ${userProfileLs.uid} from LS is logged in but NOT onboarded (not a new login action). Redirecting to /profile-setup`);
-        router.replace('/profile-setup');
-      }
-      return;
-    }
-    
-    // If no userProfileLs or not meeting redirect conditions, and not a login process, finish loading page
-    setIsLoadingPage(false);
-
-  }, [userProfileLs, router, loginProcessComplete, toast]);
+  // REMOVED useEffect for redirection based on authUser, isAuthLoading, authStep
+  // AuthContext is now solely responsible for this redirection.
 
   const handleContinue = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -72,7 +39,7 @@ export default function LoginPageHub() {
       setIsSubmitting(false);
       return;
     }
-     if (!password.trim() && email.trim()) { 
+     if (!password.trim() && email.trim()) {
          setError('Please enter your password to log in.');
          setIsSubmitting(false);
          return;
@@ -80,18 +47,18 @@ export default function LoginPageHub() {
 
     try {
       const userCredential = await signInUser(auth, email, password);
-      console.log("[Login Hub] Firebase SignIn Success:", userCredential.user.uid);
-      
-      // Don't show toast here directly. Set flag for useEffect to handle.
-      setLoginProcessComplete(true);
-      // FirebaseAuthObserver will handle setting LocalStorage.
-      // Redirection and toast are handled by the useEffect hook listening to userProfileLs and loginProcessComplete changes.
+      toast({
+        title: 'Login Attempt Successful!',
+        description: `Welcome back, ${userCredential.user.displayName || userCredential.user.email || 'user'}! Please wait...`,
+      });
+      // AuthContext will detect the auth change (via FirebaseAuthObserver updating LocalStorage, which AuthContext reads)
+      // and then AuthContext's own useEffect will handle the redirection.
     } catch (err: any) {
       console.error("[Login Hub] Firebase SignIn Error:", err);
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         setError('Incorrect email or password. If you\'re new, please Sign Up!');
         toast({
-            variant: 'destructive',
+            variant: 'default',
             title: "👋 Whoops! New to BharatConnect?",
             description: "That email & password combo didn't match our records. If you're new here, tap 'Sign Up' below. Otherwise, double-check your details!",
         });
@@ -101,7 +68,12 @@ export default function LoginPageHub() {
       } else if (err.code === 'auth/network-request-failed') {
         setError('Network error. Please check your connection and try again.');
         toast({ variant: 'destructive', title: 'Network Error', description: 'Could not connect. Check internet.' });
-      } else {
+      } else if (err.code === 'auth/visibility-check-was-unavailable') {
+        const specificErrorMsg = "Authentication service is temporarily unavailable. Please check your internet connection and try again in a few moments. If the problem persists, please contact support.";
+        setError(specificErrorMsg);
+        toast({ variant: 'destructive', title: 'Login Service Unavailable', description: "The authentication service couldn't be reached. Please retry." });
+      }
+       else {
         setError('An unexpected error occurred. Please try again.');
         toast({ variant: 'destructive', title: 'Login Error', description: err.message || 'An unexpected error occurred.' });
       }
@@ -109,7 +81,7 @@ export default function LoginPageHub() {
       setIsSubmitting(false);
     }
   };
-  
+
   const handleGoogleSignIn = () => {
     toast({ title: "Coming Soon!", description: "Google Sign-In will be available soon." });
   };
@@ -123,7 +95,7 @@ export default function LoginPageHub() {
     setError('');
     setIsSubmitting(true);
     try {
-      await resetUserPassword(email); // resetUserPassword is from firebase.ts
+      await resetUserPassword(email);
       toast({ title: "Password Reset Email Sent", description: `If an account exists for ${email}, a password reset link has been sent.` });
     } catch (err: any) {
       console.error("Error sending password reset email:", err);
@@ -142,14 +114,17 @@ export default function LoginPageHub() {
     }
   };
 
-  if (isLoadingPage && !loginProcessComplete) { // Only show loading if not in midst of login process
+  const handleSignUpClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    setAuthStepFromLS('signup');
+    router.push('/signup');
+  };
+
+  if (isAuthLoading) { 
     return (
-      <div className="flex flex-col h-screen bg-background items-center justify-center">
-        <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p className="mt-4 text-muted-foreground">Checking authentication...</p>
+      <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center">
+        <Loader2 className="animate-spin h-10 w-10 text-primary" />
+        <p className="mt-4 text-muted-foreground text-center">Loading Login...</p>
       </div>
     );
   }
@@ -166,7 +141,7 @@ export default function LoginPageHub() {
             Sign in or create an account to continue.
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent className="space-y-4">
           <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled>
             <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /><path d="M1 1h22v22H1z" fill="none" /></svg>
@@ -205,7 +180,7 @@ export default function LoginPageHub() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                aria-describedby="login-error" 
+                aria-describedby="login-error"
               />
             </div>
             {error && <p id="login-error" className="text-sm text-destructive text-center">{error}</p>}
@@ -220,7 +195,11 @@ export default function LoginPageHub() {
           </Button>
           <p className="text-sm text-muted-foreground">
             Don't have an account?{' '}
-            <Link href="/signup" className="text-primary hover:underline">
+            <Link
+              href="/signup"
+              onClick={handleSignUpClick}
+              className="text-primary hover:underline"
+            >
               Sign Up
             </Link>
           </p>
@@ -229,4 +208,3 @@ export default function LoginPageHub() {
     </div>
   );
 }
-

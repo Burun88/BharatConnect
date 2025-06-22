@@ -11,19 +11,18 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { ShieldCheck } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { LocalUserProfile } from '@/types';
+import type { AuthStep } from '@/contexts/AuthContext'; // Import AuthStep
 
 export default function WelcomePage() {
   const [agreed, setAgreed] = useState(false);
   const router = useRouter();
-  const [checkingAuth, setCheckingAuth] = useState(true); // Renamed for clarity
   const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
+  // Use the same key as AuthContext and an appropriate initial value
+  const [, setAuthStepLs] = useLocalStorage<AuthStep>('bharatconnect-auth-step', 'initial_loading');
 
   useEffect(() => {
-    // Simplified check: if user profile exists and onboarding is complete, redirect.
     if (userProfileLs?.uid && userProfileLs?.onboardingComplete) {
       router.replace('/');
-    } else {
-       setCheckingAuth(false);
     }
   }, [router, userProfileLs]);
 
@@ -31,48 +30,14 @@ export default function WelcomePage() {
     setAgreed(checked === true);
   };
 
-  if (checkingAuth) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
-        <Card className="w-full max-w-md shadow-2xl">
-          <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
-              <ShieldCheck className="w-16 h-16 text-gradient-primary-accent animate-pulse" />
-            </div>
-            <CardTitle className="text-3xl font-headline font-bold text-gradient-primary-accent">
-              Welcome to BharatConnect
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Loading...
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="h-4 bg-muted rounded w-3/4 mx-auto animate-pulse"></div>
-            <div className="h-4 bg-muted rounded w-1/2 mx-auto animate-pulse"></div>
-          </CardContent>
-           <CardFooter className="flex-col space-y-2">
-            <Button disabled className="w-full h-10 bg-muted animate-pulse" />
-            <div className="h-4 bg-muted rounded w-1/4 mx-auto animate-pulse"></div>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-
-  // This condition might still be true if LS is populated from a previous session
-  if (userProfileLs?.uid && userProfileLs?.onboardingComplete) {
-     router.replace('/');
-     return null;
-  }
-
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <ShieldCheck className="w-16 h-16 text-gradient-primary-accent" />
+            <ShieldCheck className="w-16 h-16 text-primary" />
           </div>
-          <CardTitle className="text-3xl font-headline font-bold text-gradient-primary-accent">
+          <CardTitle className="text-3xl font-headline font-bold text-primary">
             Welcome to BharatConnect
           </CardTitle>
           <CardDescription className="text-muted-foreground">
@@ -106,7 +71,12 @@ export default function WelcomePage() {
           <Button
             disabled={!agreed}
             className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity"
-            onClick={() => agreed && router.push('/login')} 
+            onClick={() => {
+              if (agreed) {
+                setAuthStepLs('login'); // Set auth step to 'login'
+                router.push('/login');
+              }
+            }}
           >
             Agree and Continue
           </Button>

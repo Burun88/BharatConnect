@@ -1,272 +1,420 @@
 
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import BottomNavigationBar from '@/components/bottom-navigation-bar';
 import HomeHeader from '@/components/home/home-header';
 import AuraBar from '@/components/home/aura-bar';
-import ChatList from '@/components/home/chat-list';
-import type { User, Chat, LocalUserProfile } from '@/types';
-import { mockCurrentUser, mockAuraBarItemsData, mockChats as initialMockChats } from '@/lib/mock-data';
-import { Plus } from 'lucide-react';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
+import ChatList from '@/components/home/chat-list'; // Added import for ChatList
+import type { User, Chat, ParticipantInfo, DisplayAura, FirestoreAura, UserAura as UserAuraType, UserStatusDoc } from '@/types'; // Ensure DisplayAura and UserStatusDoc are imported
+import { AURA_OPTIONS } from '@/types';
+import { Plus, Loader2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useChat as useChatContextHook } from '@/contexts/ChatContext';
 import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
-import { getChatListItemsAction, type GetChatListItemsActionResult } from '@/actions/getChatListItemsAction';
 import { useToast } from '@/hooks/use-toast';
-
+import { firestore, getFirebaseTimestampMinutesAgo, Timestamp } from '@/lib/firebase';
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc, type FirestoreError, limit, getDocs, serverTimestamp } from 'firebase/firestore';
+import { getUserFullProfile } from '@/services/profileService';
+import { decryptMessage } from '@/services/encryptionService';
 
 const HEADER_HEIGHT_PX = 64;
 const BOTTOM_NAV_HEIGHT_PX = 64;
 const SCROLL_DELTA = 5;
+const UNREAD_COUNT_MESSAGE_FETCH_LIMIT = 15;
+const AURA_EXPIRATION_MS = 60 * 60 * 1000; // 1 hour
+
+
+function generateChatId(uid1: string, uid2: string): string {
+  if (!uid1 || !uid2) {
+    return `error_generating_chat_id_with_undefined_uids_${uid1}_${uid2}`;
+  }
+  return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
+}
+
+function timestampToMillisSafe(timestamp: any, defaultTimestamp: number = Date.now()): number {
+  if (timestamp instanceof Timestamp) {
+    return timestamp.toMillis();
+  }
+  if (typeof timestamp === 'number') {
+    return timestamp;
+  }
+  if (typeof timestamp === 'object' && timestamp && 'seconds' in timestamp && 'nanoseconds' in timestamp) {
+    return new Timestamp(timestamp.seconds, timestamp.nanoseconds).toMillis();
+  }
+  return defaultTimestamp;
+}
+
 
 export default function HomePage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { authUser, isAuthenticated, isAuthLoading } = useAuth();
+  const { chats: contextChats, setChats: setContextChats, isLoadingChats: isContextChatsLoading } = useChatContextHook();
 
-  const [isPageDataLoading, setIsPageDataLoading] = useState(true);
-
-  const [auraBarItems, setAuraBarItems] = useState<User[]>([]);
-  const [chats, setChats] = useState<Chat[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
+  const [isLoadingPageData, setIsLoadingPageData] = useState(true); // Tracks if HomePage's own listeners have processed initial data
   const [searchTerm, setSearchTerm] = useState('');
 
-  const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  const [currentUserAuraIdLs] = useLocalStorage<string | null>('currentUserAuraId', null);
+  const [liveActiveChats, setLiveActiveChats] = useState<Chat[]>([]);
+  const [liveSentRequests, setLiveSentRequests] = useState<Chat[]>([]);
+  const [liveReceivedRequests, setLiveReceivedRequests] = useState<Chat[]>([]);
+
+  const [initialActiveChatsProcessed, setInitialActiveChatsProcessed] = useState(false);
+  const [initialSentRequestsProcessed, setInitialSentRequestsProcessed] = useState(false);
+  const [initialReceivedRequestsProcessed, setInitialReceivedRequestsProcessed] = useState(false);
 
   const scrollableContainerRef = useRef<HTMLDivElement>(null);
   const [isHeaderContentLoaded, setIsHeaderContentLoaded] = useState(true);
   const lastScrollYRef = useRef(0);
+  const prevAuthUserIdRef = useRef<string | null | undefined>(null);
 
+  const [allDisplayAuras, setAllDisplayAuras] = useState<DisplayAura[]>([]);
+  const [isLoadingAuras, setIsLoadingAuras] = useState(true);
+
+  useEffect(() => { setIsMounted(true); }, []);
+
+  // Effect for Aura Bar
   useEffect(() => {
-    setIsPageDataLoading(true);
+    if (!isMounted || !authUser?.id) {
+      setIsLoadingAuras(false);
+      setAllDisplayAuras([]);
+      return;
+    }
+    setIsLoadingAuras(true);
+    const aurasQuery = query(
+      collection(firestore, 'auras'),
+      where('createdAt', '>=', getFirebaseTimestampMinutesAgo(60)),
+      orderBy('createdAt', 'desc')
+    );
+    console.log(`[HomePage] Setting up listener for ALL active auras (last 60 minutes).`);
 
-    if (!userProfileLs || !userProfileLs.uid || !userProfileLs.onboardingComplete) {
-      console.log(`[HomePage] User from LS not found or not fully onboarded. Redirecting to login.`);
-      router.replace('/login');
+    const unsubscribeAuras = onSnapshot(aurasQuery, async (snapshot) => {
+      console.log(`[HomePage] Aura snapshot received. Docs count: ${snapshot.size}`);
+      const fetchedDisplayAuras: DisplayAura[] = [];
+      for (const auraDoc of snapshot.docs) {
+        const firestoreAura = auraDoc.data() as FirestoreAura;
+        let createdAtMs: number | null = null;
+        if (firestoreAura.createdAt && typeof (firestoreAura.createdAt as Timestamp).toDate === 'function') {
+            createdAtMs = (firestoreAura.createdAt as Timestamp).toMillis();
+        }
+
+        if (!createdAtMs || (Date.now() - createdAtMs >= AURA_EXPIRATION_MS)) {
+          console.log(`[HomePage] Aura ${auraDoc.id} skipped (expired or invalid createdAt).`);
+          continue;
+        }
+
+        const userProfile = await getUserFullProfile(firestoreAura.userId);
+        if (userProfile) {
+          const auraStyle = AURA_OPTIONS.find(opt => opt.id === firestoreAura.auraOptionId);
+          fetchedDisplayAuras.push({
+            id: auraDoc.id,
+            userId: firestoreAura.userId,
+            auraOptionId: firestoreAura.auraOptionId,
+            createdAt: createdAtMs,
+            userName: userProfile.name || 'User',
+            userProfileAvatarUrl: userProfile.avatarUrl,
+            auraStyle: auraStyle || null,
+          });
+        } else {
+          console.warn(`[HomePage] No profile found for user ${firestoreAura.userId} associated with aura ${auraDoc.id}`);
+        }
+      }
+      fetchedDisplayAuras.sort((a, b) => {
+        if (a.userId === authUser.id) return -1;
+        if (b.userId === authUser.id) return 1;
+        return b.createdAt - a.createdAt;
+      });
+      setAllDisplayAuras(fetchedDisplayAuras);
+      setIsLoadingAuras(false);
+      console.log(`[HomePage] Updated allDisplayAuras. Count: ${fetchedDisplayAuras.length}`);
+    }, (error: FirestoreError) => {
+      console.error("[HomePage] Error fetching auras:", error);
+      toast({ variant: 'destructive', title: 'Aura Error', description: "Could not load auras from Firestore." });
+      setIsLoadingAuras(false);
+    });
+
+    return () => {
+      console.log(`[HomePage] Unsubscribing listener for ALL active auras.`);
+      unsubscribeAuras();
+    };
+  }, [isMounted, authUser?.id, toast]);
+
+  const connectedUserIds = useMemo(() => {
+    if (!authUser?.id || contextChats.length === 0) {
+      return [];
+    }
+    return Array.from(new Set(
+      contextChats
+        .filter(chat =>
+          chat.type === 'individual' &&
+          chat.participants.includes(authUser.id) &&
+          (chat.requestStatus === 'accepted' || !chat.requestStatus || chat.requestStatus === 'none') &&
+          chat.contactUserId && chat.contactUserId !== authUser.id
+        )
+        .map(chat => chat.contactUserId!)
+    ));
+  }, [authUser?.id, contextChats]);
+
+
+  // Effect for Chat List Data Fetching
+  useEffect(() => {
+    if (!isMounted) return;
+    let unsubActive: (() => void) | undefined, unsubSent: (() => void) | undefined, unsubReceived: (() => void) | undefined;
+
+    const currentAuthUserId = authUser?.id;
+
+    if (prevAuthUserIdRef.current !== currentAuthUserId) {
+        console.log(`[HomePage CHAT_FETCH] Auth user changed from ${prevAuthUserIdRef.current} to ${currentAuthUserId}. Resetting chat loading states.`);
+        setIsLoadingPageData(true); // Indicate fresh data load for chats specifically
+        setInitialActiveChatsProcessed(false);
+        setInitialSentRequestsProcessed(false);
+        setInitialReceivedRequestsProcessed(false);
+        setLiveActiveChats([]); // Clear previous user's data
+        setLiveSentRequests([]);
+        setLiveReceivedRequests([]);
+    }
+    prevAuthUserIdRef.current = currentAuthUserId;
+
+    if (isAuthLoading || !isAuthenticated || !currentAuthUserId || !authUser?.name) {
+      if (unsubActive) unsubActive(); if (unsubSent) unsubSent(); if (unsubReceived) unsubReceived();
+      setLiveActiveChats([]); setLiveSentRequests([]); setLiveReceivedRequests([]);
+      if (prevAuthUserIdRef.current === currentAuthUserId) {
+          setInitialActiveChatsProcessed(true); setInitialSentRequestsProcessed(true); setInitialReceivedRequestsProcessed(true);
+      }
       return;
     }
 
-    const currentUserId = userProfileLs.uid;
-    const currentUserDisplayName = userProfileLs.displayName || 'You';
-    const currentUserPhotoURL = userProfileLs.photoURL || null;
+    // --- Active Chats Listener ---
+    const activeChatsQuery = query(collection(firestore, 'chats'), where('participants', 'array-contains', currentAuthUserId), orderBy('updatedAt', 'desc'));
+    unsubActive = onSnapshot(activeChatsQuery, async (snapshot) => {
+      const latestAuthUser = authUser;
+      if (!latestAuthUser?.id || !latestAuthUser.name) { setLiveActiveChats([]); if (!initialActiveChatsProcessed) setInitialActiveChatsProcessed(true); return; }
+      const activeAuthUserIdInner = latestAuthUser.id;
+
+      const activeChatsPromises = snapshot.docs.map(async (chatDoc): Promise<Chat | null> => {
+        try {
+          const data = chatDoc.data();
+          const contactId = data.participants?.find((pId: string) => pId !== activeAuthUserIdInner);
+          let participantInfoMap: { [uid: string]: ParticipantInfo } = { ...(data.participantInfo || {}) };
+          let chatTopLevelName = 'Chat User';
+          let chatTopLevelAvatar: string | undefined | null = undefined;
+
+          if (data.type === 'individual' && contactId) {
+            const profile = await getUserFullProfile(contactId);
+            const fetchedContactName = profile?.name || participantInfoMap[contactId]?.name || 'User';
+            const fetchedContactAvatar = profile?.avatarUrl || participantInfoMap[contactId]?.avatarUrl || undefined;
+            const contactAuraFromState = allDisplayAuras.find(da => da.userId === contactId);
+            let hasActiveUnviewedStatus = false, hasActiveViewedStatus = false;
+            const statusDocRef = doc(firestore, 'status', contactId);
+            const statusSnap = await getDoc(statusDocRef);
+            if (statusSnap.exists()) {
+                const statusData = statusSnap.data() as UserStatusDoc;
+                if (statusData.isActive && statusData.expiresAt && (statusData.expiresAt as Timestamp).toMillis() > Date.now() && statusData.media && statusData.media.length > 0) {
+                    if (statusData.viewers?.includes(activeAuthUserIdInner)) hasActiveViewedStatus = true; else hasActiveUnviewedStatus = true;
+                }
+            }
+            participantInfoMap[contactId] = { name: fetchedContactName, avatarUrl: fetchedContactAvatar, currentAuraId: contactAuraFromState?.auraOptionId || null, hasActiveUnviewedStatus, hasActiveViewedStatus };
+            chatTopLevelName = fetchedContactName; chatTopLevelAvatar = fetchedContactAvatar;
+          } else if (data.type === 'group') {
+            chatTopLevelName = data.name || 'Group Chat'; chatTopLevelAvatar = data.avatarUrl || undefined;
+          }
+
+          if (!participantInfoMap[activeAuthUserIdInner] && latestAuthUser.name) {
+            const currentUserAuraFromState = allDisplayAuras.find(da => da.userId === activeAuthUserIdInner);
+            participantInfoMap[activeAuthUserIdInner] = { name: latestAuthUser.name, avatarUrl: latestAuthUser.avatarUrl || null, currentAuraId: currentUserAuraFromState?.auraOptionId || null };
+          }
+          
+          let lastMessageWithDecryptedText = null;
+          if (data.lastMessage) {
+            let decryptedText = data.lastMessage.text; // Start with existing text
+            if (data.lastMessage.encryptedText && activeAuthUserIdInner) {
+              try {
+                decryptedText = await decryptMessage(data.lastMessage, activeAuthUserIdInner);
+              } catch (e) {
+                console.error(`Failed to decrypt last message for chat ${chatDoc.id}`, e);
+                decryptedText = 'Encrypted message'; // Fallback text
+              }
+            } else if (!data.lastMessage.text) {
+               decryptedText = '...'; // Fallback for no text at all
+            }
+
+            lastMessageWithDecryptedText = {
+              ...data.lastMessage,
+              text: decryptedText,
+              timestamp: timestampToMillisSafe(data.lastMessage.timestamp),
+              readBy: data.lastMessage.readBy || [],
+            };
+          }
 
 
-    const loadData = async () => {
-      // Fetch Aura Bar Items (mock for now, can be dynamic later)
-      const currentUserNameForAura = userProfileLs?.displayName || 'User';
-      const currentUserEmailForAura = userProfileLs?.email || '';
-
-      const updatedCurrentUserForAura: User = {
-        ...mockCurrentUser,
-        id: userProfileLs.uid,
-        name: currentUserNameForAura,
-        email: currentUserEmailForAura,
-        avatarUrl: userProfileLs.photoURL || undefined,
-        currentAuraId: currentUserAuraIdLs,
-      };
-
-      let allUsersFromMock = mockAuraBarItemsData().map(u =>
-          u.id === updatedCurrentUserForAura.id ? updatedCurrentUserForAura : u
-      );
-      const currentUserInMockIndex = allUsersFromMock.findIndex(u => u.id === updatedCurrentUserForAura.id);
-
-      if (currentUserInMockIndex === -1 && updatedCurrentUserForAura.name) {
-        allUsersFromMock.unshift(updatedCurrentUserForAura);
-      } else if (currentUserInMockIndex > 0) {
-         const currentUserData = allUsersFromMock.splice(currentUserInMockIndex, 1)[0];
-         allUsersFromMock.unshift(currentUserData);
-      }
-      const finalMockCurrentUser = allUsersFromMock.find(u => u.id === userProfileLs.uid) || updatedCurrentUserForAura;
-      const finalAuraItems = allUsersFromMock.filter(
-          u => u.id === finalMockCurrentUser.id || u.currentAuraId
-      );
-      setAuraBarItems(finalAuraItems as User[]);
-
-      // Fetch live chat requests from Firestore
-      let liveRequests: Chat[] = [];
-      try {
-        console.log(`[HomePage] Calling getChatListItemsAction for user ${currentUserId}...`);
-        const result: GetChatListItemsActionResult = await getChatListItemsAction(currentUserId, currentUserDisplayName, currentUserPhotoURL);
-        
-        console.log("[HomePage] Diagnostics from getChatListItemsAction:");
-        if (result.diagnostics && result.diagnostics.length > 0) {
-          result.diagnostics.forEach(logMsg => console.log(`  [DIAG] ${logMsg}`));
-        } else {
-          console.log("[HomePage] No diagnostic messages returned from action.");
-        }
-        
-        liveRequests = result.chats || []; // Ensure result.chats is not undefined
-        console.log(`[HomePage] getChatListItemsAction returned ${liveRequests.length} live interactions.`);
-
-      } catch (error) {
-        console.error("[HomePage] Error calling or processing getChatListItemsAction:", error);
-        toast({
-          variant: "destructive",
-          title: "Error Loading Requests",
-          description: "Could not fetch live chat requests. Please try again later.",
-        });
-        liveRequests = []; // Ensure liveRequests is an empty array on error
-      }
-      
-      let combinedChatsResult: Chat[];
-      if (liveRequests.length > 0) {
-        console.log(`[HomePage] Live interactions found (${liveRequests.length}). Merging with non-conflicting mocks.`);
-        // Create a set of contactUserIds from live requests to avoid duplication with mock data
-        const liveRequestContactIds = new Set(
-          liveRequests.map(lr => lr.contactUserId).filter(id => id !== undefined) as string[]
-        );
-        
-        // Filter mock chats to exclude those whose contactUserId is already covered by a live request
-        const nonConflictingMockChats = initialMockChats.filter(
-          mc => mc.contactUserId && !liveRequestContactIds.has(mc.contactUserId)
-        );
-        combinedChatsResult = [...liveRequests, ...nonConflictingMockChats];
-        console.log(`[HomePage] Number of non-conflicting mock chats: ${nonConflictingMockChats.length}`);
-      } else {
-        console.log("[HomePage] No live interactions found. Using all initialMockChats as fallback.");
-        combinedChatsResult = [...initialMockChats]; // Fallback to all mock data if live fetch fails or returns empty
-      }
-      console.log(`[HomePage] Total combined chats for display: ${combinedChatsResult.length}`);
-      if (combinedChatsResult.length > 0) {
-        console.log(`[HomePage] Combined chats (sample):`, combinedChatsResult.slice(0,5).map(c=>({id:c.id, name:c.name, status: c.requestStatus, lastMsg: c.lastMessage?.text?.substring(0,20)})));
-      }
-
-
-      const getChatSortPriority = (chat: Chat): number => {
-        if (chat.requestStatus === 'awaiting_action' && chat.requesterId !== currentUserId) {
-          return 0; 
-        }
-        if (chat.requestStatus === 'pending' && chat.requesterId === currentUserId) {
-          return 1; 
-        }
-        if (chat.requestStatus === 'rejected') {
-          return 3; 
-        }
-        // Accepted or no status (effectively accepted)
-        return 2; 
-      };
-
-      const sortedChats = combinedChatsResult.sort((a, b) => {
-        const priorityA = getChatSortPriority(a);
-        const priorityB = getChatSortPriority(b);
-        if (priorityA !== priorityB) {
-          return priorityA - priorityB;
-        }
-        // For chats with the same priority, sort by last message timestamp (descending)
-        return (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0);
+          let calculatedUnreadCount = 0;
+          if ((data.type === 'individual' || data.type === 'group') && activeAuthUserIdInner) {
+              const messagesColRef = collection(firestore, `chats/${chatDoc.id}/messages`);
+              const messagesQueryUnread = query(messagesColRef, orderBy('timestamp', 'desc'), limit(UNREAD_COUNT_MESSAGE_FETCH_LIMIT));
+              try {
+                  const msgSnapshot = await getDocs(messagesQueryUnread);
+                  msgSnapshot.forEach(docSnap => { const msg = docSnap.data(); if (msg.senderId !== activeAuthUserIdInner && (!msg.readBy || !msg.readBy.includes(activeAuthUserIdInner))) calculatedUnreadCount++; });
+              } catch (err) { if (data.lastMessage && data.lastMessage.senderId !== activeAuthUserIdInner && !data.lastMessage.readBy?.includes(activeAuthUserIdInner)) calculatedUnreadCount = 1;}
+          }
+          return {
+            id: chatDoc.id, type: data.type || 'individual', name: chatTopLevelName, avatarUrl: chatTopLevelAvatar,
+            participants: data.participants || [], participantInfo: participantInfoMap,
+            lastMessage: lastMessageWithDecryptedText,
+            updatedAt: timestampToMillisSafe(data.updatedAt), unreadCount: calculatedUnreadCount,
+            contactUserId: (data.type === 'individual' && contactId) ? contactId : undefined,
+            requestStatus: 'accepted', acceptedTimestamp: data.acceptedTimestamp ? timestampToMillisSafe(data.acceptedTimestamp) : undefined,
+          };
+        } catch (error) { console.error(`Error processing active chat ${chatDoc.id}:`, error); return null; }
       });
-      
-      setChats(sortedChats);
-      setIsPageDataLoading(false);
-    };
+      try { const resolvedActiveChats = (await Promise.all(activeChatsPromises)).filter(Boolean) as Chat[]; setLiveActiveChats(resolvedActiveChats); }
+      catch (promiseAllError) { console.error("Error resolving active chat promises:", promiseAllError); }
+      if (!initialActiveChatsProcessed) setInitialActiveChatsProcessed(true);
+    }, (error: FirestoreError) => { toast({ variant: 'destructive', title: 'Chat Error', description: `Active chats: ${error.message}`}); setLiveActiveChats([]); if (!initialActiveChatsProcessed) setInitialActiveChatsProcessed(true); });
 
-    loadData();
+    // --- Sent Requests Listener ---
+    const sentRequestsQuery = query(collection(firestore, `bharatConnectUsers/${currentAuthUserId}/requestsSent`), where('status', '==', 'pending'), orderBy('timestamp', 'desc'));
+    unsubSent = onSnapshot(sentRequestsQuery, async (snapshot) => {
+       const latestAuthUser = authUser;
+       if (!latestAuthUser?.id || !latestAuthUser.name) { setLiveSentRequests([]); if (!initialSentRequestsProcessed) setInitialSentRequestsProcessed(true); return; }
+       const activeAuthUserIdInner = latestAuthUser.id;
+       const requestsData: Chat[] = [];
+       for (const requestDoc of snapshot.docs) {
+         const data = requestDoc.data(); const contactUserId = data.to as string; if (!contactUserId) continue;
+         let contactName = data.name || 'User'; let contactAvatar = data.photoURL || undefined;
+         try { const profile = await getUserFullProfile(contactUserId); contactName = profile?.name || contactName; contactAvatar = profile?.avatarUrl || contactAvatar; } catch (profileError) { /* ignore */ }
+         const contactAuraFromState = allDisplayAuras.find(da => da.userId === contactUserId);
+         const currentUserAuraFromState = allDisplayAuras.find(da => da.userId === activeAuthUserIdInner);
+         requestsData.push({
+           id: `req_sent_${contactUserId}`, type: 'individual', name: contactName, contactUserId: contactUserId, participants: [activeAuthUserIdInner, contactUserId],
+           participantInfo: { [activeAuthUserIdInner]: { name: latestAuthUser.name, avatarUrl: latestAuthUser.avatarUrl || null, currentAuraId: currentUserAuraFromState?.auraOptionId || null }, [contactUserId]: { name: contactName, avatarUrl: contactAvatar, currentAuraId: contactAuraFromState?.auraOptionId || null }},
+           lastMessage: { text: data.firstMessageTextPreview || "Request sent...", senderId: activeAuthUserIdInner, timestamp: timestampToMillisSafe(data.timestamp), type: 'text', readBy: [activeAuthUserIdInner] },
+           updatedAt: timestampToMillisSafe(data.timestamp), unreadCount: 0, avatarUrl: contactAvatar,
+           requestStatus: 'pending', requesterId: activeAuthUserIdInner, firstMessageTextPreview: data.firstMessageTextPreview || "Request sent...",
+         });
+       }
+       setLiveSentRequests(requestsData); if (!initialSentRequestsProcessed) setInitialSentRequestsProcessed(true);
+    }, (error: FirestoreError) => { toast({ variant: 'destructive', title: 'Request Error', description: `Sent requests: ${error.message}`}); setLiveSentRequests([]); if (!initialSentRequestsProcessed) setInitialSentRequestsProcessed(true);});
 
-  }, [userProfileLs, currentUserAuraIdLs, router, toast]);
+    // --- Received Requests Listener ---
+    const receivedRequestsQuery = query(collection(firestore, `bharatConnectUsers/${currentAuthUserId}/requestsReceived`), where('status', '==', 'pending'), orderBy('timestamp', 'desc'));
+    unsubReceived = onSnapshot(receivedRequestsQuery, async (snapshot) => {
+      const latestAuthUser = authUser;
+      if (!latestAuthUser?.id || !latestAuthUser.name) { setLiveReceivedRequests([]); if (!initialReceivedRequestsProcessed) setInitialReceivedRequestsProcessed(true); return; }
+      const activeAuthUserIdInner = latestAuthUser.id;
+      const requestsData: Chat[] = [];
+      for (const requestDoc of snapshot.docs) {
+        const data = requestDoc.data(); const contactUserId = data.from as string; if (!contactUserId) continue;
+        let contactName = data.name || 'User'; let contactAvatar = data.photoURL || undefined;
+        try { const profile = await getUserFullProfile(contactUserId); contactName = profile?.name || contactName; contactAvatar = profile?.avatarUrl || contactAvatar; } catch (profileError) { /* ignore */ }
+        const contactAuraFromState = allDisplayAuras.find(da => da.userId === contactUserId);
+        const currentUserAuraFromState = allDisplayAuras.find(da => da.userId === activeAuthUserIdInner);
+        requestsData.push({
+          id: `req_rec_${contactUserId}`, type: 'individual', name: contactName, contactUserId: contactUserId, participants: [activeAuthUserIdInner, contactUserId],
+          participantInfo: { [activeAuthUserIdInner]: { name: latestAuthUser.name, avatarUrl: latestAuthUser.avatarUrl || null, currentAuraId: currentUserAuraFromState?.auraOptionId || null }, [contactUserId]: { name: contactName, avatarUrl: contactAvatar, currentAuraId: contactAuraFromState?.auraOptionId || null }},
+          lastMessage: { text: data.firstMessageTextPreview || "Wants to connect...", senderId: contactUserId, timestamp: timestampToMillisSafe(data.timestamp), type: 'text', readBy: [contactUserId] },
+          updatedAt: timestampToMillisSafe(data.timestamp), unreadCount: 1, avatarUrl: contactAvatar,
+          requestStatus: 'awaiting_action', requesterId: contactUserId, firstMessageTextPreview: data.firstMessageTextPreview || "Wants to connect...",
+        });
+      }
+      setLiveReceivedRequests(requestsData); if (!initialReceivedRequestsProcessed) setInitialReceivedRequestsProcessed(true);
+    }, (error: FirestoreError) => { toast({ variant: 'destructive', title: 'Request Error', description: `Received requests: ${error.message}`}); setLiveReceivedRequests([]); if (!initialReceivedRequestsProcessed) setInitialReceivedRequestsProcessed(true);});
 
+    return () => { if (unsubActive) unsubActive(); if (unsubSent) unsubSent(); if (unsubReceived) unsubReceived(); };
+  }, [authUser, isAuthenticated, isAuthLoading, isMounted, toast, allDisplayAuras]);
+
+  // Combine and sort chats for ChatContext and local page loading state
+  useEffect(() => {
+    if (!isMounted || isAuthLoading || !authUser || !authUser.id || !authUser.name) {
+      setContextChats([]);
+      if (isLoadingPageData && !isAuthLoading) setIsLoadingPageData(false);
+      return;
+    }
+
+    const allInitialSnapshotsHaveFired = initialActiveChatsProcessed && initialSentRequestsProcessed && initialReceivedRequestsProcessed;
+
+    if (allInitialSnapshotsHaveFired) {
+      const currentAuthUserId = authUser.id;
+      const combinedChatsMap = new Map<string, Chat>();
+      liveActiveChats.forEach(chat => combinedChatsMap.set(chat.id, chat));
+      liveSentRequests.forEach(req => { if (req.contactUserId) { const activeChatIdToCheck = generateChatId(currentAuthUserId, req.contactUserId); if (!combinedChatsMap.has(activeChatIdToCheck)) combinedChatsMap.set(req.id, req); } });
+      liveReceivedRequests.forEach(req => { if (req.contactUserId) { const activeChatIdToCheck = generateChatId(currentAuthUserId, req.contactUserId); const sentRequestIdToCheck = `req_sent_${req.contactUserId}`; if (!combinedChatsMap.has(activeChatIdToCheck) && !combinedChatsMap.has(sentRequestIdToCheck)) { if (!combinedChatsMap.has(req.id)) combinedChatsMap.set(req.id, req); } } });
+
+      const finalChatsArray = Array.from(combinedChatsMap.values());
+      const getChatSortPriority = (chat: Chat): number => { if (chat.requestStatus === 'awaiting_action' && chat.requesterId !== currentAuthUserId) return 0; if (chat.unreadCount > 0 && (chat.requestStatus === 'accepted' || !chat.requestStatus)) return 1; if (chat.requestStatus === 'pending' && chat.requesterId === currentAuthUserId) return 2; if (chat.requestStatus === 'accepted' || !chat.requestStatus || chat.requestStatus === 'none') return 3; if (chat.requestStatus === 'rejected') return 4; return 3; };
+      const sortedChats = finalChatsArray.sort((a, b) => { const priorityA = getChatSortPriority(a); const priorityB = getChatSortPriority(b); if (priorityA !== priorityB) return priorityA - priorityB; return (b.lastMessage?.timestamp || b.updatedAt || 0) - (a.lastMessage?.timestamp || a.updatedAt || 0); });
+
+      setContextChats(sortedChats);
+      if (isLoadingPageData) setIsLoadingPageData(false);
+    }
+  }, [ liveActiveChats, liveSentRequests, liveReceivedRequests, authUser, isAuthenticated, isAuthLoading, isMounted, setContextChats,
+       initialActiveChatsProcessed, initialSentRequestsProcessed, initialReceivedRequestsProcessed, isLoadingPageData ]);
 
   const handleScroll = useCallback(() => {
-    const scrollableElement = scrollableContainerRef.current;
-    if (!scrollableElement) return;
-    const currentScrollY = scrollableElement.scrollTop;
-    if (currentScrollY <= SCROLL_DELTA) {
-      setIsHeaderContentLoaded(true);
-    } else {
-      const scrolledDown = currentScrollY > lastScrollYRef.current;
-      const scrolledUp = currentScrollY < lastScrollYRef.current;
-      if (scrolledDown && (currentScrollY - lastScrollYRef.current) >= SCROLL_DELTA) {
-        setIsHeaderContentLoaded(false);
-      } else if (scrolledUp) {
-        setIsHeaderContentLoaded(true);
+    if (scrollableContainerRef.current) {
+      const { scrollTop } = scrollableContainerRef.current;
+      if (Math.abs(scrollTop - lastScrollYRef.current) > SCROLL_DELTA) {
+        setIsHeaderContentLoaded(scrollTop < lastScrollYRef.current || scrollTop < HEADER_HEIGHT_PX / 2);
+        lastScrollYRef.current = scrollTop;
       }
     }
-    lastScrollYRef.current = currentScrollY <= 0 ? 0 : currentScrollY;
   }, []);
 
   useEffect(() => {
-    const scrollableElement = scrollableContainerRef.current;
-    const updateScrollBehavior = () => {
-      if (!scrollableElement || isPageDataLoading || !userProfileLs?.onboardingComplete) {
-        setIsHeaderContentLoaded(true);
-        if (scrollableElement) scrollableElement.removeEventListener('scroll', handleScroll);
-        return;
-      }
-      const MIN_SCROLL_DIFFERENCE_FOR_ANIMATION = HEADER_HEIGHT_PX * 0.5;
-      const isSignificantlyScrollable = scrollableElement.scrollHeight > scrollableElement.clientHeight + MIN_SCROLL_DIFFERENCE_FOR_ANIMATION;
-      if (isSignificantlyScrollable) {
-        if (scrollableElement.scrollTop > SCROLL_DELTA) setIsHeaderContentLoaded(false);
-        else setIsHeaderContentLoaded(true);
-        lastScrollYRef.current = scrollableElement.scrollTop;
-        scrollableElement.addEventListener('scroll', handleScroll, { passive: true });
-      } else {
-        setIsHeaderContentLoaded(true);
-        scrollableElement.removeEventListener('scroll', handleScroll);
-      }
-    };
-    updateScrollBehavior();
-    window.addEventListener('resize', updateScrollBehavior);
-    return () => {
-      if (scrollableElement) scrollableElement.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', updateScrollBehavior);
-    };
-  }, [isPageDataLoading, chats, searchTerm, handleScroll, userProfileLs?.onboardingComplete]);
+    if (isLoadingPageData || !isAuthenticated || !isMounted) return;
+    const container = scrollableContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [isLoadingPageData, isAuthenticated, handleScroll, isMounted]);
 
-  const filteredChats = chats; // Search filtering logic removed for now for simplicity
+  const showPageSpinner = !isMounted || isAuthLoading || (isAuthenticated && (isLoadingAuras || isLoadingPageData));
 
-  const handleCurrentUserAuraClick = useCallback(() => {
-    router.push('/aura-select');
-  }, [router]);
-
-  if (isPageDataLoading) {
-    return (
-      <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center">
-        <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p className="mt-4 text-muted-foreground">Loading BharatConnect...</p>
+  let mainContent;
+  if (showPageSpinner) {
+    mainContent = (
+      <div className="flex-grow flex flex-col items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground text-center">Loading BharatConnect...</p>
       </div>
+    );
+  } else if (!isAuthenticated) {
+    mainContent = (
+      <div className="flex-grow flex flex-col items-center justify-center">
+        <p className="text-muted-foreground text-center">Redirecting...</p>
+      </div>
+    );
+  } else {
+    mainContent = (
+        <SwipeablePageWrapper className="flex-grow flex flex-col bg-background overflow-hidden min-h-0">
+            <main ref={scrollableContainerRef} className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar min-h-0 w-full" style={{ paddingTop: `${HEADER_HEIGHT_PX}px`, paddingBottom: `${BOTTOM_NAV_HEIGHT_PX}px` }}>
+              <AuraBar
+                isLoading={isLoadingAuras}
+                allDisplayAuras={allDisplayAuras}
+                currentUser={authUser}
+                connectedUserIds={connectedUserIds}
+              />
+              {authUser?.id && ( <ChatList isLoading={isContextChatsLoading && contextChats.length === 0} filteredChats={contextChats} searchTerm={searchTerm} currentUserId={authUser.id} /> )}
+            </main>
+        </SwipeablePageWrapper>
     );
   }
 
   return (
     <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background">
       <HomeHeader isHeaderContentLoaded={isHeaderContentLoaded} />
-      <SwipeablePageWrapper className="flex-grow flex flex-col bg-background overflow-hidden min-h-0">
-        <main
-          ref={scrollableContainerRef}
-          className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar min-h-0 w-full"
-          style={{
-            paddingTop: `${HEADER_HEIGHT_PX}px`,
-            paddingBottom: `${BOTTOM_NAV_HEIGHT_PX}px`
-          }}
-        >
-          <AuraBar
-            isLoading={isPageDataLoading}
-            auraBarItems={isPageDataLoading ? [] : auraBarItems}
-            currentUserId={userProfileLs?.uid || ''}
-            onCurrentUserAuraClick={handleCurrentUserAuraClick}
-          />
-          <ChatList
-            isLoading={isPageDataLoading}
-            filteredChats={filteredChats}
-            searchTerm={searchTerm}
-            currentUserId={userProfileLs?.uid || ''} 
-          />
-        </main>
-      </SwipeablePageWrapper>
-      <Button
-        variant="default"
-        size="icon"
-        className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-bharatconnect-bubble text-primary-foreground hover:opacity-90 transition-opacity z-30"
-        aria-label="New chat"
-        onClick={() => router.push('/new-chat')}
-      >
+      {mainContent}
+      <Button variant="default" size="icon" className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-bharatconnect-bubble text-primary-foreground hover:opacity-90 transition-opacity z-30" aria-label="New chat" onClick={() => router.push('/new-chat')}>
         <Plus className="w-7 h-7" />
       </Button>
       <BottomNavigationBar />
     </div>
   );
 }
+    
+    
+    
 

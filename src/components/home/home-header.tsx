@@ -5,7 +5,7 @@ import type { FC } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import Logo from '@/components/shared/Logo';
-import { LogOut } from 'lucide-react'; // Removed Search icon import
+import { Bell, LogOut } from 'lucide-react'; // Import Bell icon
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { signOutUser } from '@/lib/firebase';
@@ -60,7 +60,15 @@ const HomeHeader: FC<HomeHeaderProps> = ({ isHeaderContentLoaded }) => {
           "flex items-center space-x-2 transition-all duration-300 ease-in-out"
         )}
       >
-        {/* Search button removed */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          aria-label="Notifications" 
+          tabIndex={isHeaderContentLoaded ? 0 : -1}
+          onClick={() => toast({ title: 'Notifications', description: 'This feature is coming soon!' })}
+        >
+          <Bell className="w-5 h-5" />
+        </Button>
         <Button 
           variant="ghost" 
           size="icon" 

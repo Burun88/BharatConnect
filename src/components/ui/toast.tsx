@@ -30,7 +30,7 @@ const toastVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-transparent bg-gradient-bharatconnect-toast text-primary-foreground", // Updated to use new dimmed gradient
+        default: "border-transparent bg-gradient-to-r from-primary to-accent text-primary-foreground", // Updated to use primary/accent gradient
         destructive:
           "destructive group border-destructive bg-destructive text-destructive-foreground",
       },

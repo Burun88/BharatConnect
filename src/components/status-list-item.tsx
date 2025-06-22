@@ -48,13 +48,10 @@ export default function StatusListItem({ statusUpdate, user, onClick }: StatusLi
         )}
         <div className="absolute inset-[2px] rounded-full bg-background overflow-hidden">
           <Avatar className="w-full h-full">
-            {user.avatarUrl ? (
-              <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
-            ) : (
-              <AvatarFallback className="bg-muted text-muted-foreground">
-                <UserCircle2 className="w-10 h-10 text-muted-foreground" />
-              </AvatarFallback>
-            )}
+            <AvatarImage src={user.avatarUrl || undefined} alt={user.name} data-ai-hint="person avatar" />
+            <AvatarFallback className="bg-muted text-muted-foreground">
+              <UserCircle2 className="w-10 h-10 text-muted-foreground" />
+            </AvatarFallback>
           </Avatar>
         </div>
       </div>
@@ -67,3 +64,4 @@ export default function StatusListItem({ statusUpdate, user, onClick }: StatusLi
     </div>
   );
 }
+

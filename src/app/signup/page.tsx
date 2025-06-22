@@ -13,6 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { LocalUserProfile } from '@/types';
 import { auth, createUser } from '@/lib/firebase'; 
+import type { AuthStep } from '@/contexts/AuthContext'; // Added import
+import { Loader2 } from 'lucide-react'; // Import Loader2
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -25,6 +27,8 @@ export default function SignupPage() {
 
   const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
   const [isLoadingPage, setIsLoadingPage] = useState(true); 
+  const [, setAuthStepFromLS] = useLocalStorage<AuthStep>('bharatconnect-auth-step', 'initial_loading');
+
 
   useEffect(() => {
     if (userProfileLs) { 
@@ -81,8 +85,10 @@ export default function SignupPage() {
       });
 
       // The "Account Created!" toast has been removed from here.
+      // Navigation will happen, and profile-setup will show a welcome.
       
       router.push('/profile-setup'); 
+      // setIsSubmitting will implicitly be false when the component unmounts on navigation
     } catch (err: any) {
       console.error("[Signup Page] Firebase Signup Error:", err);
       if (err.code === 'auth/email-already-in-use') {
@@ -102,19 +108,22 @@ export default function SignupPage() {
         setError('An unexpected error occurred during signup. Please try again.');
         toast({ variant: 'destructive', title: 'Signup Error', description: err.message || 'An unexpected error occurred.' });
       }
-    } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false); // Re-enable form only on error
     }
+    // No finally block to set isSubmitting to false, as successful navigation unmounts.
+  };
+
+  const handleLoginLinkClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    setAuthStepFromLS('login');
+    router.push('/login');
   };
   
   if (isLoadingPage) {
     return (
-      <div className="flex flex-col h-screen bg-background items-center justify-center">
-        <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p className="mt-4 text-muted-foreground">Loading...</p>
+      <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center">
+        <Loader2 className="animate-spin h-10 w-10 text-primary" />
+        <p className="mt-4 text-muted-foreground text-center">Loading...</p>
       </div>
     );
   }
@@ -144,6 +153,7 @@ export default function SignupPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 aria-describedby="signup-error"
+                disabled={isSubmitting}
               />
             </div>
             <div className="space-y-2">
@@ -156,6 +166,7 @@ export default function SignupPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 aria-describedby="signup-error"
+                disabled={isSubmitting}
               />
             </div>
             <div className="space-y-2">
@@ -168,17 +179,25 @@ export default function SignupPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 aria-describedby="signup-error"
+                disabled={isSubmitting}
               />
             </div>
             {error && <p id="signup-error" className="text-sm text-destructive text-center">{error}</p>}
           </CardContent>
           <CardFooter className="flex-col space-y-3">
             <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating Account...' : 'Sign Up & Continue'}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating Account...
+                </>
+              ) : (
+                'Sign Up & Continue'
+              )}
             </Button>
             <p className="text-sm text-muted-foreground">
               Already have an account?{' '}
-              <Link href="/login" className="text-primary hover:underline">
+              <Link href="/login" onClick={handleLoginLinkClick} className="text-primary hover:underline">
                 Login
               </Link>
             </p>

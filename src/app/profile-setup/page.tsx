@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserCircle2, Camera, Mail, AtSign } from 'lucide-react';
+import { UserCircle2, Camera, Mail, AtSign, Loader2 } from 'lucide-react'; // Import Loader2
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import Logo from '@/components/shared/Logo';
@@ -17,6 +17,7 @@ import type { LocalUserProfile } from '@/types';
 import { auth, signOutUser as fbSignOutUser } from '@/lib/firebase'; 
 import { createOrUpdateUserFullProfile } from '@/services/profileService';
 import { uploadProfileImage } from '@/services/storageService';
+import { generateAndStoreKeyPair } from '@/services/encryptionService';
 
 
 function ProfileSetupContent() {
@@ -130,15 +131,27 @@ function ProfileSetupContent() {
       return;
     }
 
-    if (!displayName.trim()) {
+    const trimmedDisplayName = displayName.trim();
+    const trimmedUsername = username.trim(); // Username is already validated to be non-empty
+
+    if (!trimmedUsername) { // Should not happen if validateUsername works
+        setUsernameError('Username is required.');
+        setIsLoading(false);
+        return;
+    }
+    if (!validateUsername(trimmedUsername)) {
+        setIsLoading(false);
+        return;
+    }
+
+    const finalDisplayName = trimmedDisplayName || trimmedUsername; // Use username if display name is empty
+
+    if (!finalDisplayName) { // Should not happen if username is mandatory
       setError('Please enter your display name.');
       setIsLoading(false);
       return;
     }
-    if (!validateUsername(username)) {
-        setIsLoading(false);
-        return;
-    }
+
     if (phoneNumber && !/^\+?\d{10,15}$/.test(phoneNumber.replace(/\s+/g, ''))) {
       setError('Please enter a valid phone number (e.g., 10 digits or international format like +919876543210).');
       setIsLoading(false);
@@ -173,8 +186,8 @@ function ProfileSetupContent() {
     
     const profileDataToSave = {
       email: authEmail,
-      username: username.trim(),
-      displayName: displayName.trim(),
+      username: trimmedUsername,
+      displayName: finalDisplayName,
       photoURL: finalPhotoURL,
       phoneNumber: phoneNumber.trim() || null,
       bio: bio.trim() || null,
@@ -186,12 +199,18 @@ function ProfileSetupContent() {
 
     try {
       await createOrUpdateUserFullProfile(authUid, profileDataToSave);
+      
+      // Generate E2EE keys after profile is successfully created
+      toast({ title: "Generating secure keys...", description: "Please wait, this is a one-time setup." });
+      await generateAndStoreKeyPair(authUid);
+      toast({ title: "Secure keys generated!", description: "Your account is now end-to-end encrypted." });
+
 
       const updatedProfileForLs: LocalUserProfile = {
         uid: authUid,
         email: authEmail,
-        username: username.trim(),
-        displayName: displayName.trim(),
+        username: trimmedUsername,
+        displayName: finalDisplayName,
         photoURL: finalPhotoURL,
         phoneNumber: phoneNumber.trim() || null,
         bio: bio.trim() || null,
@@ -201,17 +220,17 @@ function ProfileSetupContent() {
       console.log("[ProfileSetupPage] Profile saved to Firestore and LS updated:", updatedProfileForLs);
 
       toast({
-        title: `Welcome, ${displayName.trim()}!`,
+        title: `Welcome, ${finalDisplayName}!`,
         description: 'Your BharatConnect account is ready.',
       });
       router.push('/');
     } catch (error: any) {
-      console.error("[ProfileSetupPage] Error during handleSubmit (saving profile):", error);
-      setError('Failed to save your profile. Please try again.');
+      console.error("[ProfileSetupPage] Error during handleSubmit (saving profile or keys):", error);
+      setError('Failed to save your profile or generate keys. Please try again.');
       toast({
         variant: 'destructive',
-        title: 'Profile Save Error',
-        description: error.message || 'Could not save profile.',
+        title: 'Setup Error',
+        description: error.message || 'Could not complete profile setup.',
       });
     } finally {
       setIsLoading(false);
@@ -236,11 +255,8 @@ function ProfileSetupContent() {
   if (isPageLoading) {
     return (
       <div className="flex flex-col items-center justify-center flex-grow min-h-0 bg-background p-4 hide-scrollbar overflow-y-auto">
-        <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p className="mt-4 text-muted-foreground">Loading profile setup...</p>
+        <Loader2 className="animate-spin h-10 w-10 text-primary" />
+        <p className="mt-4 text-muted-foreground text-center">Loading profile setup...</p>
       </div>
     );
   }
@@ -289,10 +305,9 @@ function ProfileSetupContent() {
               <Input
                 id="displayName"
                 type="text"
-                placeholder="Your Name"
+                placeholder="Your Name (e.g., same as username if blank)"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                required
               />
             </div>
 
@@ -368,11 +383,8 @@ export default function ProfileSetupPage() {
     <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background">
       <Suspense fallback={
         <div className="flex flex-col items-center justify-center flex-grow min-h-0 bg-background p-4 hide-scrollbar overflow-y-auto">
-          <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <p className="mt-4 text-muted-foreground">Loading page details...</p>
+          <Loader2 className="animate-spin h-10 w-10 text-primary" />
+          <p className="mt-4 text-muted-foreground text-center">Loading page details...</p>
         </div>
       }>
         <ProfileSetupContent />

@@ -71,6 +71,10 @@ export default {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+        '2xl': '1rem', // Ensure 16px is explicitly available if needed, though it's default
+      },
+      boxShadow: {
+        'chat-bubble': '0 2px 6px rgba(0,0,0,0.5)',
       },
       keyframes: {
         'accordion-down': {
@@ -89,10 +93,21 @@ export default {
             height: '0',
           },
         },
+        'fade-in-slide-up': { // New keyframes
+          from: {
+            opacity: '0',
+            transform: 'translateY(10px)',
+          },
+          to: {
+            opacity: '1',
+            transform: 'translateY(0)',
+          },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        'fade-in-slide-up': 'fadeInSlideUp 0.3s ease-out forwards', // New animation
       },
     },
   },

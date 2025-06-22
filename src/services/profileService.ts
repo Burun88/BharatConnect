@@ -1,151 +1,138 @@
 
-// Firebase services have been removed from this project.
-// This file is kept as a placeholder.
-// You will need to re-implement profile service logic
-// if you re-integrate Firebase or another backend.
+import { auth, firestore } from '@/lib/firebase';
+import { doc, setDoc, serverTimestamp, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { updateProfile } from 'firebase/auth';
+import type { User } from '@/types'; // Import the User type
 
-import { auth, firestore } from '@/lib/firebase'; // Ensure auth is imported
-import { doc, setDoc, serverTimestamp, getDoc, updateDoc, type Timestamp } from 'firebase/firestore';
-import { updateProfile } from 'firebase/auth'; // Import updateProfile
-
+// BharatConnectFirestoreUser no longer contains direct aura fields. Aura is in 'auras' collection.
 export interface BharatConnectFirestoreUser {
-  id: string; // Document ID (user's auth UID) is also stored as a field named 'id'
-  email: string; // Stored in lowercase for searching
-  username: string; // Unique username, stored in lowercase for searching
-  displayName: string; // Stored in lowercase for searching
-  originalDisplayName?: string | null; // Optional: Store original casing for display
+  id: string;
+  email: string;
+  username: string;
+  displayName: string;
+  originalDisplayName?: string | null;
   photoURL?: string | null;
   phoneNumber?: string | null;
   bio?: string | null;
   onboardingComplete: boolean;
-  languagePreference?: string; // Example, not yet implemented in UI
-  status?: string; // Example, not yet implemented in UI
-  currentAuraId?: string | null; // Example, not yet implemented in UI
+  languagePreference?: string;
+  status?: string;
+  publicKey?: string; // For E2EE
+  // currentAuraId and auraExpiresAt removed
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
 
+// UserProfileUpdateData no longer contains direct aura fields.
+export type UserProfileUpdateData = {
+  email: string;
+  username: string;
+  displayName: string;
+  onboardingComplete: boolean;
+  originalDisplayName?: string | null;
+  photoURL?: string | null;
+  phoneNumber?: string | null;
+  bio?: string | null;
+  publicKey?: string;
+  // currentAuraId and auraExpiresAt removed
+};
+
 export async function createOrUpdateUserFullProfile(
-  uid: string, // This is the auth UID, and will be the document ID
-  profileData: {
-    email: string; // Original casing email
-    username: string; // Original casing username
-    displayName: string; // Original casing displayName
-    onboardingComplete: boolean;
-    photoURL?: string | null;
-    phoneNumber?: string | null;
-    bio?: string | null;
-  }
+  uid: string,
+  profileData: UserProfileUpdateData
 ): Promise<void> {
   console.log(`[SVC_PROF] createOrUpdateUserFullProfile called for UID: ${uid}. Data:`, JSON.stringify(profileData));
-
-  if (!uid) {
-    console.error("[SVC_PROF] UID is missing in createOrUpdateUserFullProfile.");
-    throw new Error("UID is required to create or update user profile.");
-  }
-   if (!profileData.username) {
-    console.error("[SVC_PROF] Username is missing in createOrUpdateUserFullProfile.");
-    throw new Error("Username is required to create or update user profile.");
-  }
-  if (!firestore) {
-    console.error("[SVC_PROF] Firestore instance is NOT AVAILABLE in createOrUpdateUserFullProfile!");
-    throw new Error("Firestore is not initialized. Profile cannot be saved.");
-  }
+  if (!uid) throw new Error("UID is required to create or update user profile.");
+  if (!profileData.username) throw new Error("Username is required.");
+  if (!firestore) throw new Error("Firestore is not initialized.");
 
   const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
 
-  // Data for Firestore: store searchable fields in lowercase
-  const firestoreData: Omit<BharatConnectFirestoreUser, 'createdAt' | 'updatedAt' | 'id'> & { id: string } = {
-    id: uid,
-    email: profileData.email.toLowerCase(), // Store email in lowercase
-    username: profileData.username.toLowerCase(), // Store username in lowercase
-    displayName: profileData.displayName.toLowerCase(), // Store displayName in lowercase
-    originalDisplayName: profileData.displayName, // Keep original for display
-    photoURL: profileData.photoURL !== undefined ? profileData.photoURL : null,
-    phoneNumber: profileData.phoneNumber !== undefined ? profileData.phoneNumber : null,
-    bio: profileData.bio !== undefined ? profileData.bio : null,
+  // Map profileData to Firestore structure, excluding undefined aura fields
+  const firestoreData: Partial<Omit<BharatConnectFirestoreUser, 'id' | 'createdAt' | 'updatedAt'>> = {
+    email: profileData.email.toLowerCase(),
+    username: profileData.username.toLowerCase(),
+    displayName: profileData.displayName, // Store with original casing in Firestore's displayName
+    originalDisplayName: profileData.originalDisplayName === undefined ? (profileData.displayName || null) : profileData.originalDisplayName,
     onboardingComplete: profileData.onboardingComplete,
+    ...(profileData.photoURL !== undefined && { photoURL: profileData.photoURL }),
+    ...(profileData.phoneNumber !== undefined && { phoneNumber: profileData.phoneNumber }),
+    ...(profileData.bio !== undefined && { bio: profileData.bio }),
+    ...(profileData.publicKey !== undefined && { publicKey: profileData.publicKey }),
   };
 
-  // Data for Firebase Auth update (use original casing for displayName)
-  const authProfileUpdate: { displayName?: string; photoURL?: string | null } = {};
-  if (profileData.displayName) {
-    authProfileUpdate.displayName = profileData.displayName; // Use original casing for Auth profile
-  }
-  if (profileData.photoURL !== undefined) {
-    authProfileUpdate.photoURL = profileData.photoURL;
+  const finalFirestorePayload: any = {};
+  for (const key in firestoreData) {
+    if (firestoreData[key as keyof typeof firestoreData] !== undefined) {
+      finalFirestorePayload[key] = firestoreData[key as keyof typeof firestoreData];
+    }
   }
 
+  if (Object.keys(finalFirestorePayload).length === 0) {
+     const docSnap = await getDoc(userDocRef);
+     if (docSnap.exists()) {
+        await updateDoc(userDocRef, { updatedAt: serverTimestamp() }); return;
+     } else { throw new Error("No valid data provided for profile creation."); }
+  }
+
+  const authProfileUpdate: { displayName?: string; photoURL?: string | null } = {};
+  if (profileData.displayName) authProfileUpdate.displayName = profileData.displayName;
+  if (profileData.photoURL !== undefined) authProfileUpdate.photoURL = profileData.photoURL;
 
   try {
-    // 1. Update Firestore document
     const docSnap = await getDoc(userDocRef);
-    const dataForFirestoreOperation = { ...firestoreData };
-
     if (!docSnap.exists()) {
-      await setDoc(userDocRef, {
-        ...dataForFirestoreOperation,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      console.log(`[SVC_PROF] User profile for ${uid} CREATED in Firestore. Email: ${firestoreData.email}, Username: ${firestoreData.username}, DisplayName: ${firestoreData.displayName}`);
+      await setDoc(userDocRef, { ...finalFirestorePayload, id: uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
     } else {
-      await updateDoc(userDocRef, {
-        ...dataForFirestoreOperation,
-        updatedAt: serverTimestamp(),
-      });
-      console.log(`[SVC_PROF] User profile for ${uid} UPDATED in Firestore. Email: ${firestoreData.email}, Username: ${firestoreData.username}, DisplayName: ${firestoreData.displayName}`);
+      if (Object.keys(finalFirestorePayload).length > 0) {
+         await updateDoc(userDocRef, { ...finalFirestorePayload, updatedAt: serverTimestamp() });
+      }
     }
 
-    // 2. Update Firebase Auth user profile
     const currentUser = auth.currentUser;
     if (currentUser && currentUser.uid === uid) {
-      const needsAuthUpdate =
-        (authProfileUpdate.displayName && authProfileUpdate.displayName !== currentUser.displayName) ||
-        (authProfileUpdate.photoURL !== undefined && authProfileUpdate.photoURL !== currentUser.photoURL);
-
-      if (needsAuthUpdate) {
-        await updateProfile(currentUser, authProfileUpdate);
-        console.log(`[SVC_PROF] Firebase Auth profile updated for UID: ${uid}. Name: ${authProfileUpdate.displayName}, Photo: ${authProfileUpdate.photoURL}`);
-      } else {
-        console.log(`[SVC_PROF] Firebase Auth profile for UID: ${uid} already up-to-date or no changes requested for displayName/photoURL. No update call needed.`);
-      }
-    } else {
-      console.warn(`[SVC_PROF] Cannot update Firebase Auth profile: currentUser is null or UID mismatch. CurrentAuthUID: ${currentUser?.uid}, TargetUID: ${uid}`);
+      const needsAuthUpdate = (authProfileUpdate.displayName && authProfileUpdate.displayName !== currentUser.displayName) || (authProfileUpdate.photoURL !== undefined && authProfileUpdate.photoURL !== currentUser.photoURL);
+      if (needsAuthUpdate) await updateProfile(currentUser, authProfileUpdate);
     }
-
-  } catch (error) {
-    console.error(`[SVC_PROF] Error saving/updating profile for ${uid}:`, error);
-    throw error;
-  }
+  } catch (error) { console.error(`[SVC_PROF] Error saving/updating profile for ${uid}:`, error); throw error; }
 }
 
+// getUserFullProfile now returns a Promise<User | null>.
+// Aura data needs to be fetched separately from the 'auras' collection.
 export async function getUserFullProfile(
   uid: string
-): Promise<BharatConnectFirestoreUser | null> {
-  console.warn(
-    `[SVC_PROF] getUserFullProfile called for UID: ${uid}.`
-  );
-  if (!firestore) {
-    console.error("[SVC_PROF] Firestore instance is not available for getUserFullProfile!");
-    return null;
-  }
+): Promise<User | null> {
+  console.warn(`[SVC_PROF] getUserFullProfile called for UID: ${uid}.`);
+  if (!firestore) { console.error("[SVC_PROF] Firestore instance is not available!"); return null; }
   if (!uid) return null;
 
   try {
     const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
     const docSnap = await getDoc(userDocRef);
     if (docSnap.exists()) {
-      console.log(`[SVC_PROF] Profile found for ${uid} in 'bharatConnectUsers'.`);
-      const data = docSnap.data() as BharatConnectFirestoreUser;
-      // Ensure originalDisplayName is used for display if available, otherwise fallback to displayName (which is lowercase)
-      return { ...data, displayName: data.originalDisplayName || data.displayName };
+      const data = docSnap.data() as BharatConnectFirestoreUser; // Data from Firestore
+
+      // Map to the client-side User type
+      const clientUser: User = {
+        id: uid, // Use the passed uid or docSnap.id
+        name: data.originalDisplayName || data.displayName || 'User', // Map to 'name'
+        email: data.email,
+        username: data.username,
+        avatarUrl: data.photoURL || undefined, // Map photoURL to avatarUrl
+        phone: data.phoneNumber || undefined, // Map phoneNumber to phone
+        bio: data.bio || undefined,
+        onboardingComplete: data.onboardingComplete || false,
+        status: data.status || undefined,
+        publicKey: data.publicKey || undefined,
+        // hasViewedStatus is a client-side property, not stored in Firestore profile directly for this general fetch.
+        // It might be part of a specific context (like status updates list). For general profile, it's usually not included.
+      };
+      return clientUser;
     } else {
-      console.log(`[SVC_PROF] No profile found for ${uid} in 'bharatConnectUsers'.`);
       return null;
     }
   } catch (error) {
-    console.error(`[SVC_PROF] Error fetching profile for ${uid} from 'bharatConnectUsers':`, error);
+    console.error(`[SVC_PROF] Error fetching profile for ${uid}:`, error);
     return null;
   }
 }

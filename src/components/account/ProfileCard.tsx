@@ -12,13 +12,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserCircle2, Edit3, Save, X, Camera, Mail, Trash2, AtSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import type { LocalUserProfile } from '@/types';
-import type { BharatConnectFirestoreUser } from '@/services/profileService';
+import type { LocalUserProfile, User } from '@/types'; // Changed import
 import { createOrUpdateUserFullProfile } from '@/services/profileService';
-import { uploadProfileImage } from '@/services/storageService';
+import { uploadProfileImage, deleteProfileImageByUrl } from '@/services/storageService'; 
 
 interface ProfileCardProps {
-  initialProfileData: BharatConnectFirestoreUser | null;
+  initialProfileData: User | null; // Changed type to User
   authUid: string | null;
 }
 
@@ -41,37 +40,49 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
   const [tempUsername, setTempUsername] = useState('');
   const [tempBio, setTempBio] = useState('');
   const [tempProfilePicPreview, setTempProfilePicPreview] = useState<string | null>(null);
-  const [originalPhotoURLForDeletion, setOriginalPhotoURLForDeletion] = useState<string | null>(null);
+  const [originalPhotoURLForPotentialDeletion, setOriginalPhotoURLForPotentialDeletion] = useState<string | null>(null);
   const [usernameError, setUsernameError] = useState('');
 
 
   useEffect(() => {
-    if (initialProfileData) {
-      setName(initialProfileData.originalDisplayName || initialProfileData.displayName || '');
-      setUsername(initialProfileData.username || '');
-      setEmail(initialProfileData.email || '');
-      setBio(initialProfileData.bio || '');
-      setProfilePicPreview(initialProfileData.photoURL || null); 
+    if (initialProfileData) { // initialProfileData is User | null
+      const currentDisplayName = initialProfileData.name || ''; // Use .name from User type
+      const currentUsername = initialProfileData.username || '';
+      const currentEmail = initialProfileData.email || '';
+      const currentBio = initialProfileData.bio || '';
+      const currentPhotoURL = initialProfileData.avatarUrl || null; // Use .avatarUrl from User type
+
+      setName(currentDisplayName);
+      setUsername(currentUsername);
+      setEmail(currentEmail);
+      setBio(currentBio);
+      setProfilePicPreview(currentPhotoURL); 
 
       if (!isEditing) {
-        setTempName(initialProfileData.originalDisplayName || initialProfileData.displayName || '');
-        setTempUsername(initialProfileData.username || '');
-        setTempBio(initialProfileData.bio || '');
-        setTempProfilePicPreview(initialProfileData.photoURL || null);
-        setOriginalPhotoURLForDeletion(initialProfileData.photoURL || null);
+        setTempName(currentDisplayName);
+        setTempUsername(currentUsername);
+        setTempBio(currentBio);
+        setTempProfilePicPreview(currentPhotoURL);
+        setOriginalPhotoURLForPotentialDeletion(currentPhotoURL);
       }
     } else {
-      setName('User');
-      setUsername('username');
-      setEmail('Email not available');
-      setBio('Bio not available');
+      const defaultName = 'User';
+      const defaultUsername = 'username';
+      const defaultEmail = 'Email not available';
+      const defaultBio = 'Bio not available';
+      
+      setName(defaultName);
+      setUsername(defaultUsername);
+      setEmail(defaultEmail);
+      setBio(defaultBio);
       setProfilePicPreview(null);
+
       if (!isEditing) {
-        setTempName('User');
-        setTempUsername('username');
-        setTempBio('Bio not available');
+        setTempName(defaultName);
+        setTempUsername(defaultUsername);
+        setTempBio(defaultBio);
         setTempProfilePicPreview(null);
-        setOriginalPhotoURLForDeletion(null);
+        setOriginalPhotoURLForPotentialDeletion(null);
       }
     }
   }, [initialProfileData, isEditing]);
@@ -82,7 +93,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
       setTempUsername(username);
       setTempBio(bio);
       setTempProfilePicPreview(profilePicPreview); 
-      setOriginalPhotoURLForDeletion(profilePicPreview); 
+      setOriginalPhotoURLForPotentialDeletion(profilePicPreview); 
       setProfilePicFile(null); 
       setUsernameError('');
     } else { 
@@ -90,13 +101,13 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
       setTempUsername(username);
       setTempBio(bio);
       setTempProfilePicPreview(profilePicPreview);
-      setOriginalPhotoURLForDeletion(profilePicPreview); 
+      setOriginalPhotoURLForPotentialDeletion(profilePicPreview); 
     }
     setIsEditing(!isEditing);
   };
 
   const handleRemoveProfilePic = () => {
-    setTempProfilePicPreview(null);
+    setTempProfilePicPreview(null); 
     setProfilePicFile(null); 
     toast({ title: "Profile picture marked for removal", description: "Save to apply changes." });
   };
@@ -112,7 +123,6 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
       setUsernameError('Username must be 3-20 characters, lowercase letters, numbers, or underscores only.');
       return false;
     }
-    // TODO: Implement server-side uniqueness check here in a real app (if username changed)
     return true;
   };
 
@@ -131,7 +141,8 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
 
     setIsLoading(true);
     
-    let finalPhotoURL = tempProfilePicPreview; 
+    let finalPhotoURL: string | null = tempProfilePicPreview; 
+    let newImageUploaded = false;
 
     if (profilePicFile) { 
       try {
@@ -139,6 +150,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
         formData.append('uid', authUid); 
         formData.append('profileImageFile', profilePicFile);
         finalPhotoURL = await uploadProfileImage(formData); 
+        newImageUploaded = true;
         toast({ title: "Profile picture uploaded!" });
       } catch (uploadError: any) {
         console.error("[ProfileCard] Error uploading profile picture:", uploadError);
@@ -146,17 +158,34 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
         setIsLoading(false);
         return;
       }
-    } else if (tempProfilePicPreview === null && originalPhotoURLForDeletion) {
-      console.log(`[ProfileCard] Profile picture removed by user. Original URL was: ${originalPhotoURLForDeletion}`);
-      // finalPhotoURL is already null if tempProfilePicPreview is null
+    }
+
+    if (originalPhotoURLForPotentialDeletion) {
+      const userRemovedExistingImage = tempProfilePicPreview === null && !profilePicFile;
+      const userReplacedExistingImage = newImageUploaded;
+
+      if (userRemovedExistingImage || userReplacedExistingImage) {
+        try {
+          console.log(`[ProfileCard] Deleting old profile picture: ${originalPhotoURLForPotentialDeletion}`);
+          await deleteProfileImageByUrl(originalPhotoURLForPotentialDeletion);
+          toast({ title: "Old profile picture deleted." });
+        } catch (deleteError: any) {
+          console.error("[ProfileCard] Error deleting old profile picture:", deleteError);
+          toast({ variant: 'warning', title: 'Deletion Warning', description: `Could not delete old picture: ${deleteError.message}` });
+        }
+      }
+    }
+    if (tempProfilePicPreview === null && !profilePicFile) { 
+        finalPhotoURL = null;
     }
     
     const profileDataToSave = {
       email: email, 
       username: tempUsername.trim(),
       displayName: tempName.trim(),
+      originalDisplayName: tempName.trim(), // Save tempName as originalDisplayName too
       photoURL: finalPhotoURL, 
-      phoneNumber: initialProfileData?.phoneNumber || null, 
+      phoneNumber: initialProfileData?.phone || null, // Use .phone from User type
       bio: tempBio.trim() || null,
       onboardingComplete: true, 
     };
@@ -169,17 +198,18 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
       setBio(tempBio.trim() || '');
       setProfilePicPreview(finalPhotoURL); 
       setProfilePicFile(null); 
+      setOriginalPhotoURLForPotentialDeletion(finalPhotoURL); 
 
       setUserProfileLs(prev => {
-        if (!prev || prev.uid !== authUid) return prev; 
+        const baseProfile = (prev && prev.uid === authUid) ? prev : { uid: authUid, email: email };
         return {
-          ...prev,
-          displayName: tempName.trim(),
+          ...baseProfile,
+          name: tempName.trim(), // Update .name in LocalUserProfile
           username: tempUsername.trim(),
-          photoURL: finalPhotoURL,
+          avatarUrl: finalPhotoURL, // Update .avatarUrl in LocalUserProfile
           bio: tempBio.trim() || null,
           onboardingComplete: true,
-        };
+        } as LocalUserProfile;
       });
 
       setIsEditing(false);
@@ -199,7 +229,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
     setTempBio(bio);
     setTempProfilePicPreview(profilePicPreview); 
     setProfilePicFile(null); 
-    setOriginalPhotoURLForDeletion(profilePicPreview); 
+    setOriginalPhotoURLForPotentialDeletion(profilePicPreview); 
     setUsernameError('');
     setIsEditing(false);
   };
@@ -213,7 +243,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
         setTempProfilePicPreview(reader.result as string); 
       };
       reader.readAsDataURL(file);
-      toast({ title: "Profile picture selected", description: "Save to apply changes." });
+      toast({ title: "New picture selected", description: "Save to apply changes." });
     }
   };
 
@@ -225,7 +255,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
         <div className="relative">
           <Avatar className="w-[100px] h-[100px] border-2 border-border">
             {displayAvatarSrc ? (
-              <AvatarImage src={displayAvatarSrc} alt="Profile Picture" key={displayAvatarSrc + "-img"} data-ai-hint="person avatar"/>
+              <AvatarImage src={displayAvatarSrc} alt="Profile Picture" key={displayAvatarSrc + (isEditing ? '-edit' : '-view')} data-ai-hint="person avatar"/>
             ) : null}
             <AvatarFallback className="bg-muted">
               <UserCircle2 className="w-16 h-16 text-muted-foreground" />
@@ -238,6 +268,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
               className="absolute bottom-1 right-1 rounded-full w-8 h-8 bg-muted hover:bg-muted/80 border-background border-2"
               onClick={() => document.getElementById('profile-pic-upload-account')?.click()}
               aria-label="Change profile picture"
+              disabled={isLoading}
             >
               <Camera className="w-4 h-4" />
             </Button>

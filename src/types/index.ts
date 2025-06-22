@@ -1,55 +1,109 @@
+import type { ReactNode } from 'react';
+import React from 'react';
+
+// Using React.createElement to define an SVG component within a .ts file
+const SadAuraIcon = React.createElement('svg',
+    {
+        viewBox: "0 0 64 64",
+        fill: "none",
+        xmlns: "http://www.w3.org/2000/svg",
+        width: "1em",
+        height: "1em",
+    },
+    React.createElement('circle', { cx: "32", cy: "32", r: "28", stroke: "currentColor", strokeWidth: "3" }),
+    React.createElement('ellipse', { cx: "24", cy: "28", rx: "3", ry: "7", fill: "currentColor" }),
+    React.createElement('ellipse', { cx: "40", cy: "28", rx: "3", ry: "7", fill: "currentColor" }),
+    React.createElement('path', { d: "M20 46 C 26 38, 38 38, 44 46", stroke: "currentColor", strokeWidth: "3", strokeLinecap: "round" }),
+    React.createElement('path', { d: "M20 46 L 24 44", stroke: "currentColor", strokeWidth: "3", strokeLinecap: "round" }),
+    React.createElement('path', { d: "M44 46 L 40 44", stroke: "currentColor", strokeWidth: "3", strokeLinecap: "round" })
+);
+
 
 export type UserAura = {
-  id: string;
+  id: string; // e.g., 'happy', 'sad'
   name: string;
-  emoji: string;
-  gradient?: string; // For mood-specific gradient ring, e.g., 'bg-gradient-to-r from-yellow-400 to-red-500'
+  emoji: ReactNode;
+  gradient?: string; // Tailwind gradient class string
 };
 
-// This User type is primarily for client-side display and mock data.
-// The definitive Firestore structure is in profileService.ts's BharatConnectFirestoreUser
 export type User = {
-  id: string; // Firebase UID
-  name: string; // Display Name (can be original casing for display)
-  username?: string; // Unique username, stored lowercase
-  email?: string; // User's email (can be original casing for display, or lowercase if that's what's primarily stored/used)
-  phone?: string; // Optional phone number
-  avatarUrl?: string; // Placeholder or initials if not available
-  currentAuraId?: string | null;
-  status?: string; // e.g., "Online", "Last seen...", "Feeling Happy"
-  hasViewedStatus?: boolean; // Indicates if the current user has viewed this user's status
+  id: string;
+  name: string;
+  username?: string;
+  email?: string;
+  phone?: string;
+  avatarUrl?: string | null;
+  status?: string;
+  hasViewedStatus?: boolean;
+  onboardingComplete?: boolean;
+  bio?: string | null;
+  publicKey?: string; // For E2EE
 };
 
 export type Message = {
   id: string;
   chatId: string;
-  senderId: string; // 'currentUser' for outgoing, userId for incoming, 'system' for system messages
-  text: string;
-  timestamp: number; // Unix timestamp
-  status?: 'sent' | 'delivered' | 'read'; // For outgoing messages
-  type: 'text' | 'image' | 'system' | 'file'; // To support different message types
-  mediaUrl?: string; // URL for image/file
+  senderId: string;
+  text?: string; // Decrypted text, now optional
+  timestamp: number;
+  type: 'text' | 'image' | 'system' | 'file';
+  mediaUrl?: string;
+  readBy?: string[];
+  clientTempId?: string;
+  firestoreId?: string;
+  // E2EE fields
+  encryptedText?: string;
+  iv?: string;
+  encryptedKeys?: { [uid: string]: string };
+  error?: 'DECRYPTION_FAILED';
 };
 
 export type ChatRequestStatus = 'pending' | 'awaiting_action' | 'accepted' | 'rejected' | 'none';
 
+export type ParticipantInfo = {
+  name: string;
+  avatarUrl?: string | null;
+  currentAuraId?: string | null;
+  hasActiveUnviewedStatus?: boolean; // New: Indicates active, unviewed status by current user
+  hasActiveViewedStatus?: boolean;   // New: Indicates active, viewed status by current user
+};
+
+export type ChatSpecificPresence = {
+  state: 'online' | 'offline';
+  lastChanged: any; // Firestore Timestamp
+};
+
 export type Chat = {
   id: string;
   type: 'individual' | 'group';
-  name: string; // Contact name or group name
-  participants: User[]; // For group chats or to store contact info
-  lastMessage: Message | null;
+  name: string;
+  participants: string[];
+  participantInfo?: { [uid: string]: ParticipantInfo };
+  lastMessage: {
+    text?: string; // Decrypted text, optional
+    senderId: string;
+    timestamp: number;
+    type: 'text' | 'image' | 'system' | 'file';
+    readBy?: string[];
+    // E2EE fields
+    encryptedText?: string;
+    iv?: string;
+    encryptedKeys?: { [uid: string]: string };
+  } | null;
+  updatedAt: number;
   unreadCount: number;
-  avatarUrl?: string; // Contact avatar or group avatar
-  contactUserId?: string; // For individual chats, the ID of the other user
-  requestStatus?: ChatRequestStatus; // Status of the chat request
-  requesterId?: string | null; // UID of the user who initiated the request
-  firstMessageTextPreview?: string | null; // The first message sent as part of the request
+  contactUserId?: string;
+  requestStatus?: ChatRequestStatus;
+  requesterId?: string | null;
+  firstMessageTextPreview?: string | null;
+  acceptedTimestamp?: number;
+  typingStatus?: { [uid: string]: boolean };
+  chatSpecificPresence?: { [uid: string]: ChatSpecificPresence };
 };
 
 export const AURA_OPTIONS: UserAura[] = [
   { id: 'happy', name: 'Happy', emoji: '😄', gradient: 'bg-gradient-to-r from-yellow-300 via-orange-400 to-red-400' },
-  { id: 'sad', name: 'Sad', emoji: '😢', gradient: 'bg-gradient-to-r from-blue-400 to-indigo-500' },
+  { id: 'sad', name: 'Sad', emoji: SadAuraIcon, gradient: 'bg-gradient-to-r from-blue-400 to-indigo-500' },
   { id: 'angry', name: 'Angry', emoji: '😠', gradient: 'bg-gradient-to-r from-red-500 to-pink-600' },
   { id: 'calm', name: 'Calm', emoji: '😌', gradient: 'bg-gradient-to-r from-green-300 to-teal-400' },
   { id: 'focused', name: 'Focused', emoji: '🎯', gradient: 'bg-gradient-to-r from-blue-500 to-purple-600' },
@@ -59,23 +113,90 @@ export const AURA_OPTIONS: UserAura[] = [
   { id: 'energetic', name: 'Energetic', emoji: '⚡', gradient: 'bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-600' },
 ];
 
+// Existing StatusUpdate type - might be revised later when displaying individual status items
 export type StatusUpdate = {
   id: string;
   userId: string;
   timestamp: number;
-  imageUrl?: string; // For image statuses
-  text?: string; // For text statuses
-  viewedByCurrentUser: boolean; // Has the current logged-in user seen this status?
+  imageUrl?: string;
+  text?: string;
+  viewedByCurrentUser: boolean;
 };
 
-// This represents the structure in localStorage during onboarding and for general app use.
+// New types for the Firestore status feature
+export type StatusMediaType = 'image' | 'video' | 'text';
+
+export interface StatusMediaItem {
+  id: string; // Unique ID for this media item (can be generated on client or server)
+  url?: string; // For image/video from Firebase Storage
+  type: StatusMediaType;
+  createdAt: any; // Firestore Timestamp
+  textContent?: string; // For text statuses
+  duration?: number; // Optional: duration in seconds for video/image display
+}
+
+export interface UserStatusDoc {
+  // Document ID in 'status' collection will be the userId
+  userId: string;
+  createdAt: any; // Firestore Timestamp (when the first status in this batch was created)
+  expiresAt: any; // Firestore Timestamp (when this batch of statuses expires)
+  media: StatusMediaItem[]; // Array of individual status media items
+  viewers?: string[]; // Array of user IDs who viewed this status
+  isActive?: boolean; // Whether this status document is currently active (expiresAt > now)
+  auraColor?: string; // Optional: if status ring is linked to user's aura
+  lastMediaTimestamp?: any; // Firestore Timestamp of the latest media item in the 'media' array
+}
+
+
 export interface LocalUserProfile {
   uid: string;
-  email: string; // Original casing email
-  username?: string | null; // Unique username, stored lowercase
-  displayName?: string | null; // Original casing display name
+  email: string;
+  username?: string | null;
+  displayName?: string | null;
   photoURL?: string | null;
   phoneNumber?: string | null;
   bio?: string | null;
-  onboardingComplete: boolean; 
+  onboardingComplete: boolean;
+}
+
+export interface FirestoreAura {
+  userId: string;
+  auraOptionId: string;
+  createdAt: any; // Firestore Timestamp
+}
+
+export interface DisplayAura {
+  id: string;
+  userId: string;
+  auraOptionId: string;
+  createdAt: number;
+  userName: string;
+  userProfileAvatarUrl?: string | null;
+  auraStyle: UserAura | null;
+}
+
+// Types for WebRTC Calling
+export type CallStatus = 'ringing' | 'connected' | 'declined' | 'ended' | 'error' | 'missed';
+export type CallType = 'audio' | 'video';
+
+export interface CallDocument {
+  id: string;
+  callerId: string;
+  callerName: string;
+  callerAvatarUrl?: string | null;
+  calleeId: string;
+  calleeName: string;
+  calleeAvatarUrl?: string | null;
+  status: CallStatus;
+  callType: CallType;
+  offer?: {
+    sdp: string;
+    type: 'offer';
+  };
+  answer?: {
+    sdp: string;
+    type: 'answer';
+  };
+  createdAt: any; // Firestore Timestamp
+  endedAt?: any; // Firestore Timestamp
 }

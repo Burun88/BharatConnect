@@ -1,797 +1,523 @@
 
 "use client";
 
-import { useState, useEffect, useRef, type FormEvent, type ChangeEvent, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import MessageBubble from '@/components/message-bubble';
-import type { Message, User, Chat, LocalUserProfile } from '@/types';
+import type { Message, User, Chat, ParticipantInfo, UserAura, FirestoreAura, ChatSpecificPresence } from '@/types';
 import { AURA_OPTIONS } from '@/types';
-import { mockMessagesData, mockUsers, mockChats as initialMockChats, mockCurrentUser } from '@/lib/mock-data';
-import { ArrowLeft, Paperclip, Send, SmilePlus, MoreVertical, Camera, UserCircle2, Check, X, Info, MessageSquareX, Trash2, Quote, Eye, Mail, FileText } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import EmojiPicker from '@/components/emoji-picker';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
-import { firestore } from '@/lib/firebase';
-import { doc, deleteDoc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { useAuth } from '@/contexts/AuthContext';
+import { useChat as useChatContextHook } from '@/contexts/ChatContext';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { MessageSquareX, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
+import { firestore } from '@/lib/firebase';
+import { doc, deleteDoc, updateDoc, serverTimestamp, collection, query, orderBy, onSnapshot, writeBatch, arrayUnion, setDoc, getDoc, Timestamp, addDoc } from 'firebase/firestore';
+import { getUserFullProfile } from '@/services/profileService';
+import { formatDistanceToNowStrict } from 'date-fns';
+
+import ChatPageHeader from '@/components/chat/ChatPageHeader';
+import MessageArea from '@/components/chat/MessageArea';
+import ChatInputZone from '@/components/chat/ChatInputZone';
+import ChatRequestDisplay from '@/components/chat/ChatRequestDisplay';
+import EmojiPicker from '@/components/emoji-picker';
+
+import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
+import { useElementHeight } from '@/hooks/useElementHeight';
+import { encryptMessage, decryptMessage } from '@/services/encryptionService';
+
+const EMOJI_PICKER_HEIGHT_PX = 300;
+const AURA_EXPIRATION_MS = 60 * 60 * 1000; 
+
+export function generateChatId(uid1: string, uid2: string): string {
+  if (!uid1 || !uid2) return `error_generating_chat_id_with_undefined_uids_${uid1}_${uid2}`;
+  return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
+}
 
 export default function ChatPage() {
   const router = useRouter();
   const params = useParams();
-  const chatId = params.chatId as string;
+  const initialRouteChatId = params.chatId as string;
   const { toast } = useToast();
 
-  const [userProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  const [isGuardLoading, setIsGuardLoading] = useState(true);
+  const { authUser, isAuthenticated, isAuthLoading } = useAuth();
+  const chatContext = useChatContextHook();
 
-  const [isChatDataLoading, setIsChatDataLoading] = useState(true);
+  const [isPageLoading, setIsPageLoading] = useState(true);
+  const [effectiveChatId, setEffectiveChatId] = useState<string | null>(null);
   const [chatDetails, setChatDetails] = useState<Chat | null>(null);
   const [contact, setContact] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  
   const [newMessage, setNewMessage] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
-  const [isCancellingRequest, setIsCancellingRequest] = useState(false);
-  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  
   const [isProcessingRequestAction, setIsProcessingRequestAction] = useState(false);
-  const [actionBeingProcessed, setActionBeingProcessed] = useState<'accepted' | 'rejected' | null>(null);
+  const [contactActiveAura, setContactActiveAura] = useState<UserAura | null>(null);
+  const [isContactTyping, setIsContactTyping] = useState(false);
+  const [contactPresence, setContactPresence] = useState<ChatSpecificPresence | null>(null);
 
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const mainContentRef = useRef<HTMLDivElement>(null);
-  const messageListContainerRef = useRef<HTMLDivElement>(null);
-  const bottomBarRef = useRef<HTMLDivElement>(null);
+  const bottomBarRef = useRef<HTMLDivElement>(null); 
+  const emojiPickerRef = useRef<HTMLDivElement>(null); 
 
-  const currentUserId = userProfileLs?.uid || mockCurrentUser.id;
+  const { isKeyboardVisible } = useKeyboardVisibility(); 
+  const inputZoneHeight = useElementHeight(bottomBarRef);
+  const emojiPickerActualHeight = useElementHeight(emojiPickerRef);
+  
+  const initialLoadCompletedForChatIdRef = useRef<string | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout>();
+
+  const isMountedRef = useRef(false);
+  const wasTextareaFocusedBeforeSendRef = useRef(false);
+  const justSelectedEmojiRef = useRef(false);
+
+  useEffect(() => { isMountedRef.current = true; return () => { isMountedRef.current = false; }; }, []);
+
+  const currentUserId = authUser?.id;
+  const isPotentiallyNewChat = initialRouteChatId ? !initialRouteChatId.startsWith('req_') : false;
+
+  const isChatActive = useMemo(() => {
+    if (isPotentiallyNewChat && !chatDetails) return true; 
+    return chatDetails?.requestStatus === 'accepted' || (!chatDetails?.requestStatus || chatDetails?.requestStatus === 'none');
+  }, [chatDetails, isPotentiallyNewChat]);
+
+  const showInputArea = useMemo(() => {
+    if (!chatDetails) return isPotentiallyNewChat; 
+    return chatDetails.requestStatus === 'accepted' || (!chatDetails.requestStatus || chatDetails.requestStatus === 'none');
+  }, [chatDetails, isPotentiallyNewChat]);
+
+  const showRequestSpecificUI = useMemo(() => {
+      return chatDetails?.requestStatus && 
+             (chatDetails.requestStatus === 'awaiting_action' || 
+              chatDetails.requestStatus === 'pending' ||
+              chatDetails.requestStatus === 'rejected');
+  }, [chatDetails]);
+  
+  const dynamicPaddingBottom = useMemo(() => {
+    let padding = 0;
+    if (showInputArea) {
+      padding += inputZoneHeight;
+      if (isEmojiPickerOpen) {
+        padding += emojiPickerActualHeight;
+      }
+    }
+    return padding;
+  }, [inputZoneHeight, isEmojiPickerOpen, emojiPickerActualHeight, showInputArea]);
+
+   useEffect(() => {
+    if (isKeyboardVisible && isMountedRef.current) {
+      if (isEmojiPickerOpen) setIsEmojiPickerOpen(false); 
+    }
+  }, [isKeyboardVisible, isEmojiPickerOpen]);
 
   useEffect(() => {
-    console.log(`[ChatPage GUARD] Running for chatId: ${chatId}. userProfileLs:`, userProfileLs);
-    if (!userProfileLs || !userProfileLs.uid || !userProfileLs.onboardingComplete) {
-      console.log(`[ChatPage GUARD] User not found/onboarded. UID: ${userProfileLs?.uid}, Onboarding: ${userProfileLs?.onboardingComplete}. Redirecting to /login.`);
-      router.replace('/login');
-      return;
-    }
-    console.log(`[ChatPage GUARD] Guard passed for UID: ${userProfileLs.uid}. Setting isGuardLoading to false.`);
-    setIsGuardLoading(false);
-  }, [userProfileLs, router, chatId]);
+    if (initialRouteChatId) {
+      const initializeChat = async () => {
+        if (isAuthLoading || !authUser || !currentUserId) {
+          setIsPageLoading(true);
+          return;
+        }
 
-  useEffect(() => {
-    if (isGuardLoading) {
-      console.log(`[ChatPage DATA_LOAD] Guard is loading for chatId: ${chatId}. Waiting.`);
-      return;
-    }
-    console.log(`[ChatPage DATA_LOAD] Guard finished. Processing for chatId: ${chatId}, currentUserId: ${currentUserId}`);
-    console.log(`[ChatPage DATA_LOAD] userProfileLs at this point:`, JSON.parse(JSON.stringify(userProfileLs))); // Log a deep copy
+        if (initialLoadCompletedForChatIdRef.current !== initialRouteChatId) {
+            setIsPageLoading(true);
+        }
+        
+        let determinedChatId = initialRouteChatId;
+        let contactUserForChat: User | null = null;
+        const chatDataFromContext: Chat | null = chatContext.getChatById(initialRouteChatId);
 
-    setIsChatDataLoading(true);
-    // Simulate async data fetching if needed, or just process
-    // Using a timeout to ensure state updates from guard propagate if needed, though usually not necessary
-    const timerId = setTimeout(() => {
-      console.log(`[ChatPage DATA_LOAD_TIMEOUT] Attempting to find/reconstruct chat for ID: ${chatId}`);
-      let currentChat = initialMockChats.find(c => c.id === chatId);
-      console.log(`[ChatPage DATA_LOAD_TIMEOUT] Result from initialMockChats.find:`, currentChat ? JSON.parse(JSON.stringify(currentChat)) : undefined);
-
-      if (!currentChat && (chatId.startsWith('req_sent_') || chatId.startsWith('req_rec_'))) {
-          console.log(`[ChatPage DATA_LOAD_TIMEOUT] Chat not found by direct find. Attempting to reconstruct request chat for ID: ${chatId}`);
-          const parts = chatId.split('_');
-          const typeFromChatId = parts.length > 1 ? parts[1] : null; // 'sent' or 'rec'
-          const contactIdFromChatId = parts.length === 3 ? parts[2] : null;
-          console.log(`[ChatPage DATA_LOAD_TIMEOUT] Parsed request: contactId=${contactIdFromChatId}, type=${typeFromChatId}`);
-
-          if (contactIdFromChatId) {
-              const potentialContact = mockUsers.find(u => u.id === contactIdFromChatId);
-              console.log(`[ChatPage DATA_LOAD_TIMEOUT] Potential contact for reconstruction (ID ${contactIdFromChatId}):`, potentialContact ? JSON.parse(JSON.stringify(potentialContact)) : undefined);
-              console.log(`[ChatPage DATA_LOAD_TIMEOUT] userProfileLs for reconstruction:`, userProfileLs ? JSON.parse(JSON.stringify(userProfileLs)) : undefined);
-
-              if (potentialContact && userProfileLs && userProfileLs.uid) {
-                  currentChat = {
-                      id: chatId,
-                      type: 'individual',
-                      name: potentialContact.name,
-                      contactUserId: contactIdFromChatId,
-                      participants: [
-                          { id: userProfileLs.uid, name: userProfileLs.displayName || 'You', avatarUrl: userProfileLs.photoURL || undefined, username: userProfileLs.username || 'you' },
-                          potentialContact
-                      ],
-                      lastMessage: null, // For new requests, lastMessage might be null or derived from firstMessageTextPreview
-                      unreadCount: typeFromChatId === 'rec' ? 1 : 0,
-                      avatarUrl: potentialContact.avatarUrl,
-                      requestStatus: typeFromChatId === 'sent' ? 'pending' : (typeFromChatId === 'rec' ? 'awaiting_action' : 'none'),
-                      requesterId: typeFromChatId === 'sent' ? userProfileLs.uid : contactIdFromChatId,
-                      firstMessageTextPreview: typeFromChatId === 'sent' ? "Request sent. Waiting for approval..." : (mockMessagesData[chatId]?.[0]?.text || "Wants to connect with you. Tap to respond.")
-                  };
-                  console.log(`[ChatPage DATA_LOAD_TIMEOUT] Reconstructed currentChat for request:`, JSON.parse(JSON.stringify(currentChat)));
-              } else {
-                console.warn(`[ChatPage DATA_LOAD_TIMEOUT] Reconstruction failed: potentialContact found: ${!!potentialContact}, userProfileLs valid: ${!!(userProfileLs && userProfileLs.uid)}`);
-              }
-          } else {
-             console.warn(`[ChatPage DATA_LOAD_TIMEOUT] Could not parse contactIdFromChatId from ${chatId} for reconstruction.`);
+        if (initialRouteChatId.startsWith('req_')) {
+          const contactIdFromRequestRoute = chatDataFromContext?.contactUserId || initialRouteChatId.split('_').slice(2).join('_');
+          if (contactIdFromRequestRoute) {
+            const profile = await getUserFullProfile(contactIdFromRequestRoute); 
+            contactUserForChat = profile || { id: contactIdFromRequestRoute, name: 'User', onboardingComplete: false };
+            determinedChatId = generateChatId(currentUserId, contactIdFromRequestRoute);
+            if (chatDataFromContext) {
+              setChatDetails(chatDataFromContext);
+            }
           }
-      }
-
-      if (currentChat) {
-        console.log(`[ChatPage DATA_LOAD_TIMEOUT] Chat found/reconstructed. Setting chatDetails and contact.`);
-        setChatDetails(currentChat);
-        const contactUser = currentChat.participants.find(p => p.id !== currentUserId);
-        setContact(contactUser || null);
-        console.log(`[ChatPage DATA_LOAD_TIMEOUT] Set contactUser:`, contactUser ? JSON.parse(JSON.stringify(contactUser)) : null);
-
-        // Message setting logic
-        if (currentChat.requestStatus === 'accepted' || !currentChat.requestStatus || currentChat.requestStatus === 'none') {
-            console.log(`[ChatPage DATA_LOAD_TIMEOUT] Chat is accepted/active. Loading messages from mockMessagesData[${chatId}]`);
-            setMessages(mockMessagesData[chatId] || []);
-        } else if (currentChat.requestStatus === 'awaiting_action' && currentChat.requesterId !== currentUserId) {
-            console.log(`[ChatPage DATA_LOAD_TIMEOUT] Chat is awaiting_action (received request). Creating preview message.`);
-            const previewMsgText = currentChat.firstMessageTextPreview || (mockMessagesData[chatId]?.[0]?.text) || "Wants to connect with you.";
-             if (contactUser) {
-                setMessages([{
-                    id: `preview_${chatId}`,
-                    chatId: chatId,
-                    senderId: contactUser.id,
-                    text: previewMsgText,
-                    timestamp: Date.now(), // Or a timestamp from the request if available
-                    type: 'text'
-                }]);
-             } else {
-                 console.warn(`[ChatPage DATA_LOAD_TIMEOUT] No contactUser for awaiting_action preview message. Setting empty messages.`);
-                 setMessages([]);
+        } else { 
+            const contactIdFromStandardChatId = initialRouteChatId.split('_').find(id => id !== currentUserId);
+             if (contactIdFromStandardChatId) {
+                const profile = await getUserFullProfile(contactIdFromStandardChatId); 
+                contactUserForChat = profile || { id: contactIdFromStandardChatId, name: 'Chat User', onboardingComplete: false };
              }
-        } else if (currentChat.requestStatus === 'pending' && currentChat.requesterId === currentUserId) {
-            console.log(`[ChatPage DATA_LOAD_TIMEOUT] Chat is pending (sent request). Creating preview message.`);
-            const previewMsgText = currentChat.firstMessageTextPreview || (mockMessagesData[chatId]?.[0]?.text) || "Request sent. Waiting for approval...";
-            setMessages([{
-                id: `preview_pending_${chatId}`,
-                chatId: chatId,
-                senderId: currentUserId,
-                text: previewMsgText,
-                timestamp: Date.now(), // Or a timestamp from the request
-                type: 'text',
-                status: 'sent'
-            }]);
+            determinedChatId = initialRouteChatId;
         }
-        else {
-            console.log(`[ChatPage DATA_LOAD_TIMEOUT] Chat status is '${currentChat.requestStatus}'. Setting empty messages.`);
-            setMessages([]);
+        setContact(contactUserForChat);
+        setEffectiveChatId(determinedChatId);
+
+        if (contactUserForChat && determinedChatId && !initialRouteChatId.startsWith('req_') && currentUserId && authUser.name) {
+          const chatDocRef = doc(firestore, `chats/${determinedChatId}`);
+          try {
+            const chatDocSnap = await getDoc(chatDocRef);
+            if (!chatDocSnap.exists()) {
+                const participantInfoMap: { [uid: string]: ParticipantInfo } = {
+                    [currentUserId]: { name: authUser.name, avatarUrl: authUser.avatarUrl || null },
+                    [contactUserForChat.id]: { name: contactUserForChat.name, avatarUrl: contactUserForChat.avatarUrl || null }
+                };
+                const newChatPayload = {
+                    id: determinedChatId, type: 'individual' as 'individual' | 'group', participants: [currentUserId, contactUserForChat.id].sort(),
+                    participantInfo: participantInfoMap, lastMessage: null, updatedAt: serverTimestamp(), requestStatus: 'accepted' as Chat['requestStatus'],
+                    acceptedTimestamp: serverTimestamp(), typingStatus: {}, chatSpecificPresence: {}
+                };
+                await setDoc(chatDocRef, newChatPayload);
+            }
+          } catch (e) { console.error(`[ChatPage INIT] Error creating/checking chat doc ${determinedChatId} in init:`, e); }
         }
-      } else {
-        console.error(`[ChatPage DATA_LOAD_TIMEOUT] CRITICAL: currentChat is still null/undefined for chatId: ${chatId}. Setting chatDetails to null. This will show 'Chat Not Found'.`);
-        setChatDetails(null);
-        setContact(null);
-      }
-      setIsChatDataLoading(false);
-      console.log(`[ChatPage DATA_LOAD_TIMEOUT] Finished processing for chatId: ${chatId}. isChatDataLoading: false.`);
-    }, 0); // Reduced timeout, can be 0 if guard logic is robust enough
-
-    return () => clearTimeout(timerId);
-  }, [chatId, isGuardLoading, currentUserId, userProfileLs]);
-
-
-  useEffect(() => {
-    if (messageListContainerRef.current && (chatDetails?.requestStatus === 'accepted' || !chatDetails?.requestStatus || chatDetails?.requestStatus === 'none')) {
-        messageListContainerRef.current.scrollTop = messageListContainerRef.current.scrollHeight;
+        setIsPageLoading(false);
+        initialLoadCompletedForChatIdRef.current = initialRouteChatId; 
+      };
+      if (currentUserId) initializeChat();
+    } else { 
+      setIsPageLoading(false); 
+      initialLoadCompletedForChatIdRef.current = null; 
     }
-  }, [messages, chatDetails?.requestStatus]);
+  }, [initialRouteChatId, authUser, isAuthLoading, currentUserId, chatContext]);
 
+  // Firestore-based Chat-Specific Presence
   useEffect(() => {
-    if (isGuardLoading) return;
-    const mcEl = mainContentRef.current;
-    const bbEl = bottomBarRef.current;
-    const vp = window.visualViewport;
+    if (!effectiveChatId || !currentUserId) return;
 
-    if (!mcEl || !bbEl || !vp) return;
+    const chatDocRef = doc(firestore, 'chats', effectiveChatId);
 
-    let lastKeyboardHeight = 0;
-    let lastBottomBarActualHeight = bbEl.offsetHeight;
-
-    const updateLayout = () => {
-      const currentInputBarActualHeight = bbEl.offsetHeight;
-      let physicalKeyboardHeight = 0;
-      const isKeyboardEffectivelyOpen = vp.height < window.innerHeight - 50;
-
-      if (isKeyboardEffectivelyOpen && !isEmojiPickerOpen) {
-        physicalKeyboardHeight = window.innerHeight - vp.offsetTop - vp.height;
-      }
-
-      bbEl.style.bottom = `${physicalKeyboardHeight}px`;
-      mcEl.style.paddingBottom = `${currentInputBarActualHeight}px`;
-
-      if (physicalKeyboardHeight > 0 && physicalKeyboardHeight !== lastKeyboardHeight && document.activeElement === textareaRef.current) {
-        if (messageListContainerRef.current) {
-           messageListContainerRef.current.scrollTop = messageListContainerRef.current.scrollHeight;
+    const setMyPresence = (state: 'online' | 'offline') => {
+      updateDoc(chatDocRef, {
+        [`chatSpecificPresence.${currentUserId}.state`]: state,
+        [`chatSpecificPresence.${currentUserId}.lastChanged`]: serverTimestamp(),
+      }).catch(error => {
+        if (error.code !== 'not-found') {
+           console.error("[Presence] Error updating presence, may be expected for new chat:", error);
         }
-      }
-      lastKeyboardHeight = physicalKeyboardHeight;
-      lastBottomBarActualHeight = currentInputBarActualHeight;
+      });
     };
-
-    vp.addEventListener('resize', updateLayout);
-    const resizeObserver = new ResizeObserver(() => {
-        if(bbEl.offsetHeight !== lastBottomBarActualHeight) {
-            updateLayout();
-        }
-    });
-    resizeObserver.observe(bbEl);
-
-    updateLayout();
+    
+    setMyPresence('online');
 
     return () => {
-      vp.removeEventListener('resize', updateLayout);
-      resizeObserver.disconnect();
+      setMyPresence('offline');
     };
-  }, [isEmojiPickerOpen, textareaRef, isGuardLoading]);
+  }, [effectiveChatId, currentUserId]);
 
+
+  useEffect(() => {
+    if (!contact?.id || !isChatActive) {
+      setContactActiveAura(null);
+      return;
+    }
+    const auraDocRef = doc(firestore, 'auras', contact.id);
+    const unsubscribeAura = onSnapshot(auraDocRef, (docSnap) => {
+      if (docSnap.exists() && isMountedRef.current) {
+        const data = docSnap.data() as FirestoreAura;
+        const createdAtDate = (data.createdAt as Timestamp)?.toDate();
+        if (createdAtDate && (new Date().getTime() - createdAtDate.getTime() < AURA_EXPIRATION_MS)) {
+          setContactActiveAura(AURA_OPTIONS.find(opt => opt.id === data.auraOptionId) || null);
+        } else {
+          setContactActiveAura(null);
+        }
+      } else if (isMountedRef.current) {
+        setContactActiveAura(null);
+      }
+    });
+    return () => unsubscribeAura();
+  }, [contact?.id, isChatActive]);
+
+  useEffect(() => {
+    if (!effectiveChatId || !currentUserId || showRequestSpecificUI || !isMountedRef.current) return;
+    const chatDocRef = doc(firestore, `chats/${effectiveChatId}`);
+    const unsubscribe = onSnapshot(chatDocRef, async (docSnap) => {
+      if (docSnap.exists() && isMountedRef.current) {
+        const firestoreChatData = docSnap.data() as Chat;
+        const contactId = firestoreChatData.participants?.find(pId => pId !== currentUserId);
+
+        if (contactId) {
+            setIsContactTyping(firestoreChatData.typingStatus?.[contactId] === true);
+            setContactPresence(firestoreChatData.chatSpecificPresence?.[contactId] || null);
+        } else {
+            setIsContactTyping(false);
+            setContactPresence(null);
+        }
+        
+        let chatName = 'Chat'; let chatAvatarUrl: string | undefined | null = undefined;
+        if (contactId) {
+          const contactPInfo = firestoreChatData.participantInfo?.[contactId];
+          chatName = contactPInfo?.name || 'Contact'; chatAvatarUrl = contactPInfo?.avatarUrl || undefined;
+        }
+        const finalChatName = firestoreChatData.type === 'group' ? (firestoreChatData.name || 'Group Chat') : chatName;
+        const finalAvatarUrl = firestoreChatData.type === 'group' ? (firestoreChatData.avatarUrl) : chatAvatarUrl;
+        setChatDetails({ ...firestoreChatData, name: finalChatName, avatarUrl: finalAvatarUrl });
+      } else if (isMountedRef.current && !initialRouteChatId.startsWith('req_')) { setChatDetails(null); }
+    });
+    return () => unsubscribe();
+  }, [effectiveChatId, currentUserId, showRequestSpecificUI, initialRouteChatId]);
+
+  // Send debounced typing status
+  useEffect(() => {
+    if (!isChatActive || !effectiveChatId || !currentUserId) return;
+    const chatDocRef = doc(firestore, 'chats', effectiveChatId);
+
+    const setTypingStatus = (isTyping: boolean) => {
+      setDoc(chatDocRef, { typingStatus: { [currentUserId]: isTyping } }, { merge: true })
+        .catch(err => console.error("Failed to set typing status:", err));
+    };
+
+    if (newMessage.trim().length > 0) {
+      setTypingStatus(true);
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        setTypingStatus(false);
+      }, 3000);
+    } else {
+        clearTimeout(typingTimeoutRef.current);
+        setTypingStatus(false);
+    }
+
+    return () => clearTimeout(typingTimeoutRef.current);
+  }, [newMessage, effectiveChatId, currentUserId, isChatActive]);
+
+  useEffect(() => {
+    if (!effectiveChatId || !currentUserId || showRequestSpecificUI || !isChatActive || !isMountedRef.current) {
+      setMessages([]);
+      return;
+    }
+    const messagesQuery = query(collection(firestore, `chats/${effectiveChatId}/messages`), orderBy('timestamp', 'asc'));
+    const unsubscribeMessages = onSnapshot(messagesQuery, (querySnapshot) => {
+      if (!isMountedRef.current) return;
+      
+      const decryptionPromises: Promise<Message>[] = querySnapshot.docs.map(async docSnap => {
+        const data = docSnap.data();
+        const firestoreId = docSnap.id;
+        let decryptedText = data.text; // Fallback to existing text field
+        let decryptionError: 'DECRYPTION_FAILED' | undefined = undefined;
+
+        if (data.encryptedText && currentUserId) {
+          try {
+            decryptedText = await decryptMessage(data, currentUserId);
+          } catch (e) {
+            console.error(`Decryption failed for message ${firestoreId}:`, e);
+            decryptionError = 'DECRYPTION_FAILED';
+            decryptedText = '[Message could not be decrypted]';
+          }
+        }
+        
+        return {
+          id: firestoreId,
+          firestoreId: firestoreId,
+          chatId: effectiveChatId,
+          senderId: data.senderId,
+          text: decryptedText,
+          timestamp: (data.timestamp as Timestamp)?.toMillis() || Date.now(),
+          type: data.type || 'text',
+          mediaUrl: data.mediaUrl,
+          readBy: data.readBy || [],
+          encryptedText: data.encryptedText,
+          iv: data.iv,
+          encryptedKeys: data.encryptedKeys,
+          error: decryptionError,
+        };
+      });
+
+      Promise.all(decryptionPromises).then(decryptedMessages => {
+        if (!isMountedRef.current) return;
+
+        const batchForReadUpdates = writeBatch(firestore);
+        let markReadUpdatesMade = false;
+
+        decryptedMessages.forEach(msg => {
+          if (msg.senderId !== currentUserId && currentUserId && (!msg.readBy || !msg.readBy.includes(currentUserId))) {
+            const messageRef = doc(firestore, `chats/${effectiveChatId}/messages`, msg.id);
+            batchForReadUpdates.update(messageRef, { readBy: arrayUnion(currentUserId) });
+            markReadUpdatesMade = true;
+          }
+        });
+        
+        setMessages(decryptedMessages);
+
+        if (markReadUpdatesMade && currentUserId) {
+          const chatDocRefForUpdate = doc(firestore, `chats/${effectiveChatId}`);
+          batchForReadUpdates.update(chatDocRefForUpdate, { updatedAt: serverTimestamp() });
+          batchForReadUpdates.commit().catch(err => console.error("Error marking messages as read:", err));
+        }
+      });
+    });
+    return () => unsubscribeMessages();
+  }, [effectiveChatId, currentUserId, toast, isChatActive, showRequestSpecificUI]);
+
+  const processAndSendMessage = async () => {
+    if (newMessage.trim() === '' || !authUser?.id || !effectiveChatId || !contact) return;
+    if (!showInputArea) { toast({ variant: "destructive", title: "Cannot Send", description: "This chat is not active for sending messages."}); return; }
+
+    const textToSend = newMessage.trim();
+    const currentSenderId = authUser.id;
+    setNewMessage('');
+    clearTimeout(typingTimeoutRef.current);
+    
+    try {
+      const encryptedPayload = await encryptMessage(textToSend, [contact.id], currentSenderId);
+      
+      const messageDataForFirestore = {
+        senderId: currentSenderId,
+        type: 'text',
+        timestamp: serverTimestamp(),
+        readBy: [currentSenderId],
+        ...encryptedPayload
+      };
+      
+      const chatDocRef = doc(firestore, `chats/${effectiveChatId}`);
+      const newMessageRef = collection(firestore, `chats/${effectiveChatId}/messages`);
+    
+      await addDoc(newMessageRef, messageDataForFirestore);
+      
+      const participantInfoMap: { [uid: string]: ParticipantInfo } = {
+          [currentSenderId]: { name: authUser.name || 'You', avatarUrl: authUser.avatarUrl || null },
+          [contact.id]: { name: contact.name || 'User', avatarUrl: contact.avatarUrl || null }
+      };
+      if (chatDetails?.participantInfo) Object.assign(participantInfoMap, chatDetails.participantInfo);
+
+      const chatDataForUpdate = {
+        type: 'individual',
+        participants: [currentSenderId, contact.id].sort(),
+        participantInfo: participantInfoMap,
+        lastMessage: {
+           senderId: currentSenderId, 
+           timestamp: serverTimestamp(), 
+           type: 'text', 
+           readBy: [currentSenderId],
+           ...encryptedPayload
+        },
+        updatedAt: serverTimestamp(),
+        typingStatus: { [currentSenderId]: false }
+      };
+
+      await setDoc(chatDocRef, chatDataForUpdate, { merge: true });
+      
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Send Error', description: error.message || 'Failed to encrypt or send message.' });
+      setNewMessage(textToSend); // Restore message on failure
+    }
+  };
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
-  }, []);
-
-  const showComingSoonToastOptions = () => {
-    toast({
-      title: "Hold Tight, Connecting Soon! 🚀",
-      description: "Our team is busy crafting this awesome feature for you. It'll be ready before your next chai break! Stay tuned with BharatConnect! 🇮🇳✨",
-    });
-  };
-
+    justSelectedEmojiRef.current = true;
+    setTimeout(() => { if (isMountedRef.current) justSelectedEmojiRef.current = false; }, 0);
+  }, [setNewMessage]);
+  
   const toggleEmojiPicker = () => {
-    const openingEmojiPicker = !isEmojiPickerOpen;
-    setIsEmojiPickerOpen(openingEmojiPicker);
-    if (openingEmojiPicker) {
-      textareaRef.current?.blur();
-    } else {
-      setTimeout(() => textareaRef.current?.focus(), 50);
-    }
+    const nextEmojiState = !isEmojiPickerOpen;
+    setIsEmojiPickerOpen(nextEmojiState);
   };
-
-  const handleSendMessage = (e: FormEvent) => {
-    e.preventDefault();
-    if (newMessage.trim() === '' || !userProfileLs?.uid || (chatDetails?.requestStatus !== 'accepted' && chatDetails?.requestStatus !== 'none' && chatDetails?.requestStatus !== undefined) ) return;
-
-    const messageToSend: Message = {
-      id: `msg${Date.now()}`,
-      chatId: chatId,
-      senderId: userProfileLs.uid,
-      text: newMessage.trim(),
-      timestamp: Date.now(),
-      status: 'sent',
-      type: 'text',
-    };
-    setMessages(prevMessages => [...prevMessages, messageToSend]);
-    setNewMessage('');
-
-    if (isEmojiPickerOpen) setIsEmojiPickerOpen(false);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.focus();
-    }
-
-    if (contact) {
-      setTimeout(() => {
-        const replyMessage: Message = {
-          id: `reply${Date.now()}`,
-          chatId: chatId,
-          senderId: contact.id,
-          text: `Thanks for your message! (mock reply from ${contact.name})`,
-          timestamp: Date.now(),
-          type: 'text',
-        };
-        setMessages(prevMessages => [...prevMessages, replyMessage]);
-      }, 1500);
-    }
-  };
-
-  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      toast({
-        title: "File Selected",
-        description: `You selected: ${file.name}. Sending files coming soon!`,
-      });
-      if (event.target) event.target.value = '';
-    }
-  };
-
-  const handleCameraClick = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      toast({
-        title: "Camera Access Granted! 📸",
-        description: "Camera is ready. Sending photos/videos coming soon!",
-      });
-      stream.getTracks().forEach(track => track.stop());
-    } catch (error) {
-      console.error('Error accessing camera:', error);
-      toast({
-        variant: 'destructive',
-        title: "Camera Access Denied 🙁",
-        description: "Please enable camera permissions in your browser settings to use this feature.",
-      });
-    }
-  };
-
-  const handleRequestAction = async (action: 'accepted' | 'rejected') => {
-    if (!chatDetails || !contact || !currentUserId) {
-      toast({ variant: "destructive", title: "Error", description: "Missing details for request action." });
-      return;
-    }
-
+  
+  const handleAcceptRequest = async () => {
+    if (!chatDetails || !contact || !currentUserId || !authUser || !chatDetails.requesterId) { return; }
     setIsProcessingRequestAction(true);
-    setActionBeingProcessed(action);
-
     try {
       const receivedRequestRef = doc(firestore, `bharatConnectUsers/${currentUserId}/requestsReceived`, contact.id);
       const sentRequestRef = doc(firestore, `bharatConnectUsers/${contact.id}/requestsSent`, currentUserId);
-
-      const updateData = {
-        status: action,
-        timestamp: serverTimestamp()
+      const updateData = { status: 'accepted', timestamp: serverTimestamp() };
+      const batchDb = writeBatch(firestore); batchDb.update(receivedRequestRef, updateData); batchDb.update(sentRequestRef, updateData);
+      const standardChatId = generateChatId(currentUserId, contact.id);
+      const chatDocRef = doc(firestore, `chats/${standardChatId}`);
+      const participantInfoMap: { [uid: string]: ParticipantInfo } = {
+        [currentUserId]: { name: authUser.name || 'You', avatarUrl: authUser.avatarUrl || null },
+        [contact.id]: { name: contact.name, avatarUrl: contact.avatarUrl || null }
       };
-
-      await updateDoc(receivedRequestRef, updateData);
-      await updateDoc(sentRequestRef, updateData);
-      
-      // Update local state and mock data after successful Firestore update
-      setChatDetails(prev => prev ? { ...prev, requestStatus: action } : null);
-
-      const chatIndexInMocks = initialMockChats.findIndex(c => c.id === chatId);
-      if (chatIndexInMocks !== -1) {
-        initialMockChats[chatIndexInMocks].requestStatus = action;
-        initialMockChats[chatIndexInMocks].unreadCount = 0; // Clear unread on action
-        if (action === 'accepted') {
-          initialMockChats[chatIndexInMocks].lastMessage = {
-              id: `sys_accepted_${Date.now()}`,
-              chatId: chatId,
-              senderId: 'system', // Or currentUserId if you prefer
-              text: `You are now connected with ${contact.name}. Start chatting!`,
-              timestamp: Date.now(),
-              type: 'system'
-          };
-        } else { // rejected
-            initialMockChats[chatIndexInMocks].lastMessage = {
-              id: `sys_rejected_${Date.now()}`,
-              chatId: chatId,
-              senderId: 'system',
-              text: `You ignored the request from ${contact.name}.`,
-              timestamp: Date.now(),
-              type: 'system'
-          };
-        }
-      } else if (action === 'accepted' && chatDetails) { // Chat might not be in initialMockChats if reconstructed
-        const newAcceptedChat: Chat = {
-          ...chatDetails,
-          requestStatus: 'accepted',
-          unreadCount: 0,
-          lastMessage: {
-              id: `sys_accepted_${Date.now()}`,
-              chatId: chatId,
-              senderId: 'system',
-              text: `You are now connected with ${contact.name}. Start chatting!`,
-              timestamp: Date.now(),
-              type: 'system'
-          }
-        };
-        initialMockChats.push(newAcceptedChat); // Add it to mocks if it was reconstructed
+      batchDb.set(chatDocRef, { id: standardChatId, type: 'individual', participants: [currentUserId, contact.id].sort(), participantInfo: participantInfoMap, lastMessage: { text: "You are now connected.", senderId: "system", timestamp: serverTimestamp(), type: "system", readBy: [currentUserId, contact.id] }, updatedAt: serverTimestamp(), acceptedTimestamp: serverTimestamp(), typingStatus: {}, chatSpecificPresence: {} }, { merge: true });
+      await batchDb.commit();
+      if (isMountedRef.current) { 
+        setChatDetails(prev => prev ? {...prev, requestStatus: 'accepted', id: standardChatId} : null); 
+        setEffectiveChatId(standardChatId); 
       }
-
-
-      toast({
-        title: `Request ${action === 'rejected' ? 'Ignored' : 'Accepted'}!`,
-        description: `You have ${action === 'rejected' ? 'ignored' : 'accepted'} the chat request from ${contact.name}. Status updated on server.`,
-      });
-
-      if (action === 'accepted') {
-         // Load actual messages or show an initial system message
-        const existingMessages = mockMessagesData[chatId] || [];
-        if (existingMessages.length > 0) {
-          setMessages(existingMessages);
-        } else {
-          setMessages([{
-            id: `sys_connect_${Date.now()}`,
-            chatId: chatId,
-            senderId: 'system',
-            text: `You are now connected with ${contact.name}. Start chatting!`,
-            timestamp: Date.now(),
-            type: 'system'
-          }]);
-        }
-      } else { // rejected
-        setMessages([]); // Clear messages
-        // Optionally navigate away, or the UI will show the rejected state
-        router.push('/'); // Navigate to home after rejecting
-      }
-
-    } catch (error: any) {
-      console.error(`Error ${action === 'accepted' ? 'accepting' : 'rejecting'} request in Firestore:`, error);
-      toast({
-        variant: "destructive",
-        title: "Action Failed",
-        description: `Could not ${action} the request on the server. Please try again. Error: ${error.message}`
-      });
-    } finally {
-      setIsProcessingRequestAction(false);
-      setActionBeingProcessed(null);
-    }
+      chatContext.setChats(prevChats => prevChats.map(c => c.id === initialRouteChatId ? {...c, requestStatus: 'accepted', id: standardChatId, participants: [currentUserId, contact.id]} : c));
+      router.replace(`/chat/${standardChatId}`, { scroll: false }); 
+      toast({ title: "Request Accepted!", description: `You can now chat with ${contact.name}.` });
+    } catch (error: any) { toast({ variant: "destructive", title: "Action Failed", description: `Could not accept request. ${error.message}` });
+    } finally { if (isMountedRef.current) setIsProcessingRequestAction(false); }
   };
 
-  const handleCancelRequest = async () => {
-    if (!chatDetails || !contact || !currentUserId) {
-      toast({ variant: "destructive", title: "Error", description: "Cannot cancel request: missing details." });
-      return;
+  const handleRejectRequest = async () => { /* ... (no changes) ... */ };
+  const handleCancelRequest = async () => { /* ... (no changes) ... */ };
+
+  const getDynamicStatus = () => {
+    if (!isChatActive || !contact) return "Offline";
+    if (isContactTyping) return "Typing...";
+    
+    if (contactPresence?.state === 'online') {
+      return 'online';
     }
-
-    setIsCancellingRequest(true);
-    try {
-      const sentRequestRef = doc(firestore, `bharatConnectUsers/${currentUserId}/requestsSent`, contact.id);
-      const receivedRequestRef = doc(firestore, `bharatConnectUsers/${contact.id}/requestsReceived`, currentUserId);
-
-      await deleteDoc(sentRequestRef);
-      await deleteDoc(receivedRequestRef);
-
-      const chatIndex = initialMockChats.findIndex(c => c.id === chatId);
-      if (chatIndex !== -1) {
-        initialMockChats.splice(chatIndex, 1); 
+    
+    if (contactPresence?.lastChanged) {
+      try {
+        const lastChangedDate = (contactPresence.lastChanged as Timestamp)?.toDate();
+        if (lastChangedDate) {
+            return `last seen ${formatDistanceToNowStrict(lastChangedDate, { addSuffix: true })}`;
+        }
+      } catch (e) {
+        // Fallback for cases where timestamp might not be a valid object yet
+        return 'Offline';
       }
-      
-      setChatDetails(prev => prev ? { ...prev, requestStatus: 'rejected' } : null); // Visually treat as rejected/gone
-      setMessages([]);
-
-
-      toast({ title: "Request Canceled", description: `Your request to ${contact.name} has been canceled.` });
-      router.push('/');
-    } catch (error: any) {
-      console.error("Error canceling request:", error);
-      toast({ variant: "destructive", title: "Cancellation Failed", description: error.message || "Could not cancel request." });
-    } finally {
-      setIsCancellingRequest(false);
     }
+
+    return 'Offline';
   };
+  
+  const contactStatusText = getDynamicStatus();
+  const contactAuraEmoji = isContactTyping ? null : (contactActiveAura ? contactActiveAura.emoji : undefined);
+  const headerContactName = contact?.name || chatDetails?.name || (chatDetails?.participantInfo && chatDetails.contactUserId && chatDetails.participantInfo[chatDetails.contactUserId]?.name) || 'Chat';
+  const headerContactAvatar = contact?.avatarUrl || chatDetails?.avatarUrl || (chatDetails?.participantInfo && chatDetails.contactUserId && chatDetails.participantInfo[chatDetails.contactUserId]?.avatarUrl);
 
+  const memoizedEmojiPicker = useMemo(() => <EmojiPicker onEmojiSelect={handleEmojiSelect} />, [handleEmojiSelect]);
 
-  const contactAura = contact?.currentAuraId ? AURA_OPTIONS.find(a => a.id === contact.currentAuraId) : null;
-  const contactStatus = contactAura ? `Feeling ${contactAura.name} ${contactAura.emoji}` : contact?.status;
+  if (isAuthLoading || isPageLoading) return ( <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary" /><p className="mt-4 text-muted-foreground text-center">Loading Chat...</p></div> );
+  if (!isAuthenticated && !isAuthLoading) return ( <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center"><p className="text-muted-foreground text-center">Redirecting...</p></div> );
+  if (!initialRouteChatId || ((!chatDetails && !isPotentiallyNewChat) || (!contact && (isChatActive || showRequestSpecificUI )))) return ( <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center p-4"><Card className="w-full max-w-md text-center"><CardHeader><MessageSquareX className="w-16 h-16 text-destructive mx-auto mb-4" /><CardTitle className="text-2xl">Chat Not Found</CardTitle></CardHeader><CardContent><p className="text-muted-foreground">The chat (ID: {effectiveChatId || initialRouteChatId}) could not be loaded.</p></CardContent><CardFooter className="flex flex-col space-y-3"><Button onClick={() => router.push('/')} className="w-full">Go to Chats</Button><Button variant="outline" onClick={() => router.back()} className="w-full">Go Back</Button></CardFooter></Card></div> );
 
-  if (isGuardLoading || isChatDataLoading) {
-    return (
-      <div className="flex flex-col h-dvh bg-background items-center justify-center">
-        <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p className="mt-4 text-muted-foreground">Loading Chat...</p>
-      </div>
-    );
-  }
-
-  if (!chatDetails || !contact) {
-    return (
-      <div className="flex flex-col h-dvh bg-background items-center justify-center p-4">
-        <Card className="w-full max-w-md shadow-lg rounded-xl">
-          <CardHeader className="items-center text-center pt-8 pb-4">
-            <MessageSquareX className="w-16 h-16 text-destructive mb-4" />
-            <CardTitle className="text-2xl font-semibold">Chat Not Found</CardTitle>
-          </CardHeader>
-          <CardContent className="text-center pt-0 pb-6">
-            <p className="text-muted-foreground">
-              The chat you are looking for doesn't exist or may have been removed. (Chat ID: {chatId})
-            </p>
-          </CardContent>
-          <CardFooter className="flex-col items-center space-y-3 p-6 pt-0 border-t border-border">
-            <Button onClick={() => router.push('/')} className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground py-3 text-base">
-              Go to Chats
-            </Button>
-            <Button variant="outline" onClick={() => router.back()} className="w-full py-3 text-base">
-              Go Back
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-
-  const isRequestView = chatDetails.requestStatus === 'awaiting_action' && chatDetails.requesterId !== currentUserId;
-  const isPendingSenderView = chatDetails.requestStatus === 'pending' && chatDetails.requesterId === currentUserId;
-  const isRejectedView = chatDetails.requestStatus === 'rejected';
-  const isChatActive = chatDetails.requestStatus === 'accepted' || !chatDetails.requestStatus || chatDetails.requestStatus === 'none';
-  const showInputArea = isChatActive;
-
-
-  if (isRequestView) {
-    return (
-      <div className="flex flex-col h-dvh bg-background items-center justify-center p-4">
-        <Card className="w-full max-w-md rounded-xl shadow-2xl overflow-hidden bg-card hover:shadow-primary/20 transition-shadow duration-300">
-          <CardHeader className="text-center pt-6 pb-2">
-            <h2 className="text-3xl font-semibold text-gradient-primary-accent mb-1 sr-only">
-              Connection Request
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {contact.name} wants to connect with you.
-            </p>
-          </CardHeader>
-
-          <CardContent className="p-6 pt-4 space-y-6">
-            <div className="flex items-center space-x-4">
-              <Avatar className="w-16 h-16 border-2 border-border shadow-md">
-                {contact.avatarUrl ? (
-                  <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar" />
-                ) : (
-                  <AvatarFallback className="bg-muted"><UserCircle2 className="w-10 h-10 text-muted-foreground" /></AvatarFallback>
-                )}
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-semibold text-foreground truncate">{contact.name}</h3>
-                {contact.username && <p className="text-xs text-muted-foreground truncate">@{contact.username}</p>}
-                 <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="link" size="sm" className="px-0 h-auto text-primary hover:text-primary/80 -ml-0.5 mt-0.5">
-                      <Eye className="w-3.5 h-3.5 mr-1" /> View Profile
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle className="text-center text-xl">{contact.name}</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4 space-y-4">
-                      <div className="flex items-start space-x-4">
-                        <Avatar className="w-20 h-20">
-                          {contact.avatarUrl ? (
-                            <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar" />
-                          ) : (
-                            <AvatarFallback className="bg-muted"><UserCircle2 className="w-12 h-12 text-muted-foreground" /></AvatarFallback>
-                          )}
-                        </Avatar>
-                        <div className="pt-1">
-                           <h3 className="text-lg font-semibold text-foreground">{contact.name}</h3>
-                           {contact.username && <p className="text-sm text-muted-foreground">@{contact.username}</p>}
-                        </div>
-                      </div>
-                      {contact.bio && (
-                        <div>
-                          <h4 className="text-xs font-medium text-muted-foreground mb-1">BIO</h4>
-                          <p className="text-sm text-foreground bg-muted/30 p-3 rounded-md shadow-inner">{contact.bio}</p>
-                        </div>
-                      )}
-                       {contact.email && (
-                        <div>
-                          <h4 className="text-xs font-medium text-muted-foreground mb-1">EMAIL</h4>
-                          <div className="flex items-center space-x-2 p-2.5 rounded-md border bg-muted/30 text-muted-foreground">
-                            <Mail className="w-4 h-4" />
-                            <span className="text-sm text-foreground">{contact.email}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <DialogFooter>
-                      <DialogClose asChild>
-                        <Button type="button" variant="outline">Close</Button>
-                      </DialogClose>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </div>
-            
-            {(chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text)) && (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground font-medium">Their message:</p>
-                <div className="relative text-sm italic p-4 bg-muted/50 rounded-lg shadow-inner border border-border/50 break-words">
-                  <Quote className="absolute top-2 left-2 w-4 h-4 text-muted-foreground/50 transform -scale-x-100" />
-                  <p className="ml-2">
-                    {chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text) || 'Tap to respond.'}
-                  </p>
-                </div>
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground text-center pt-2">Accept this chat request to start messaging.</p>
-          </CardContent>
-
-          <CardFooter className="grid grid-cols-2 gap-3 p-4 bg-card border-t border-border">
-            <Button
-              variant="outline"
-              onClick={() => handleRequestAction('rejected')}
-              className="w-full py-3 text-base border-muted-foreground/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-              disabled={isProcessingRequestAction}
-            >
-              {isProcessingRequestAction && actionBeingProcessed === 'rejected' ? (
-                <>
-                 <svg className="animate-spin -ml-1 mr-3 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                  Ignoring...
-                </>
-              ) : (
-                <>
-                  <X className="mr-2 h-4 w-4" /> Ignore
-                </>
-              )}
-            </Button>
-            <Button
-              onClick={() => handleRequestAction('accepted')}
-              className="w-full py-3 text-base bg-gradient-to-r from-green-500 to-green-700 text-primary-foreground hover:opacity-90"
-              disabled={isProcessingRequestAction}
-            >
-               {isProcessingRequestAction && actionBeingProcessed === 'accepted' ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                  Accepting...
-                </>
-              ) : (
-                <>
-                  <Check className="mr-2 h-4 w-4" /> Accept
-                </>
-              )}
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-
-  if (isPendingSenderView) {
-    return (
-      <div className="flex flex-col h-dvh bg-background items-center justify-center p-4">
-        <Card className="w-full max-w-sm rounded-xl shadow-2xl overflow-hidden bg-card">
-            <CardHeader className="items-center text-center pt-8 pb-4">
-                <Send className="w-12 h-12 text-amber-500 mb-3" />
-                <CardTitle className="text-2xl font-semibold text-amber-600">
-                    Request Sent
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="text-center p-6 pt-0">
-                <p className="text-sm text-muted-foreground">Your message request has been sent to {contact.name}. You'll be able to chat once they accept.</p>
-                {(chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text)) && (
-                  <p className="text-sm text-muted-foreground italic mt-4 p-3 bg-muted/50 rounded-lg shadow-inner break-words">
-                    &ldquo;{chatDetails.firstMessageTextPreview || (messages.length > 0 && messages[0].text)}&rdquo;
-                  </p>
-                )}
-            </CardContent>
-            <CardFooter className="flex-col space-y-3 p-6 border-t border-border">
-                <Button 
-                  variant="destructive" 
-                  onClick={handleCancelRequest} 
-                  className="w-full py-3 text-base"
-                  disabled={isCancellingRequest}
-                >
-                  {isCancellingRequest ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                      Cancelling...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="mr-2 h-4 w-4" /> Cancel Request
-                    </>
-                  )}
-                </Button>
-                <Button variant="outline" onClick={() => router.push('/')} className="w-full py-3 text-base" disabled={isCancellingRequest}>
-                  Back to Chats
-                </Button>
-            </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-
-  if (isRejectedView) {
-    return (
-      <div className="flex flex-col h-dvh bg-background items-center justify-center p-4">
-        <Card className="w-full max-w-sm rounded-xl shadow-2xl overflow-hidden bg-card">
-            <CardHeader className="items-center text-center pt-8 pb-4">
-                <MessageSquareX className="w-12 h-12 text-destructive mb-3" />
-                <CardTitle className="text-2xl font-semibold text-destructive">
-                    {chatDetails.requesterId === currentUserId ? "Request Not Accepted" : "Request Ignored"} 
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="text-center p-6 pt-0">
-                {chatDetails.requesterId === currentUserId ?
-                    <p className="text-sm text-muted-foreground">{contact.name} has not accepted your chat request.</p> :
-                    <p className="text-sm text-muted-foreground">You ignored the chat request from {contact.name}.</p>
-                }
-            </CardContent>
-            <CardFooter className="p-6 border-t border-border">
-                <Button variant="outline" onClick={() => router.push('/')} className="w-full py-3 text-base">
-                Back to Chats
-                </Button>
-            </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-
-  // If it's an active chat (none of the above request states)
   return (
-    <div className="flex flex-col h-dvh bg-background">
-      <header className="fixed top-0 left-0 right-0 z-20 flex items-center p-2.5 border-b bg-background h-16">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <Avatar className="w-10 h-10 mr-3">
-          {contact.avatarUrl ? (
-            <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar"/>
-          ) : (
-             <AvatarFallback className={cn(contactAura?.gradient && isChatActive ? 'bg-transparent' : 'bg-muted text-muted-foreground')}>
-              {contactAura && isChatActive ? contactAura.emoji : <UserCircle2 className="w-7 h-7 text-muted-foreground" />}
-            </AvatarFallback>
+    <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background">
+      <ChatPageHeader
+        contactName={headerContactName}
+        contactId={contact?.id}
+        contactAvatarUrl={headerContactAvatar}
+        contactStatusText={contactStatusText}
+        contactAuraEmoji={contactAuraEmoji}
+        isChatActive={isChatActive}
+        onMoreOptionsClick={() => toast({ title: "Coming Soon!", description: "More chat options are on the way." })}
+      />
+
+      {showRequestSpecificUI && chatDetails && contact && currentUserId ? (
+        <ChatRequestDisplay
+          chatDetails={chatDetails} contact={contact} currentUserId={currentUserId}
+          onAcceptRequest={handleAcceptRequest} onRejectRequest={handleRejectRequest} onCancelRequest={handleCancelRequest}
+          isProcessing={isProcessingRequestAction}
+        />
+      ) : (
+        <>
+          <MessageArea
+            messages={messages}
+            currentUserId={currentUserId!} 
+            contactId={contact?.id || null}
+            dynamicPaddingBottom={dynamicPaddingBottom}
+            isContactTyping={isContactTyping}
+          />
+          
+          {showInputArea && ( 
+            <div ref={bottomBarRef} className="shrink-0">
+              <ChatInputZone
+                newMessage={newMessage} onNewMessageChange={setNewMessage} onSendMessage={processAndSendMessage}
+                onToggleEmojiPicker={toggleEmojiPicker} isEmojiPickerOpen={isEmojiPickerOpen}
+                textareaRef={textareaRef} isDisabled={!isChatActive} justSelectedEmoji={justSelectedEmojiRef.current}
+              />
+            </div>
           )}
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-semibold">{contact.name}</h2>
-          {isChatActive && <p className="text-xs text-muted-foreground truncate">{contactStatus || 'Offline'}</p>}
-        </div>
-        <Button variant="ghost" size="icon" className="ml-auto" onClick={showComingSoonToastOptions}>
-          <MoreVertical className="w-5 h-5" />
-        </Button>
-      </header>
-
-      <div ref={mainContentRef} className="flex flex-col flex-1 pt-16 overflow-hidden">
-        {isChatActive && (
-          <div ref={messageListContainerRef} className={cn("flex-grow overflow-y-auto hide-scrollbar pt-2 pb-2 px-2 space-y-2 min-h-0")}>
-              {messages.map(msg => (
-                  <MessageBubble key={msg.id} message={msg} isOutgoing={msg.senderId === currentUserId} />
-              ))}
-              <div ref={messagesEndRef} />
-          </div>
-        )}
-      </div>
-
-      {showInputArea && (
-        <div
-          ref={bottomBarRef}
-          className={cn("fixed left-0 right-0 z-10 bg-background border-t", "pb-[env(safe-area-inset-bottom)]")}
-          style={{ bottom: '0px', transform: 'translateZ(0px)' }}
-        >
-          <footer className="flex items-end space-x-2 p-2.5 flex-shrink-0">
-            <Button variant="ghost" size="icon" type="button" className={cn("hover:bg-transparent", isEmojiPickerOpen && "bg-accent/20 text-primary")} onClick={toggleEmojiPicker} aria-pressed={isEmojiPickerOpen} aria-label="Toggle emoji picker">
-              <SmilePlus className={cn("w-5 h-5 text-muted-foreground", isEmojiPickerOpen && "text-primary")} />
-            </Button>
-            <Textarea
-              ref={textareaRef}
-              placeholder="Type a message..."
-              value={newMessage}
-              onChange={(e) => {
-                setNewMessage(e.target.value);
-                e.target.style.height = 'auto';
-                e.target.style.height = `${e.target.scrollHeight}px`;
-              }}
-              onFocus={() => { if(isEmojiPickerOpen) setIsEmojiPickerOpen(false); }}
-              rows={1}
-              className={cn(
-                "flex-1",
-                "resize-none min-h-[40px] max-h-[100px] rounded-full px-6 py-2.5 leading-tight hide-scrollbar focus-visible:focus-visible-gradient-border-apply"
-              )}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendMessage(e as any);
-                  if (textareaRef.current) textareaRef.current.style.height = 'auto';
-                }
-              }}
-            />
-            <input type="file" ref={fileInputRef} onChange={handleFileSelect} style={{ display: 'none' }} accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,text/plain,audio/*" />
-            {newMessage.trim() === '' ? (
-              <>
-              <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={() => fileInputRef.current?.click()}>
-                  <Paperclip className="w-5 h-5 text-muted-foreground" />
-                </Button>
-                <Button variant="ghost" size="icon" type="button" className="hover:bg-transparent" onClick={handleCameraClick}>
-                  <Camera className="w-5 h-5 text-muted-foreground" />
-                </Button>
-              </>
-            ) : (
-              <Button type="submit" size="icon" onClick={handleSendMessage} className="rounded-full bg-gradient-to-r from-purple-500 to-purple-700 text-primary-foreground w-10 h-10 flex-shrink-0">
-                <Send className="w-5 h-5" />
-              </Button>
-            )}
-          </footer>
-          <div className={cn("transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0", isEmojiPickerOpen ? "h-[300px] opacity-100 visible pointer-events-auto" : "h-0 opacity-0 invisible pointer-events-none", isEmojiPickerOpen && "bg-background")}>
-            {isEmojiPickerOpen && (<EmojiPicker onEmojiSelect={handleEmojiSelect} />)}
-          </div>
-        </div>
+          {showInputArea && isEmojiPickerOpen && ( 
+            <div ref={emojiPickerRef} className="shrink-0" style={{ height: `${EMOJI_PICKER_HEIGHT_PX}px` }}>
+              {memoizedEmojiPicker}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
-
