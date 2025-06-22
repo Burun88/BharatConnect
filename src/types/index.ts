@@ -84,15 +84,15 @@ export type Chat = {
 };
 
 export const AURA_OPTIONS: UserAura[] = [
-  { id: 'happy', name: 'Happy', iconUrl: '/aura/happy.svg', gradient: 'bg-gradient-to-r from-yellow-300 via-orange-400 to-red-400' },
-  { id: 'sad', name: 'Sad', iconUrl: '/aura/sad.svg', gradient: 'bg-gradient-to-r from-blue-400 to-indigo-500' },
-  { id: 'angry', name: 'Angry', iconUrl: '/aura/angry.svg', gradient: 'bg-gradient-to-r from-red-500 to-pink-600' },
-  { id: 'calm', name: 'Calm', iconUrl: '/aura/calm.svg', gradient: 'bg-gradient-to-r from-green-300 to-teal-400' },
-  { id: 'focused', name: 'Focused', iconUrl: '/aura/focused.svg', gradient: 'bg-gradient-to-r from-blue-500 to-purple-600' },
-  { id: 'romantic', name: 'Romantic', iconUrl: '/aura/romantic.svg', gradient: 'bg-gradient-to-r from-pink-400 to-red-400' },
-  { id: 'chill', name: 'Chill', iconUrl: '/aura/chill.svg', gradient: 'bg-gradient-to-r from-cyan-400 to-sky-500' },
-  { id: 'playful', name: 'Playful', iconUrl: '/aura/playful.svg', gradient: 'bg-gradient-to-r from-purple-400 via-pink-500 to-red-500' },
-  { id: 'energetic', name: 'Energetic', iconUrl: '/aura/energetic.svg', gradient: 'bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-600' },
+  { id: 'happy', name: 'Happy', iconUrl: '/aura/happy.PNG', gradient: 'bg-gradient-to-r from-yellow-300 via-orange-400 to-red-400' },
+  { id: 'sad', name: 'Sad', iconUrl: '/aura/sad.PNG', gradient: 'bg-gradient-to-r from-blue-400 to-indigo-500' },
+  { id: 'angry', name: 'Angry', iconUrl: '/aura/angry.PNG', gradient: 'bg-gradient-to-r from-red-500 to-pink-600' },
+  { id: 'calm', name: 'Calm', iconUrl: '/aura/calm.PNG', gradient: 'bg-gradient-to-r from-green-300 to-teal-400' },
+  { id: 'focused', name: 'Focused', iconUrl: '/aura/focused.PNG', gradient: 'bg-gradient-to-r from-blue-500 to-purple-600' },
+  { id: 'romantic', name: 'Romantic', iconUrl: '/aura/romantic.PNG', gradient: 'bg-gradient-to-r from-pink-400 to-red-400' },
+  { id: 'chill', name: 'Chill', iconUrl: '/aura/chill.PNG', gradient: 'bg-gradient-to-r from-cyan-400 to-sky-500' },
+  { id: 'playful', name: 'Playful', iconUrl: '/aura/playful.PNG', gradient: 'bg-gradient-to-r from-purple-400 via-pink-500 to-red-500' },
+  { id: 'energetic', name: 'Energetic', iconUrl: '/aura/energetic.PNG', gradient: 'bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-600' },
 ];
 
 // Existing StatusUpdate type - might be revised later when displaying individual status items
