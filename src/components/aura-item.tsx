@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlusCircle, UserCircle2 } from 'lucide-react';
 import React from 'react';
+import Image from 'next/image';
 
 interface AuraRingItemProps {
   user: Pick<User, 'id' | 'name' | 'avatarUrl'>;
@@ -73,13 +74,13 @@ const AuraRingItemComponent = ({ user, activeAura, isCurrentUser = false, onClic
           </Avatar>
         </div>
 
-        {/* Emoji for active aura */}
-        {activeAura && activeAura.auraStyle?.emoji && (
-          <SmallIconOverlay
+        {/* Custom Icon for active aura */}
+        {activeAura && activeAura.auraStyle?.iconUrl && (
+           <SmallIconOverlay
             gradient="bg-muted" 
             positionClass={iconPositionClass}
           >
-            <span className="text-xs">{activeAura.auraStyle.emoji}</span>
+            <Image src={activeAura.auraStyle.iconUrl} alt={activeAura.auraStyle.name} width={16} height={16} className="w-4 h-4" />
           </SmallIconOverlay>
         )}
 

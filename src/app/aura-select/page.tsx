@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
-// import Image from 'next/image'; // No longer using next/image directly for the avatar here
+import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Import shadcn Avatar components
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -208,9 +208,9 @@ export default function AuraSelectPage() {
                       </AvatarFallback>
                     </Avatar>
                   </div>
-                  {currentUserActiveAura.auraStyle?.emoji && ( 
-                      <div className="absolute bottom-[-16px] left-1/2 transform -translate-x-1/2 w-8 h-8 bg-muted rounded-full flex items-center justify-center border-2 border-card shadow-md">
-                          <span className="text-base">{currentUserActiveAura.auraStyle.emoji}</span>
+                  {currentUserActiveAura.auraStyle?.iconUrl && ( 
+                      <div className="absolute bottom-[-16px] left-1/2 transform -translate-x-1/2 w-8 h-8 bg-muted rounded-full flex items-center justify-center border-2 border-card shadow-md p-1">
+                          <Image src={currentUserActiveAura.auraStyle.iconUrl} alt={currentUserActiveAura.auraStyle.name} width={24} height={24} className="w-full h-full object-contain" />
                       </div>
                   )}
                 </div>
@@ -256,7 +256,7 @@ export default function AuraSelectPage() {
                     <Loader2 className="w-8 h-8 animate-spin" />
                     ) : (
                     <>
-                        <span className="text-3xl">{option.emoji}</span>
+                        <Image src={option.iconUrl} alt={option.name} width={32} height={32} className="w-8 h-8 object-contain" />
                         <span className="text-xs font-medium">{option.name}</span>
                     </>
                     )}

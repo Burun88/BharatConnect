@@ -4,6 +4,7 @@
 import type { Chat, UserAura } from '@/types'; 
 import { AURA_OPTIONS } from '@/types'; 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -98,10 +99,10 @@ export default function ChatItem({ chat, currentUserId }: ChatItemProps) {
         {statusIconOverlay} 
         {isAcceptedChat && contactAura && (
             <span 
-                className="absolute bottom-0 left-0 w-5 h-5 text-xs rounded-full flex items-center justify-center border-2 border-background shadow-md bg-card transform -translate-x-1/4 translate-y-1/4"
+                className="absolute bottom-0 left-0 w-5 h-5 text-xs rounded-full flex items-center justify-center border-2 border-background shadow-md bg-card transform -translate-x-1/4 translate-y-1/4 p-0.5"
                 title={`${displayName} is feeling ${contactAura.name}`}
             >
-                {contactAura.emoji}
+                <Image src={contactAura.iconUrl} alt={contactAura.name} width={12} height={12} className="w-full h-full object-contain" />
             </span>
         )}
       </div>

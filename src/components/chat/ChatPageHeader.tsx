@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ArrowLeft, MoreVertical, UserCircle2, Phone, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { UserAura } from '@/types';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { firestore } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -19,7 +20,8 @@ interface ChatPageHeaderProps {
   contactId?: string; // Make contactId optional for safety
   contactAvatarUrl?: string | null;
   contactStatusText?: string;
-  contactAuraEmoji?: React.ReactNode;
+  contactAuraIconUrl?: string | null;
+  contactAuraName?: string | null;
   isChatActive: boolean;
   onMoreOptionsClick: () => void;
 }
@@ -29,7 +31,8 @@ export default function ChatPageHeader({
   contactId,
   contactAvatarUrl,
   contactStatusText,
-  contactAuraEmoji,
+  contactAuraIconUrl,
+  contactAuraName,
   isChatActive,
   onMoreOptionsClick,
 }: ChatPageHeaderProps) {
@@ -99,7 +102,11 @@ export default function ChatPageHeader({
         {isChatActive && contactStatusText && (
           <div className="flex items-center text-xs text-muted-foreground">
             <p className="truncate">{contactStatusText}</p>
-            {contactAuraEmoji && <span className="ml-1.5 flex-shrink-0">{contactAuraEmoji}</span>}
+            {contactAuraIconUrl && (
+              <span className="ml-1.5 flex-shrink-0" title={contactAuraName || ''}>
+                <Image src={contactAuraIconUrl} alt={contactAuraName || ''} width={16} height={16} className="w-4 h-4 object-contain" />
+              </span>
+            )}
           </div>
         )}
       </div>

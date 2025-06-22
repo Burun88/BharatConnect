@@ -11,6 +11,7 @@ import { useChat as useChatContextHook } from '@/contexts/ChatContext';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageSquareX, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import Image from 'next/image';
 
 import { firestore } from '@/lib/firebase';
 import { doc, deleteDoc, updateDoc, serverTimestamp, collection, query, orderBy, onSnapshot, writeBatch, arrayUnion, setDoc, getDoc, Timestamp, addDoc } from 'firebase/firestore';
@@ -464,7 +465,8 @@ export default function ChatPage() {
   };
   
   const contactStatusText = getDynamicStatus();
-  const contactAuraEmoji = isContactTyping ? null : (contactActiveAura ? contactActiveAura.emoji : undefined);
+  const contactAuraIconUrl = isContactTyping ? null : (contactActiveAura ? contactActiveAura.iconUrl : undefined);
+  const contactAuraName = isContactTyping ? null : (contactActiveAura ? contactActiveAura.name : undefined);
   const headerContactName = contact?.name || chatDetails?.name || (chatDetails?.participantInfo && chatDetails.contactUserId && chatDetails.participantInfo[chatDetails.contactUserId]?.name) || 'Chat';
   const headerContactAvatar = contact?.avatarUrl || chatDetails?.avatarUrl || (chatDetails?.participantInfo && chatDetails.contactUserId && chatDetails.participantInfo[chatDetails.contactUserId]?.avatarUrl);
 
@@ -481,7 +483,8 @@ export default function ChatPage() {
         contactId={contact?.id}
         contactAvatarUrl={headerContactAvatar}
         contactStatusText={contactStatusText}
-        contactAuraEmoji={contactAuraEmoji}
+        contactAuraIconUrl={contactAuraIconUrl}
+        contactAuraName={contactAuraName}
         isChatActive={isChatActive}
         onMoreOptionsClick={() => toast({ title: "Coming Soon!", description: "More chat options are on the way." })}
       />

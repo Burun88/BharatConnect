@@ -1,29 +1,11 @@
 import type { ReactNode } from 'react';
 import React from 'react';
 
-// Using React.createElement to define an SVG component within a .ts file
-const SadAuraIcon = React.createElement('svg',
-    {
-        viewBox: "0 0 64 64",
-        fill: "none",
-        xmlns: "http://www.w3.org/2000/svg",
-        width: "1em",
-        height: "1em",
-    },
-    React.createElement('circle', { cx: "32", cy: "32", r: "28", stroke: "currentColor", strokeWidth: "3" }),
-    React.createElement('ellipse', { cx: "24", cy: "28", rx: "3", ry: "7", fill: "currentColor" }),
-    React.createElement('ellipse', { cx: "40", cy: "28", rx: "3", ry: "7", fill: "currentColor" }),
-    React.createElement('path', { d: "M20 46 C 26 38, 38 38, 44 46", stroke: "currentColor", strokeWidth: "3", strokeLinecap: "round" }),
-    React.createElement('path', { d: "M20 46 L 24 44", stroke: "currentColor", strokeWidth: "3", strokeLinecap: "round" }),
-    React.createElement('path', { d: "M44 46 L 40 44", stroke: "currentColor", strokeWidth: "3", strokeLinecap: "round" })
-);
-
-
 export type UserAura = {
-  id: string; // e.g., 'happy', 'sad'
+  id: string;
   name: string;
-  emoji: ReactNode;
-  gradient?: string; // Tailwind gradient class string
+  iconUrl: string; // Changed from emoji
+  gradient?: string;
 };
 
 export type User = {
@@ -102,15 +84,15 @@ export type Chat = {
 };
 
 export const AURA_OPTIONS: UserAura[] = [
-  { id: 'happy', name: 'Happy', emoji: '😄', gradient: 'bg-gradient-to-r from-yellow-300 via-orange-400 to-red-400' },
-  { id: 'sad', name: 'Sad', emoji: SadAuraIcon, gradient: 'bg-gradient-to-r from-blue-400 to-indigo-500' },
-  { id: 'angry', name: 'Angry', emoji: '😠', gradient: 'bg-gradient-to-r from-red-500 to-pink-600' },
-  { id: 'calm', name: 'Calm', emoji: '😌', gradient: 'bg-gradient-to-r from-green-300 to-teal-400' },
-  { id: 'focused', name: 'Focused', emoji: '🎯', gradient: 'bg-gradient-to-r from-blue-500 to-purple-600' },
-  { id: 'romantic', name: 'Romantic', emoji: '🥰', gradient: 'bg-gradient-to-r from-pink-400 to-red-400' },
-  { id: 'chill', name: 'Chill', emoji: '😎', gradient: 'bg-gradient-to-r from-cyan-400 to-sky-500' },
-  { id: 'playful', name: 'Playful', emoji: '🎉', gradient: 'bg-gradient-to-r from-purple-400 via-pink-500 to-red-500' },
-  { id: 'energetic', name: 'Energetic', emoji: '⚡', gradient: 'bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-600' },
+  { id: 'happy', name: 'Happy', iconUrl: '/aura/happy.svg', gradient: 'bg-gradient-to-r from-yellow-300 via-orange-400 to-red-400' },
+  { id: 'sad', name: 'Sad', iconUrl: '/aura/sad.svg', gradient: 'bg-gradient-to-r from-blue-400 to-indigo-500' },
+  { id: 'angry', name: 'Angry', iconUrl: '/aura/angry.svg', gradient: 'bg-gradient-to-r from-red-500 to-pink-600' },
+  { id: 'calm', name: 'Calm', iconUrl: '/aura/calm.svg', gradient: 'bg-gradient-to-r from-green-300 to-teal-400' },
+  { id: 'focused', name: 'Focused', iconUrl: '/aura/focused.svg', gradient: 'bg-gradient-to-r from-blue-500 to-purple-600' },
+  { id: 'romantic', name: 'Romantic', iconUrl: '/aura/romantic.svg', gradient: 'bg-gradient-to-r from-pink-400 to-red-400' },
+  { id: 'chill', name: 'Chill', iconUrl: '/aura/chill.svg', gradient: 'bg-gradient-to-r from-cyan-400 to-sky-500' },
+  { id: 'playful', name: 'Playful', iconUrl: '/aura/playful.svg', gradient: 'bg-gradient-to-r from-purple-400 via-pink-500 to-red-500' },
+  { id: 'energetic', name: 'Energetic', iconUrl: '/aura/energetic.svg', gradient: 'bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-600' },
 ];
 
 // Existing StatusUpdate type - might be revised later when displaying individual status items
