@@ -14,7 +14,7 @@
 #    firebase use bharatconnect-i8510
 #
 # 3. Grant your App Hosting backend access to the secrets:
-#    firebase apphosting:secrets:grantaccess --backend bharatconnect-i8510 FIREBASE_API_KEY,FIREBASE_AUTH_DOMAIN,FIREBASE_PROJECT_ID,FIREBASE_STORAGE_BUCKET,FIREBASE_MESSAGING_SENDER_ID,FIREBASE_APP_ID
+#    firebase apphosting:secrets:grantaccess --backend bharatconnect FIREBASE_API_KEY,FIREBASE_AUTH_DOMAIN,FIREBASE_PROJECT_ID,FIREBASE_STORAGE_BUCKET,FIREBASE_MESSAGING_SENDER_ID,FIREBASE_APP_ID
 
 # Specifies the runtime configuration for the backend.
 runConfig:
