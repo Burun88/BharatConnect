@@ -4,9 +4,10 @@
 # IMPORTANT: For this file to work correctly on deployment, you must manually
 # create the secrets listed below in Google Cloud Secret Manager.
 # The 'secret' field (e.g., 'FIREBASE_API_KEY') must be the EXACT name you
-# give the secret in the console. The value should be copied from your .env file.
-# If you still face permission errors after creating the secrets, run:
-# firebase apphosting:secrets:grantaccess
+# give the secret in the console. If you face permission errors after creating
+# the secrets, run the following command in your terminal:
+#
+# firebase apphosting:secrets:grantaccess FIREBASE_API_KEY FIREBASE_AUTH_DOMAIN FIREBASE_PROJECT_ID FIREBASE_STORAGE_BUCKET FIREBASE_MESSAGING_SENDER_ID FIREBASE_APP_ID
 
 # Specifies the runtime configuration for the backend.
 runConfig:
