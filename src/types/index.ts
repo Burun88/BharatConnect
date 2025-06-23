@@ -1,3 +1,4 @@
+
 import type { ReactNode } from 'react';
 import React from 'react';
 
@@ -48,7 +49,7 @@ export type Message = {
   text?: string; // Decrypted text, optional
   // For media messages
   mediaInfo?: MediaInfo;
-  mediaUrl?: string; // This will hold the local Blob URL for the decrypted image or temp preview
+  mediaUrl?: string; // This will hold the local Blob URL for the decrypted image
   // Common fields
   readBy?: string[];
   clientTempId?: string; // For tracking client-side messages before they get a firestoreId
@@ -58,10 +59,6 @@ export type Message = {
   iv?: string; // For text messages
   encryptedKeys?: { [uid: string]: string }; // For text (AES key) and media (AES key)
   error?: 'DECRYPTION_FAILED' | string; // Allow general error strings
-  // Upload-specific fields for client-side state
-  uploadStatus?: 'pending' | 'uploading' | 'success' | 'error';
-  uploadProgress?: number;
-  file?: File;
 };
 
 

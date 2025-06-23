@@ -4,21 +4,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Message } from '@/types';
 import { cn } from '@/lib/utils';
-import { Check, CheckCheck, Clock, ShieldAlert, ImageIcon, Loader2, UploadCloud, AlertTriangle, RefreshCw, X } from 'lucide-react';
+import { Check, CheckCheck, Clock, ShieldAlert, ImageIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { decryptAndAssembleChunks } from '@/services/storageService';
 import { getPrivateKey } from '@/services/encryptionService';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Progress } from '@/components/ui/progress';
-import { Button } from '@/components/ui/button';
 
 interface MessageBubbleProps {
   message: Message;
   isOutgoing: boolean;
   contactId: string | null;
   currentUserId: string;
-  onRetry?: (clientTempId: string) => void;
-  onCancel?: (clientTempId: string) => void; // Optional: To cancel uploads
 }
 
 // Helper needed locally if not exported from encryptionService
@@ -32,7 +28,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-export default function MessageBubble({ message, isOutgoing, contactId, currentUserId, onRetry, onCancel }: MessageBubbleProps) {
+export default function MessageBubble({ message, isOutgoing, contactId, currentUserId }: MessageBubbleProps) {
   const [decryptedImageUrl, setDecryptedImageUrl] = useState<string | null>(null);
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [decryptionError, setDecryptionError] = useState<string | null>(null);
@@ -79,30 +75,13 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
     }
   }, [message.type, message.firestoreId, decryptImage]);
 
-  // Effect to handle cleanup of blob URLs when the component is unmounted.
-  // This is separated into two effects to prevent premature cleanup during re-renders.
   useEffect(() => {
-    // This cleans up the URL for the fully decrypted image when it changes or on unmount.
-    const localDecryptedUrl = decryptedImageUrl;
     return () => {
-      if (localDecryptedUrl) {
-        URL.revokeObjectURL(localDecryptedUrl);
+      if (decryptedImageUrl) {
+        URL.revokeObjectURL(decryptedImageUrl);
       }
     };
   }, [decryptedImageUrl]);
-
-  useEffect(() => {
-    // This effect runs only once for the component's lifetime.
-    // Its cleanup function runs only when the component is fully unmounted.
-    // This is perfect for the temporary preview URL.
-    const urlToClean = message.mediaUrl;
-    const isTemp = !!message.clientTempId;
-    return () => {
-      if (isTemp && urlToClean) {
-        URL.revokeObjectURL(urlToClean);
-      }
-    };
-  }, []); // <-- Empty dependency array is crucial here.
 
 
   const alignmentClass = isOutgoing ? 'ml-auto' : 'mr-auto';
@@ -110,7 +89,7 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
   const applyAnimation = !!message.clientTempId && !message.firestoreId;
 
   const DeliveryStatusIcon = () => {
-    if (!isOutgoing || message.type === 'system' || message.uploadStatus) return null;
+    if (!isOutgoing || message.type === 'system') return null;
     
     const isReadByContact = contactId && message.readBy?.includes(contactId);
 
@@ -120,62 +99,24 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
     if (message.firestoreId) { 
         return <Check className="w-3 h-3 text-muted-foreground group-hover:text-primary-foreground/80" />;
     }
+    // For client-temp messages or messages without a firestoreId yet
     return <Clock className="w-3 h-3 text-muted-foreground group-hover:text-primary-foreground/80" />;
   };
   
   if (message.type === 'system') {
     return (
       <div className="px-4 py-2 my-1 w-full animate-fade-in-scale-up">
-        <p className={cn("message-bubble-system", "mx-auto max-w-xs rounded-md p-2")}>
-          {message.text}
+        <p className={cn("message-bubble-system", "mx-auto max-w-xs rounded-md p-2", "flex items-center gap-2")}>
+           {message.text?.includes("Sending") && <Loader2 className="w-3 h-3 animate-spin"/>}
+           {message.text}
         </p>
       </div>
     );
   }
 
-  const isUploadingOrError = message.uploadStatus === 'uploading' || message.uploadStatus === 'error';
-
   const renderMediaContent = () => {
     if (message.type !== 'image') return null;
-
-    // Handle Uploading State
-    if (isUploadingOrError) {
-      return (
-        <div className="relative w-64 h-48 rounded-md overflow-hidden">
-          {message.mediaUrl && (
-            <img 
-              src={message.mediaUrl} 
-              alt="Uploading preview" 
-              className="absolute inset-0 w-full h-full object-cover filter blur-sm z-0" 
-              data-ai-hint="upload preview" 
-            />
-          )}
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-white p-4 filter backdrop-blur-sm bg-black/40">
-            {message.uploadStatus === 'uploading' ? (
-              <>
-                <div className="flex items-center gap-2">
-                    <Loader2 className="w-5 h-5 animate-spin"/>
-                    <span className="text-sm font-medium">Sending...</span>
-                </div>
-                <Progress value={message.uploadProgress || 0} className="w-full h-1.5 mt-3 bg-white/20" />
-              </>
-            ) : ( // 'error' state
-              <>
-                <AlertTriangle className="w-6 h-6 text-destructive mb-2"/>
-                <p className="text-sm font-semibold">Upload Failed</p>
-                <p className="text-xs text-center mb-3 text-white/80">{message.error || "An unknown error occurred"}</p>
-                <Button size="sm" variant="secondary" onClick={() => onRetry?.(message.clientTempId!)}>
-                  <RefreshCw className="w-4 h-4 mr-2"/>
-                  Retry
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      );
-    }
     
-    // Handle Decrypting State
     if (isDecrypting) return <Skeleton className="w-64 h-48" />;
     if (decryptionError) return (
         <div className="p-4 flex flex-col items-center justify-center text-destructive-foreground/80 italic w-64 h-48">
@@ -208,15 +149,14 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
     <div className={cn("flex flex-col max-w-[70%] my-1 group", alignmentClass, applyAnimation ? "animate-fade-in-scale-up" : "")}>
       <div className={cn(
           "px-3 py-2",
-          !isUploadingOrError && bubbleClass, // Only apply bubble styles if not uploading/error
-          (message.error === 'DECRYPTION_FAILED' || decryptionError) && 'bg-destructive/50 border border-destructive',
-          isUploadingOrError && 'p-0 bg-transparent shadow-none'
+          bubbleClass,
+          (message.error === 'DECRYPTION_FAILED' || decryptionError) && 'bg-destructive/50 border border-destructive'
         )}>
         {messageContent}
       </div>
       <div className={cn("flex items-center mt-0.5 px-1", isOutgoing ? 'justify-end' : 'justify-start')}>
         <span className="text-xs text-muted-foreground">
-          {isUploadingOrError ? message.uploadStatus : format(new Date(message.timestamp), 'p')}
+          {format(new Date(message.timestamp), 'p')}
         </span>
         {isOutgoing && <span className="ml-1"><DeliveryStatusIcon /></span>}
       </div>

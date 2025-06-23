@@ -48,7 +48,7 @@ export default function ChatPage() {
   const chatContext = useChatContextHook();
 
   const [isPageLoading, setIsPageLoading] = useState(true);
-  const [isChatReady, setIsChatReady] = useState(false); // New state to control interaction readiness
+  const [isChatReady, setIsChatReady] = useState(false); 
   const [effectiveChatId, setEffectiveChatId] = useState<string | null>(null);
   const [chatDetails, setChatDetails] = useState<Chat | null>(null);
   const [contact, setContact] = useState<User | null>(null);
@@ -56,6 +56,10 @@ export default function ChatPage() {
   
   const [newMessage, setNewMessage] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+
+  // New state for image preview flow
+  const [fileToSend, setFileToSend] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   
   const [isProcessingRequestAction, setIsProcessingRequestAction] = useState(false);
   const [contactActiveAura, setContactActiveAura] = useState<UserAura | null>(null);
@@ -79,6 +83,16 @@ export default function ChatPage() {
   const justSelectedEmojiRef = useRef(false);
 
   useEffect(() => { isMountedRef.current = true; return () => { isMountedRef.current = false; }; }, []);
+  
+  // Cleanup blob URL on unmount or when file is cleared
+  useEffect(() => {
+    return () => {
+      if (filePreviewUrl) {
+        URL.revokeObjectURL(filePreviewUrl);
+      }
+    };
+  }, [filePreviewUrl]);
+
 
   useEffect(() => {
     if (authUser?.id) {
@@ -166,7 +180,6 @@ export default function ChatPage() {
           const chatDocRef = doc(firestore, `chats/${determinedChatId}`);
           try {
              if (initialRouteChatId.startsWith('req_')) {
-                // Requests block interaction via UI logic, so chat is considered "ready".
                 setIsChatReady(true);
             } else {
                 const chatDocSnap = await getDoc(chatDocRef);
@@ -185,8 +198,6 @@ export default function ChatPage() {
                     const batch = writeBatch(firestore);
                     batch.set(chatDocRef, newChatPayload);
 
-                    // Add a dummy system message to explicitly create the 'messages' subcollection
-                    // This resolves race conditions with storage security rules that check for the chat document's existence.
                     const messagesCollectionRef = collection(firestore, `chats/${determinedChatId}/messages`);
                     const systemMessageRef = doc(messagesCollectionRef); 
                     batch.set(systemMessageRef, {
@@ -200,14 +211,13 @@ export default function ChatPage() {
                     await batch.commit();
                     console.log(`[ChatPage] New chat doc ${determinedChatId} and messages collection created atomically.`);
                 }
-                setIsChatReady(true); // Chat is ready only after doc is confirmed/created.
+                setIsChatReady(true); 
             }
           } catch (e) { 
             console.error(`[ChatPage INIT] Error creating/checking chat doc ${determinedChatId}:`, e); 
-            setIsChatReady(false); // Not ready on error.
+            setIsChatReady(false); 
           }
         } else {
-             // Fallback for cases without a contact (e.g., group chat) or error states
             setIsChatReady(true);
         }
         setIsPageLoading(false);
@@ -402,142 +412,125 @@ export default function ChatPage() {
     return () => unsubscribeMessages();
   }, [effectiveChatId, currentUserId, toast, isChatActive, showRequestSpecificUI, privateKeyExists]);
 
-  const processAndSendMessage = async () => {
-    if (newMessage.trim() === '' || !authUser?.id || !effectiveChatId || !contact) return;
-    if (!showInputArea) { toast({ variant: "destructive", title: "Cannot Send", description: "This chat is not active for sending messages."}); return; }
-
-    const textToSend = newMessage.trim();
+  const sendTextMessage = async (textToSend: string) => {
+    if (!authUser?.id || !effectiveChatId || !contact) return;
     const currentSenderId = authUser.id;
-    setNewMessage('');
-    clearTimeout(typingTimeoutRef.current);
-    
-    try {
-      const encryptedPayload = await encryptMessage(textToSend, [contact.id], currentSenderId);
-      
-      const messageDataForFirestore = {
-        senderId: currentSenderId,
-        type: 'text' as const,
-        timestamp: serverTimestamp(),
-        readBy: [currentSenderId],
-        ...encryptedPayload
-      };
-      
-      const chatDocRef = doc(firestore, `chats/${effectiveChatId}`);
-      const newMessageRef = collection(firestore, `chats/${effectiveChatId}/messages`);
-    
-      await addDoc(newMessageRef, messageDataForFirestore);
-      
-      const participantInfoMap: { [uid: string]: ParticipantInfo } = {
-          [currentSenderId]: { name: authUser.name || 'You', avatarUrl: authUser.avatarUrl || null },
-          [contact.id]: { name: contact.name || 'User', avatarUrl: contact.avatarUrl || null }
-      };
-      if (chatDetails?.participantInfo) Object.assign(participantInfoMap, chatDetails.participantInfo);
-
-      const chatDataForUpdate = {
-        type: 'individual',
-        participants: [currentSenderId, contact.id].sort(),
-        participantInfo: participantInfoMap,
-        lastMessage: {
-           senderId: currentSenderId, 
-           timestamp: serverTimestamp(), 
-           type: 'text' as const,
-           readBy: [currentSenderId],
-           text: textToSend, // Store plaintext for display in chat list (will be encrypted in message doc)
-           iv: encryptedPayload.iv,
-           encryptedKeys: encryptedPayload.encryptedKeys,
-           encryptedText: encryptedPayload.encryptedText
-        },
-        updatedAt: serverTimestamp(),
-        typingStatus: { [currentSenderId]: false }
-      };
-
-      await setDoc(chatDocRef, chatDataForUpdate, { merge: true });
-      
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Send Error', description: error.message || 'Failed to encrypt or send message.' });
-      setNewMessage(textToSend); // Restore message on failure
-    }
-  };
-
-  const startImageUpload = async (tempMessage: Message) => {
-    if (!authUser || !contact || !effectiveChatId || !tempMessage.file) return;
-
-    // Update message state to 'uploading'
-    setMessages(prev => prev.map(m =>
-        m.clientTempId === tempMessage.clientTempId
-        ? { ...m, uploadStatus: 'uploading', uploadProgress: 0, error: undefined }
-        : m
-    ));
 
     try {
-        const { mediaInfo, encryptedAesKey } = await encryptAndUploadChunks(
-            tempMessage.file,
-            effectiveChatId,
-            authUser.id,
-            [contact.id],
-            (progress) => {
-                setMessages(prev => prev.map(m =>
-                    m.clientTempId === tempMessage.clientTempId
-                    ? { ...m, uploadProgress: progress }
-                    : m
-                ));
-            }
-        );
-        
+        const encryptedPayload = await encryptMessage(textToSend, [contact.id], currentSenderId);
         const messageDataForFirestore = {
-            senderId: authUser.id, type: 'image' as const, timestamp: serverTimestamp(),
-            readBy: [authUser.id], mediaInfo, encryptedKeys: encryptedAesKey,
+            senderId: currentSenderId, type: 'text' as const, timestamp: serverTimestamp(),
+            readBy: [currentSenderId], ...encryptedPayload
         };
         const chatDocRef = doc(firestore, `chats/${effectiveChatId}`);
         const newMessageRef = collection(firestore, `chats/${effectiveChatId}/messages`);
         await addDoc(newMessageRef, messageDataForFirestore);
+
         await updateDoc(chatDocRef, {
             lastMessage: {
-                senderId: authUser.id, timestamp: serverTimestamp(), type: 'image' as const,
-                readBy: [authUser.id],
+                senderId: currentSenderId, timestamp: serverTimestamp(), type: 'text' as const,
+                readBy: [currentSenderId], text: textToSend,
+                iv: encryptedPayload.iv, encryptedKeys: encryptedPayload.encryptedKeys, encryptedText: encryptedPayload.encryptedText
+            },
+            updatedAt: serverTimestamp(), typingStatus: { [currentSenderId]: false }
+        });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Send Error', description: error.message || 'Failed to send text message.' });
+        throw error;
+    }
+  };
+
+  const sendImageMessage = async (file: File) => {
+    if (!authUser?.id || !effectiveChatId || !contact) return;
+    const currentSenderId = authUser.id;
+    let tempMessageId: string | null = null;
+    
+    try {
+        const tempId = `temp_img_${Date.now()}`;
+        tempMessageId = tempId;
+
+        const tempMessage: Message = {
+            id: tempId, clientTempId: tempId, chatId: effectiveChatId, senderId: currentSenderId,
+            timestamp: Date.now(), type: 'system', text: 'Sending photo...',
+        };
+        setMessages(prev => [...prev, tempMessage]);
+
+        const { mediaInfo, encryptedAesKey } = await encryptAndUploadChunks(
+            file, effectiveChatId, currentSenderId, [contact.id],
+            (progress) => { /* Progress callback can be re-added here if needed */ }
+        );
+        
+        const messageDataForFirestore = {
+            senderId: currentSenderId, type: 'image' as const, timestamp: serverTimestamp(),
+            readBy: [currentSenderId], mediaInfo, encryptedKeys: encryptedAesKey,
+        };
+        const chatDocRef = doc(firestore, `chats/${effectiveChatId}`);
+        const newMessageRef = collection(firestore, `chats/${effectiveChatId}/messages`);
+        await addDoc(newMessageRef, messageDataForFirestore);
+        
+        await updateDoc(chatDocRef, {
+            lastMessage: {
+                senderId: currentSenderId, timestamp: serverTimestamp(), type: 'image' as const,
+                readBy: [currentSenderId],
                 mediaInfo: { fileName: mediaInfo.fileName, fileType: mediaInfo.fileType, fileId: mediaInfo.fileId },
                 encryptedKeys: encryptedAesKey,
             },
             updatedAt: serverTimestamp(),
         });
         
-        // Remove the temporary message now that the real one will appear via the listener
-        setMessages(prev => prev.filter(m => m.clientTempId !== tempMessage.clientTempId));
+        setMessages(prev => prev.filter(m => m.id !== tempId));
 
-    } catch (err: any) {
-        toast({
-            variant: 'destructive',
-            title: 'Upload Failed',
-            description: err.message || 'Could not send the image.',
-        });
-        setMessages(prev => prev.map(m =>
-            m.clientTempId === tempMessage.clientTempId
-            ? { ...m, uploadStatus: 'error', error: err.message || 'Upload failed' }
-            : m
-        ));
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Image Send Error', description: error.message || 'Failed to send image.' });
+        if (tempMessageId) {
+            setMessages(prev => prev.filter(m => m.id !== tempMessageId!));
+        }
+        throw error;
     }
   };
 
-  const handleFileSelect = async (file: File) => {
-      if (!authUser || !contact || !effectiveChatId) return;
-      const clientTempId = `temp_${Date.now()}_${file.name}`;
-      const mediaUrl = URL.createObjectURL(file);
 
-      const tempMessage: Message = {
-          id: clientTempId, clientTempId: clientTempId, chatId: effectiveChatId,
-          senderId: authUser.id, timestamp: Date.now(), type: 'image',
-          file: file, mediaUrl: mediaUrl, uploadStatus: 'pending', uploadProgress: 0,
-      };
+  const processAndSendMessage = async () => {
+    if (!authUser?.id || !effectiveChatId || !contact) return;
+    if (!showInputArea) { toast({ variant: "destructive", title: "Cannot Send", description: "This chat is not active." }); return; }
 
-      setMessages(prev => [...prev, tempMessage]);
-      await startImageUpload(tempMessage);
+    const textToSend = newMessage.trim();
+    const fileToUpload = fileToSend;
+
+    if (textToSend === '' && !fileToUpload) return;
+
+    // Reset UI immediately
+    setNewMessage('');
+    setFileToSend(null);
+    setFilePreviewUrl(null); // This will revoke the URL via the useEffect
+    clearTimeout(typingTimeoutRef.current);
+    
+    try {
+        if (fileToUpload) {
+            await sendImageMessage(fileToUpload);
+        }
+        if (textToSend) {
+            await sendTextMessage(textToSend);
+        }
+    } catch (error) {
+        // Restore UI state on failure
+        setNewMessage(textToSend);
+        if(fileToUpload) {
+          setFileToSend(fileToUpload);
+          setFilePreviewUrl(URL.createObjectURL(fileToUpload));
+        }
+    }
+  };
+
+  const handleFileSelect = (file: File) => {
+    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl); // Clean up previous preview
+    setFileToSend(file);
+    setFilePreviewUrl(URL.createObjectURL(file));
   };
   
-  const handleRetryUpload = (clientTempId: string) => {
-    const messageToRetry = messages.find(m => m.clientTempId === clientTempId);
-    if (messageToRetry) {
-        startImageUpload(messageToRetry);
-    }
+  const handleClearFileSelection = () => {
+    setFileToSend(null);
+    setFilePreviewUrl(null); // This triggers the useEffect cleanup to revoke the URL
   };
 
 
@@ -645,7 +638,6 @@ export default function ChatPage() {
             contactId={contact?.id || null}
             dynamicPaddingBottom={dynamicPaddingBottom}
             isContactTyping={isContactTyping}
-            onRetryUpload={handleRetryUpload}
           />
           
           {showInputArea && ( 
@@ -657,6 +649,8 @@ export default function ChatPage() {
                 textareaRef={textareaRef}
                 isDisabled={!isChatReady || !isChatActive}
                 justSelectedEmoji={justSelectedEmojiRef.current}
+                filePreviewUrl={filePreviewUrl}
+                onClearFileSelection={handleClearFileSelection}
               />
             </div>
           )}

@@ -16,7 +16,6 @@ interface MessageAreaProps {
   contactId: string | null;
   dynamicPaddingBottom: number;
   isContactTyping: boolean;
-  onRetryUpload: (clientTempId: string) => void;
 }
 
 const SCROLL_NEAR_BOTTOM_THRESHOLD = 150; 
@@ -27,7 +26,6 @@ export default function MessageArea({
   contactId,
   dynamicPaddingBottom,
   isContactTyping,
-  onRetryUpload,
 }: MessageAreaProps) {
   const messageListContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollToBottomButton, setShowScrollToBottomButton] = useState(false);
@@ -120,7 +118,6 @@ export default function MessageArea({
             isOutgoing={msg.senderId === currentUserId}
             contactId={contactId}
             currentUserId={currentUserId}
-            onRetry={onRetryUpload}
           />
         ))}
         {isContactTyping && (
