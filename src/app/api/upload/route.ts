@@ -18,12 +18,13 @@ export async function POST(request: Request) {
       if (decodedToken.uid !== uid) {
         return NextResponse.json({ error: 'Forbidden: UID does not match token.' }, { status: 403 });
       }
-  } catch (e) {
+  } catch (e: any) {
       console.error("Auth token verification failed in API route:", e);
-      return NextResponse.json({ error: 'Unauthorized: Invalid token.' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized: Invalid token.', code: e.code }, { status: 401 });
   }
 
   const bucket = storageAdmin.bucket();
+  console.log(`[API Upload] Attempting to upload to bucket: ${bucket.name}`);
   const extension = file.name.split('.').pop()?.toLowerCase() || 'png';
   const filePath = `profileImages/${uid}/profileImage.${extension}`;
   const fileBuffer = Buffer.from(await file.arrayBuffer());
@@ -39,8 +40,12 @@ export async function POST(request: Request) {
     const downloadURL = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
     
     return NextResponse.json({ downloadURL });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Backend upload to GCS failed:', error);
-    return NextResponse.json({ error: 'Failed to upload file.' }, { status: 500 });
+    // Provide a more detailed error message
+    const errorMessage = error.code ? `Storage Error (Code: ${error.code})` : 'An unknown error occurred during upload.';
+    const errorDetails = error.message || 'No further details available.';
+    console.error(`Detailed Error: ${errorMessage} - ${errorDetails}`);
+    return NextResponse.json({ error: errorMessage, details: errorDetails }, { status: 500 });
   }
 }
