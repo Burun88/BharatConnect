@@ -8,12 +8,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Cloud, KeyRound, Upload, Download, Loader2, ShieldCheck, ShieldX, FileCheck2, FileWarning } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useChat } from '@/contexts/ChatContext';
 import { useToast } from '@/hooks/use-toast';
 import { encryptBackup, decryptBackup } from '@/services/encryptionService';
 import type { BackupData, Chat } from '@/types';
 
 export default function ChatBackupCard() {
+  const { authUser } = useAuth();
   const { chats, setChats } = useChat();
   const { toast } = useToast();
 
@@ -51,13 +53,23 @@ export default function ChatBackupCard() {
       setError('Passwords do not match.');
       return;
     }
+    if (!authUser?.id) {
+      setError('Could not identify the current user. Please log in again.');
+      return;
+    }
     setError('');
     setIsProcessing(true);
 
     try {
-      // In a real app, you would fetch ALL chats and messages from the local DB (e.g., IndexedDB)
-      // Here, we just use what's in the context as a demonstration.
-      const dataToBackup: BackupData = { chats };
+      const privateKeyBase64 = localStorage.getItem(`privateKey_${authUser.id}`);
+      if (!privateKeyBase64) {
+        setError('Could not find encryption key. Cannot create a valid backup.');
+        toast({ variant: 'destructive', title: 'Backup Error', description: 'Your local encryption key is missing.' });
+        setIsProcessing(false);
+        return;
+      }
+
+      const dataToBackup: BackupData = { chats, privateKeyBase64 };
       
       const encryptedData = await encryptBackup(dataToBackup, password);
 
@@ -65,7 +77,7 @@ export default function ChatBackupCard() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'bharat_backup.enc';
+      a.download = `bharat_backup_${Date.now()}.enc`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -73,7 +85,7 @@ export default function ChatBackupCard() {
 
       toast({
         title: 'Backup Successful',
-        description: 'Your encrypted backup file has been downloaded.',
+        description: 'Your encrypted backup file (including keys) has been downloaded.',
         variant: 'default',
         action: <FileCheck2 className="w-5 h-5" />,
       });
@@ -110,6 +122,11 @@ export default function ChatBackupCard() {
       setError('Please enter your backup password.');
       return;
     }
+    if (!authUser?.id) {
+      setError('You must be logged in to restore a backup.');
+      toast({ variant: 'destructive', title: 'Authentication Error', description: 'Could not identify current user.' });
+      return;
+    }
     setError('');
     setIsProcessing(true);
 
@@ -117,14 +134,20 @@ export default function ChatBackupCard() {
       const encryptedPackageString = await backupFile.text();
       const decryptedData = await decryptBackup(encryptedPackageString, restorePassword);
 
-      // Here you would clear the existing local chat database
-      // and then populate it with the restored data.
-      // For this demo, we'll just update the context.
-      setChats(decryptedData.chats as Chat[]);
+      if (decryptedData.privateKeyBase64) {
+        localStorage.setItem(`privateKey_${authUser.id}`, decryptedData.privateKeyBase64);
+        console.log(`[Restore] Private key for user ${authUser.id} has been restored to localStorage.`);
+      } else {
+        throw new Error('Backup file is invalid or does not contain an encryption key.');
+      }
+
+      if (decryptedData.chats) {
+        setChats(decryptedData.chats as Chat[]);
+      }
 
       toast({
         title: 'Restore Successful',
-        description: 'Your chats have been restored from the backup.',
+        description: 'Your chats and encryption key have been restored.',
         variant: 'default',
         action: <ShieldCheck className="w-5 h-5 text-green-500" />,
       });

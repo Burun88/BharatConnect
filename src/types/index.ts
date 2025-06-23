@@ -85,6 +85,7 @@ export type Chat = {
 
 export type BackupData = {
   chats: Chat[];
+  privateKeyBase64?: string;
   // In a real app, you might include other data like contacts, settings, etc.
   // messages: { [chatId: string]: Message[] };
 };
