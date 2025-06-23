@@ -2,7 +2,7 @@
 'use client';
 
 import { firestore } from '@/lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import type { BackupData } from '@/types';
 
 // --- Helper Functions ---
@@ -63,7 +63,9 @@ export async function generateAndStoreKeyPair(uid: string): Promise<void> {
 
     // Save public key to Firestore
     const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
-    await updateDoc(userDocRef, { publicKey: publicKeyBase64 });
+    // Use setDoc with merge:true to prevent errors if the document doesn't exist yet.
+    // This will create the document or update it safely.
+    await setDoc(userDocRef, { publicKey: publicKeyBase64 }, { merge: true });
 
     // Save private key to local storage, keyed by UID for multi-user safety
     localStorage.setItem(`privateKey_${uid}`, privateKeyBase64);
