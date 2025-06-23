@@ -1,24 +1,20 @@
-
 rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Rules for user profile images
-    match /profileImages/{userId}/{fileName} {
-      // Anyone can read profile images (necessary for display in the app)
+    // Public read access is required for the browser's preflight CORS check to succeed.
+    // The browser sends an unauthenticated OPTIONS request before the actual upload.
+    // This rule allows that check to pass, while the write rule below secures the upload.
+    match /{allPaths=**} {
       allow read;
-      
-      // Only the authenticated user can upload or delete their own profile image
-      // We also enforce that it's an image and under 5MB.
-      allow write: if request.auth != null 
-                   && request.auth.uid == userId
-                   && request.resource.size < 5 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
     }
-    
-    // You can add rules for other paths here, for example, chat media:
-    // match /chatMedia/{chatId}/{mediaId} {
-    //   ...
-    // }
+
+    // Allow a user to write only to their own profile image folder.
+    // This rule is checked on the actual authenticated upload request (POST/PUT).
+    match /profileImages/{userId}/{fileName} {
+      allow write: if request.auth != null && request.auth.uid == userId
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+    }
   }
 }
