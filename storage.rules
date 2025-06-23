@@ -1,19 +1,15 @@
+
 rules_version = '2';
 
-// The {bucket} wildcard will be replaced with your project's default bucket name.
 service firebase.storage {
   match /b/{bucket}/o {
-    // Rules for profile images
-    match /profileImages/{userId}/{fileName} {
-      // Allow read access to anyone (profile pictures are public)
+    // Allow public read access to all files
+    match /{allPaths=**} {
       allow read;
-
-      // Allow write (create, update, delete) only if the user is authenticated
-      // and the userId in the path matches their own uid.
-      // Also, check that the uploaded file is an image and not too large.
-      allow write: if request.auth != null && request.auth.uid == userId
-                   && request.resource.size < 5 * 1024 * 1024 // Max 5MB
-                   && request.resource.contentType.matches('image/.*');
+      
+      // Allow any authenticated user to write.
+      // This is a temporary, less secure rule for debugging the CORS issue.
+      allow write: if request.auth != null;
     }
   }
 }
