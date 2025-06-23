@@ -8,6 +8,12 @@ export type UserAura = {
   gradient?: string;
 };
 
+export type ActiveSession = {
+  sessionId: string;
+  loggedInAt: any; // Firestore Timestamp
+  deviceInfo: string;
+};
+
 export type User = {
   id: string;
   name: string;
@@ -20,6 +26,7 @@ export type User = {
   onboardingComplete?: boolean;
   bio?: string | null;
   publicKey?: string; // For E2EE
+  activeSession?: ActiveSession | null;
 };
 
 export type Message = {
@@ -79,7 +86,7 @@ export type Chat = {
   requesterId?: string | null;
   firstMessageTextPreview?: string | null;
   acceptedTimestamp?: number;
-  typingStatus?: { [uid: string]: boolean };
+  typingStatus?: { [uid:string]: boolean };
   chatSpecificPresence?: { [uid: string]: ChatSpecificPresence };
 };
 

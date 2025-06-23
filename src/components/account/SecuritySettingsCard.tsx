@@ -6,30 +6,22 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Lock, KeyRound, LogOut, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Lock, KeyRound, LogOut, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { signOutUser } from '@/lib/firebase';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import type { LocalUserProfile } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
-type LoginMethod = "Google" | "Email/Password"; // Assuming Google might be used eventually
+type LoginMethod = "Google" | "Email/Password";
 
 export default function SecuritySettingsCard() {
   const { toast } = useToast();
-  const router = useRouter();
-  const [, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
-  // Hardcode login method for demonstration, assuming email/password for now.
-  // This could be dynamically determined based on Firebase user's providerData in a real app.
+  const { logout } = useAuth();
   const [loginMethod] = useState<LoginMethod>("Email/Password");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
 
   const handleChangePassword = () => {
     if (loginMethod === "Email/Password") {
-      toast({ title: "Change Password", description: "Password change functionality would be implemented here. For example, by sending a password reset email or navigating to a change password screen." });
-      // Example: router.push('/change-password');
-      // Or call a Firebase function to send a password reset email if appropriate
-      // For instance: resetUserPassword(userEmail).then(...).catch(...);
+      toast({ title: "Change Password", description: "Password change functionality would be implemented here." });
     } else {
       toast({ title: "Change Password", description: "Password changes for social logins are managed through the provider (e.g., Google)." });
     }
@@ -38,13 +30,8 @@ export default function SecuritySettingsCard() {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      await signOutUser();
-      setUserProfileLs(null); // Clear local storage profile
-      toast({
-        title: "Logged Out",
-        description: "You have been successfully logged out.",
-      });
-      router.replace('/login'); // Redirect to login page
+      await logout();
+      // The logout function in AuthContext now handles the toast and redirect.
     } catch (error: any) {
       console.error("Error logging out from SecuritySettingsCard:", error);
       toast({
@@ -52,9 +39,9 @@ export default function SecuritySettingsCard() {
         title: "Logout Failed",
         description: error.message || "An unexpected error occurred during logout.",
       });
-    } finally {
       setIsLoggingOut(false);
     }
+    // No need for finally block as successful logout will unmount this component.
   };
 
   return (
@@ -69,11 +56,7 @@ export default function SecuritySettingsCard() {
         <div>
           <Label className="text-muted-foreground">Login Method</Label>
           <div className="flex items-center mt-1 p-2 rounded-md bg-muted/30">
-            {loginMethod === "Google" ? (
-              <ShieldCheck className="w-5 h-5 mr-2 text-green-500" />
-            ) : (
-              <ShieldCheck className="w-5 h-5 mr-2 text-primary" /> // Using primary for Email/Pass
-            )}
+            <ShieldCheck className="w-5 h-5 mr-2 text-primary" />
             <p className="text-foreground">{loginMethod}</p>
           </div>
         </div>
@@ -86,11 +69,6 @@ export default function SecuritySettingsCard() {
           <KeyRound className="w-4 h-4 mr-2" />
           Change Password
         </Button>
-        {loginMethod === "Google" && (
-          <p className="text-xs text-muted-foreground -mt-4 ml-1">
-            Password changes are managed through your Google account.
-          </p>
-        )}
         <Button
           onClick={handleLogout}
           variant="destructive"

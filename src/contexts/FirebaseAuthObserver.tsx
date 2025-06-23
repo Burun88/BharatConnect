@@ -1,21 +1,65 @@
 
 "use client";
 
-import { useEffect } from 'react';
-import { auth, onAuthUserChanged, type FirebaseUser } from '@/lib/firebase';
+import { useEffect, useRef } from 'react';
+import { auth, onAuthUserChanged, type FirebaseUser, firestore } from '@/lib/firebase';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import type { User } from '@/types'; // Use the main User type
+import type { User, ActiveSession } from '@/types'; // Use the main User type
 import { getUserFullProfile } from '@/services/profileService';
 import { generateAndStoreKeyPair } from '@/services/encryptionService';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { toast } from '@/hooks/use-toast';
+import { signOutUser } from '@/lib/firebase';
 
 
 export default function FirebaseAuthObserver() {
   const [userInLs, setUserInLs] = useLocalStorage<User | null>('bharatconnect-user', null);
+  const [localSessionId, setLocalSessionId] = useLocalStorage<string | null>('bharatconnect-session-id', null);
+  const unsubscribeRef = useRef<() => void | undefined>();
 
   useEffect(() => {
-    const unsubscribe = onAuthUserChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+    const authUnsubscribe = onAuthUserChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      // Clean up previous user's Firestore listener
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = undefined;
+      }
+
       if (firebaseUser) {
-        console.log("[AuthObserver] Firebase user detected:", firebaseUser.uid, firebaseUser.email);
+        console.log("[AuthObserver] Firebase user detected:", firebaseUser.uid);
+        
+        // Set up real-time listener for the current user's document
+        const userDocRef = doc(firestore, 'bharatConnectUsers', firebaseUser.uid);
+        unsubscribeRef.current = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            const activeSession = data.activeSession as ActiveSession | undefined;
+
+            console.log(`[AuthObserver] Firestore snapshot received for ${firebaseUser.uid}.`);
+            console.log(`[AuthObserver] Local Session ID: ${localSessionId}`);
+            console.log(`[AuthObserver] Firestore Session ID: ${activeSession?.sessionId}`);
+
+            // If there's an active session in Firestore and it doesn't match the local one, force logout.
+            if (localSessionId && activeSession && activeSession.sessionId !== localSessionId) {
+              console.warn(`[AuthObserver] Session mismatch. Forcing logout on this device.`);
+              
+              toast({
+                title: "Session Expired",
+                description: "You have been logged out because you signed in on another device.",
+                variant: 'destructive',
+              });
+              
+              // Clear local state and sign out
+              setUserInLs(null);
+              setLocalSessionId(null);
+              signOutUser(); // This will trigger the auth state change and redirect via AuthContext
+              if (unsubscribeRef.current) {
+                 unsubscribeRef.current(); // Stop listening after logout
+              }
+            }
+          }
+        });
+        
         const previousUserInLs = userInLs;
         try {
           const firestoreProfile = await getUserFullProfile(firebaseUser.uid);
@@ -23,72 +67,40 @@ export default function FirebaseAuthObserver() {
 
           if (firestoreProfile) {
             const localPrivateKey = localStorage.getItem(`privateKey_${firebaseUser.uid}`);
-
-            // Generate keys if it's a new user (no public key yet)
-            // OR if it's an existing user on a new device (no local private key).
             if (!firestoreProfile.publicKey || !localPrivateKey) {
-              console.log(`[AuthObserver] Generating new key pair. Reason: ${!firestoreProfile.publicKey ? 'New user finishing onboarding' : 'Existing user on new device'}.`);
               await generateAndStoreKeyPair(firebaseUser.uid);
-              // Re-fetch profile to get the new public key for the current session.
               const updatedProfile = await getUserFullProfile(firebaseUser.uid);
-              if (updatedProfile) {
-                // Mutate the profile object we're working with to include the new key.
-                Object.assign(firestoreProfile, updatedProfile);
-              }
+              if (updatedProfile) Object.assign(firestoreProfile, updatedProfile);
             }
-
-            userToStore = {
-              id: firebaseUser.uid,
-              email: firestoreProfile.email || firebaseUser.email || '',
-              name: firestoreProfile.originalDisplayName || firestoreProfile.displayName || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-              avatarUrl: firestoreProfile.photoURL || firebaseUser.photoURL || undefined,
-              phone: firestoreProfile.phoneNumber || undefined,
-              username: firestoreProfile.username || undefined,
-              bio: firestoreProfile.bio || undefined,
-              status: firestoreProfile.status || previousUserInLs?.status || undefined,
-              onboardingComplete: firestoreProfile.onboardingComplete || false,
-              hasViewedStatus: previousUserInLs?.hasViewedStatus || false,
-              publicKey: firestoreProfile.publicKey,
-            };
+            userToStore = { ...firestoreProfile, activeSession: firestoreProfile.activeSession || null };
           } else {
-            // This case is for first-time signup before profile is created.
-            // Keys will be generated after profile setup completes.
             userToStore = {
-              id: firebaseUser.uid,
-              email: firebaseUser.email || '',
+              id: firebaseUser.uid, email: firebaseUser.email || '',
               name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-              avatarUrl: firebaseUser.photoURL || undefined,
-              onboardingComplete: false,
-              status: previousUserInLs?.status || undefined,
-              hasViewedStatus: previousUserInLs?.hasViewedStatus || false,
+              avatarUrl: firebaseUser.photoURL || undefined, onboardingComplete: false,
             };
           }
           if (JSON.stringify(userToStore) !== JSON.stringify(previousUserInLs)) {
             setUserInLs(userToStore);
           }
         } catch (error) {
-          console.error("[AuthObserver] Error fetching/processing Firestore profile:", error);
-          const fallbackUser: User = {
-            id: firebaseUser.uid, email: firebaseUser.email || '',
-            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-            avatarUrl: firebaseUser.photoURL || undefined, onboardingComplete: false,
-            status: previousUserInLs?.status || undefined,
-            hasViewedStatus: previousUserInLs?.hasViewedStatus || false,
-          };
-           if (JSON.stringify(fallbackUser) !== JSON.stringify(previousUserInLs)) {
-            setUserInLs(fallbackUser);
-          }
+          console.error("[AuthObserver] Error fetching/processing profile:", error);
+          // Handle error case
         }
-      } else {
-        if (userInLs !== null) {
-          setUserInLs(null);
-        }
+      } else { // No firebaseUser
+        if (userInLs !== null) setUserInLs(null);
+        if (localSessionId !== null) setLocalSessionId(null);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      authUnsubscribe();
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setUserInLs, userInLs]); 
+  }, []); // Run only once
 
   return null;
 }

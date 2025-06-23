@@ -11,10 +11,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Logo from '@/components/shared/Logo';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { auth, signInUser, resetUserPassword } from '@/lib/firebase';
+import { auth, resetUserPassword } from '@/lib/firebase';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { AuthStep } from '@/contexts/AuthContext';
-import { Loader2 } from 'lucide-react'; // Import Loader2
+import { Loader2 } from 'lucide-react';
 
 export default function LoginPageHub() {
   const [email, setEmail] = useState('');
@@ -23,60 +23,44 @@ export default function LoginPageHub() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const { isAuthLoading } = useAuth(); // Get isAuthLoading to show a loader if context is still resolving
+  const { isAuthLoading, loginAndManageSession } = useAuth();
   const [, setAuthStepFromLS] = useLocalStorage<AuthStep>('bharatconnect-auth-step', 'initial_loading');
-
-  // REMOVED useEffect for redirection based on authUser, isAuthLoading, authStep
-  // AuthContext is now solely responsible for this redirection.
 
   const handleContinue = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
 
-    if (!email.trim()) {
-      setError('Please enter your email address.');
+    if (!email.trim() || !password.trim()) {
+      setError('Please enter your email and password.');
       setIsSubmitting(false);
       return;
     }
-     if (!password.trim() && email.trim()) {
-         setError('Please enter your password to log in.');
-         setIsSubmitting(false);
-         return;
-    }
 
     try {
-      const userCredential = await signInUser(auth, email, password);
-      toast({
-        title: 'Login Attempt Successful!',
-        description: `Welcome back, ${userCredential.user.displayName || userCredential.user.email || 'user'}! Please wait...`,
-      });
-      // AuthContext will detect the auth change (via FirebaseAuthObserver updating LocalStorage, which AuthContext reads)
-      // and then AuthContext's own useEffect will handle the redirection.
+      // Use the new context method for login
+      await loginAndManageSession(email, password);
+      // On success, AuthContext and FirebaseAuthObserver handle the rest.
+      // A successful login here might just mean the user is authenticated,
+      // but the session conflict dialog might appear.
     } catch (err: any) {
       console.error("[Login Hub] Firebase SignIn Error:", err);
+      let userMessage = 'An unexpected error occurred. Please try again.';
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        setError('Incorrect email or password. If you\'re new, please Sign Up!');
+        userMessage = 'Incorrect email or password. If you\'re new, please Sign Up!';
         toast({
             variant: 'default',
             title: "👋 Whoops! New to BharatConnect?",
-            description: "That email & password combo didn't match our records. If you're new here, tap 'Sign Up' below. Otherwise, double-check your details!",
+            description: "That email & password combo didn't match. If you're new here, tap 'Sign Up' below!",
         });
       } else if (err.code === 'auth/invalid-email') {
-        setError('Invalid email format. Please check your email address.');
-        toast({ variant: 'destructive', title: 'Invalid Email', description: 'Please enter a valid email address.' });
+        userMessage = 'Invalid email format. Please check your email address.';
       } else if (err.code === 'auth/network-request-failed') {
-        setError('Network error. Please check your connection and try again.');
-        toast({ variant: 'destructive', title: 'Network Error', description: 'Could not connect. Check internet.' });
-      } else if (err.code === 'auth/visibility-check-was-unavailable') {
-        const specificErrorMsg = "Authentication service is temporarily unavailable. Please check your internet connection and try again in a few moments. If the problem persists, please contact support.";
-        setError(specificErrorMsg);
-        toast({ variant: 'destructive', title: 'Login Service Unavailable', description: "The authentication service couldn't be reached. Please retry." });
+        userMessage = 'Network error. Please check your connection and try again.';
+      } else if (err.code === 'auth/too-many-requests') {
+        userMessage = 'Access to this account has been temporarily disabled due to many failed login attempts. You can immediately restore it by resetting your password or you can try again later.';
       }
-       else {
-        setError('An unexpected error occurred. Please try again.');
-        toast({ variant: 'destructive', title: 'Login Error', description: err.message || 'An unexpected error occurred.' });
-      }
+      setError(userMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -99,15 +83,10 @@ export default function LoginPageHub() {
       toast({ title: "Password Reset Email Sent", description: `If an account exists for ${email}, a password reset link has been sent.` });
     } catch (err: any) {
       console.error("Error sending password reset email:", err);
-      if (err.code === 'auth/invalid-email') {
-        setError('Invalid email format. Please check your email address.');
-        toast({ variant: 'destructive', title: 'Invalid Email', description: 'The email address is not valid.' });
-      } else if (err.code === 'auth/user-not-found') {
-         setError('No user found with this email address. Please sign up if you are new.');
-         toast({ variant: 'destructive', title: 'User Not Found', description: 'No account found with this email. Sign up?' });
+      if (err.code === 'auth/invalid-email' || err.code === 'auth/user-not-found') {
+        setError('No user found with this email. Please sign up if you are new.');
       } else {
         setError('Failed to send password reset email. Please try again.');
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not send password reset email.' });
       }
     } finally {
       setIsSubmitting(false);
@@ -170,6 +149,7 @@ export default function LoginPageHub() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 aria-describedby="login-error"
+                disabled={isSubmitting}
               />
             </div>
             <div className="space-y-2">
@@ -180,12 +160,14 @@ export default function LoginPageHub() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                required
                 aria-describedby="login-error"
+                disabled={isSubmitting}
               />
             </div>
             {error && <p id="login-error" className="text-sm text-destructive text-center">{error}</p>}
             <Button type="submit" className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity" disabled={isSubmitting}>
-              {isSubmitting ? 'Processing...' : 'Continue'}
+              {isSubmitting ? <Loader2 className="animate-spin" /> : 'Continue'}
             </Button>
           </form>
         </CardContent>
