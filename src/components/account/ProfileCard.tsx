@@ -146,10 +146,7 @@ export default function ProfileCard({ initialProfileData, authUid }: ProfileCard
 
     if (profilePicFile) { 
       try {
-        const formData = new FormData();
-        formData.append('uid', authUid); 
-        formData.append('profileImageFile', profilePicFile);
-        finalPhotoURL = await uploadProfileImage(formData); 
+        finalPhotoURL = await uploadProfileImage(authUid, profilePicFile); 
         newImageUploaded = true;
         toast({ title: "Profile picture uploaded!" });
       } catch (uploadError: any) {

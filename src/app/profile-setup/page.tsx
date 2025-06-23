@@ -161,19 +161,9 @@ function ProfileSetupContent() {
     let finalPhotoURL = userProfileLs?.photoURL || null; 
 
     if (profilePicFile) {
-      const formData = new FormData();
-      formData.append('uid', authUid);
-      formData.append('profileImageFile', profilePicFile);
-      
-      console.log("[ProfileSetupPage] typeof uploadProfileImage:", typeof uploadProfileImage);
-      console.log("[ProfileSetupPage] FormData entries before calling ACTUAL uploadProfileImage:");
-      for (let pair of formData.entries()) {
-        console.log(pair[0]+ ', ' + (pair[1] instanceof File ? `File: ${pair[1].name}, size: ${pair[1].size}, type: ${pair[1].type}` : pair[1]));
-      }
-
       try {
         console.log(`[ProfileSetupPage] Uploading new profile picture for UID: ${authUid}`);
-        finalPhotoURL = await uploadProfileImage(formData);
+        finalPhotoURL = await uploadProfileImage(authUid, profilePicFile);
         toast({ title: "Profile picture uploaded!" });
       } catch (uploadError: any) {
         console.error("[ProfileSetupPage] Error uploading profile picture:", uploadError);
@@ -254,7 +244,7 @@ function ProfileSetupContent() {
 
   if (isPageLoading) {
     return (
-      <div className="flex flex-col items-center justify-center flex-grow min-h-0 bg-background p-4 hide-scrollbar overflow-y-auto">
+      <div className="flex flex-col items-center justify-center flex-grow min-h-0 bg-background p-4 overflow-y-auto">
         <Loader2 className="animate-spin h-10 w-10 text-primary" />
         <p className="mt-4 text-muted-foreground text-center">Loading profile setup...</p>
       </div>
@@ -262,7 +252,7 @@ function ProfileSetupContent() {
   }
 
   return (
-    <div className="flex flex-col items-center bg-background p-4 flex-grow min-h-0 hide-scrollbar overflow-y-auto">
+    <div className="flex flex-col items-center bg-background p-4 flex-grow min-h-0 overflow-y-auto">
       <Card className="w-full max-w-md shadow-2xl my-auto">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-6">
@@ -382,7 +372,7 @@ export default function ProfileSetupPage() {
   return (
     <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background">
       <Suspense fallback={
-        <div className="flex flex-col items-center justify-center flex-grow min-h-0 bg-background p-4 hide-scrollbar overflow-y-auto">
+        <div className="flex flex-col items-center justify-center flex-grow min-h-0 bg-background p-4 overflow-y-auto">
           <Loader2 className="animate-spin h-10 w-10 text-primary" />
           <p className="mt-4 text-muted-foreground text-center">Loading page details...</p>
         </div>
