@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -23,6 +22,7 @@ import MessageArea from '@/components/chat/MessageArea';
 import ChatInputZone from '@/components/chat/ChatInputZone';
 import ChatRequestDisplay from '@/components/chat/ChatRequestDisplay';
 import EmojiPicker from '@/components/emoji-picker';
+import EncryptedChatBanner from '@/components/chat/EncryptedChatBanner';
 
 import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 import { useElementHeight } from '@/hooks/useElementHeight';
@@ -58,6 +58,7 @@ export default function ChatPage() {
   const [contactActiveAura, setContactActiveAura] = useState<UserAura | null>(null);
   const [isContactTyping, setIsContactTyping] = useState(false);
   const [contactPresence, setContactPresence] = useState<ChatSpecificPresence | null>(null);
+  const [privateKeyExists, setPrivateKeyExists] = useState<boolean | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomBarRef = useRef<HTMLDivElement>(null); 
@@ -75,6 +76,13 @@ export default function ChatPage() {
   const justSelectedEmojiRef = useRef(false);
 
   useEffect(() => { isMountedRef.current = true; return () => { isMountedRef.current = false; }; }, []);
+
+  useEffect(() => {
+    if (authUser?.id) {
+      const key = localStorage.getItem(`privateKey_${authUser.id}`);
+      setPrivateKeyExists(!!key);
+    }
+  }, [authUser?.id]);
 
   const currentUserId = authUser?.id;
   const isPotentiallyNewChat = initialRouteChatId ? !initialRouteChatId.startsWith('req_') : false;
@@ -290,16 +298,21 @@ export default function ChatPage() {
       const decryptionPromises: Promise<Message>[] = querySnapshot.docs.map(async docSnap => {
         const data = docSnap.data();
         const firestoreId = docSnap.id;
-        let decryptedText = data.text; // Fallback to existing text field
+        let decryptedText = data.text;
         let decryptionError: 'DECRYPTION_FAILED' | undefined = undefined;
 
         if (data.encryptedText && currentUserId) {
-          try {
-            decryptedText = await decryptMessage(data, currentUserId);
-          } catch (e) {
-            console.error(`Decryption failed for message ${firestoreId}:`, e);
+          if (privateKeyExists) {
+            try {
+              decryptedText = await decryptMessage(data, currentUserId);
+            } catch (e) {
+              console.error(`Decryption failed for message ${firestoreId}:`, e);
+              decryptionError = 'DECRYPTION_FAILED';
+              decryptedText = '[Message could not be decrypted]';
+            }
+          } else {
             decryptionError = 'DECRYPTION_FAILED';
-            decryptedText = '[Message could not be decrypted]';
+            decryptedText = '[Encrypted message - Restore backup to read]';
           }
         }
         
@@ -344,7 +357,7 @@ export default function ChatPage() {
       });
     });
     return () => unsubscribeMessages();
-  }, [effectiveChatId, currentUserId, toast, isChatActive, showRequestSpecificUI]);
+  }, [effectiveChatId, currentUserId, toast, isChatActive, showRequestSpecificUI, privateKeyExists]);
 
   const processAndSendMessage = async () => {
     if (newMessage.trim() === '' || !authUser?.id || !effectiveChatId || !contact) return;
@@ -456,7 +469,6 @@ export default function ChatPage() {
             return `last seen ${formatDistanceToNowStrict(lastChangedDate, { addSuffix: true })}`;
         }
       } catch (e) {
-        // Fallback for cases where timestamp might not be a valid object yet
         return 'Offline';
       }
     }
@@ -472,7 +484,7 @@ export default function ChatPage() {
 
   const memoizedEmojiPicker = useMemo(() => <EmojiPicker onEmojiSelect={handleEmojiSelect} />, [handleEmojiSelect]);
 
-  if (isAuthLoading || isPageLoading) return ( <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary" /><p className="mt-4 text-muted-foreground text-center">Loading Chat...</p></div> );
+  if (isAuthLoading || isPageLoading || privateKeyExists === null) return ( <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary" /><p className="mt-4 text-muted-foreground text-center">Loading Chat...</p></div> );
   if (!isAuthenticated && !isAuthLoading) return ( <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center"><p className="text-muted-foreground text-center">Redirecting...</p></div> );
   if (!initialRouteChatId || ((!chatDetails && !isPotentiallyNewChat) || (!contact && (isChatActive || showRequestSpecificUI )))) return ( <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center p-4"><Card className="w-full max-w-md text-center"><CardHeader><MessageSquareX className="w-16 h-16 text-destructive mx-auto mb-4" /><CardTitle className="text-2xl">Chat Not Found</CardTitle></CardHeader><CardContent><p className="text-muted-foreground">The chat (ID: {effectiveChatId || initialRouteChatId}) could not be loaded.</p></CardContent><CardFooter className="flex flex-col space-y-3"><Button onClick={() => router.push('/')} className="w-full">Go to Chats</Button><Button variant="outline" onClick={() => router.back()} className="w-full">Go Back</Button></CardFooter></Card></div> );
 
@@ -488,6 +500,8 @@ export default function ChatPage() {
         isChatActive={isChatActive}
         onMoreOptionsClick={() => toast({ title: "Coming Soon!", description: "More chat options are on the way." })}
       />
+      
+      {privateKeyExists === false && isChatActive && <EncryptedChatBanner />}
 
       {showRequestSpecificUI && chatDetails && contact && currentUserId ? (
         <ChatRequestDisplay
@@ -510,7 +524,7 @@ export default function ChatPage() {
               <ChatInputZone
                 newMessage={newMessage} onNewMessageChange={setNewMessage} onSendMessage={processAndSendMessage}
                 onToggleEmojiPicker={toggleEmojiPicker} isEmojiPickerOpen={isEmojiPickerOpen}
-                textareaRef={textareaRef} isDisabled={!isChatActive} justSelectedEmoji={justSelectedEmojiRef.current}
+                textareaRef={textareaRef} isDisabled={!isChatActive || privateKeyExists === false} justSelectedEmoji={justSelectedEmojiRef.current}
               />
             </div>
           )}

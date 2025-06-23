@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -7,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import BottomNavigationBar from '@/components/bottom-navigation-bar';
 import HomeHeader from '@/components/home/home-header';
 import AuraBar from '@/components/home/aura-bar';
-import ChatList from '@/components/home/chat-list'; // Added import for ChatList
-import type { User, Chat, ParticipantInfo, DisplayAura, FirestoreAura, UserAura as UserAuraType, UserStatusDoc } from '@/types'; // Ensure DisplayAura and UserStatusDoc are imported
+import ChatList from '@/components/home/chat-list';
+import RestoreBackupPrompt from '@/components/home/RestoreBackupPrompt';
+import type { User, Chat, ParticipantInfo, DisplayAura, FirestoreAura, UserAura as UserAuraType, UserStatusDoc } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 import { Plus, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -55,8 +55,9 @@ export default function HomePage() {
   const { chats: contextChats, setChats: setContextChats, isLoadingChats: isContextChatsLoading } = useChatContextHook();
 
   const [isMounted, setIsMounted] = useState(false);
-  const [isLoadingPageData, setIsLoadingPageData] = useState(true); // Tracks if HomePage's own listeners have processed initial data
+  const [isLoadingPageData, setIsLoadingPageData] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [privateKeyExists, setPrivateKeyExists] = useState<boolean | null>(null);
 
   const [liveActiveChats, setLiveActiveChats] = useState<Chat[]>([]);
   const [liveSentRequests, setLiveSentRequests] = useState<Chat[]>([]);
@@ -75,6 +76,15 @@ export default function HomePage() {
   const [isLoadingAuras, setIsLoadingAuras] = useState(true);
 
   useEffect(() => { setIsMounted(true); }, []);
+
+  useEffect(() => {
+    if (authUser?.id) {
+      const key = localStorage.getItem(`privateKey_${authUser.id}`);
+      setPrivateKeyExists(!!key);
+    } else {
+      setPrivateKeyExists(null); // Reset if user logs out
+    }
+  }, [authUser?.id]);
 
   // Effect for Aura Bar
   useEffect(() => {
@@ -218,15 +228,14 @@ export default function HomePage() {
                 const isActiveNow = statusData.isActive && statusData.expiresAt && (statusData.expiresAt as Timestamp).toMillis() > Date.now() && statusData.media && statusData.media.length > 0;
 
                 if (isActiveNow) {
-                    // Check if EVERY media item has been viewed.
                     const allItemsViewed = statusData.media.every(item => item.viewers?.includes(activeAuthUserIdInner));
 
                     if (allItemsViewed) {
                         hasActiveViewedStatus = true;
                         hasActiveUnviewedStatus = false;
                     } else {
-                        hasActiveViewedStatus = false; // Not all are viewed, so it's not a fully "viewed" status
-                        hasActiveUnviewedStatus = true; // At least one is unviewed
+                        hasActiveViewedStatus = false;
+                        hasActiveUnviewedStatus = true;
                     }
                 }
             }
@@ -244,16 +253,16 @@ export default function HomePage() {
           
           let lastMessageWithDecryptedText = null;
           if (data.lastMessage) {
-            let decryptedText = data.lastMessage.text; // Start with existing text
-            if (data.lastMessage.encryptedText && activeAuthUserIdInner) {
+            let decryptedText = data.lastMessage.text;
+            if (data.lastMessage.encryptedText && activeAuthUserIdInner && privateKeyExists) {
               try {
                 decryptedText = await decryptMessage(data.lastMessage, activeAuthUserIdInner);
               } catch (e) {
                 console.error(`Failed to decrypt last message for chat ${chatDoc.id}`, e);
-                decryptedText = 'Encrypted message'; // Fallback text
+                decryptedText = 'Encrypted message';
               }
             } else if (!data.lastMessage.text) {
-               decryptedText = '...'; // Fallback for no text at all
+               decryptedText = '...';
             }
 
             lastMessageWithDecryptedText = {
@@ -338,7 +347,7 @@ export default function HomePage() {
     }, (error: FirestoreError) => { toast({ variant: 'destructive', title: 'Request Error', description: `Received requests: ${error.message}`}); setLiveReceivedRequests([]); if (!initialReceivedRequestsProcessed) setInitialReceivedRequestsProcessed(true);});
 
     return () => { if (unsubActive) unsubActive(); if (unsubSent) unsubSent(); if (unsubReceived) unsubReceived(); };
-  }, [authUser, isAuthenticated, isAuthLoading, isMounted, toast, allDisplayAuras]);
+  }, [authUser, isAuthenticated, isAuthLoading, isMounted, toast, allDisplayAuras, privateKeyExists]);
 
   // Combine and sort chats for ChatContext and local page loading state
   useEffect(() => {
@@ -386,7 +395,8 @@ export default function HomePage() {
     }
   }, [isLoadingPageData, isAuthenticated, handleScroll, isMounted]);
 
-  const showPageSpinner = !isMounted || isAuthLoading || (isAuthenticated && (isLoadingAuras || isLoadingPageData));
+  const showPageSpinner = !isMounted || isAuthLoading || (isAuthenticated && (isLoadingAuras || isLoadingPageData || privateKeyExists === null));
+  const showRestorePrompt = privateKeyExists === false && contextChats.length > 0;
 
   let mainContent;
   if (showPageSpinner) {
@@ -401,6 +411,14 @@ export default function HomePage() {
       <div className="flex-grow flex flex-col items-center justify-center">
         <p className="text-muted-foreground text-center">Redirecting...</p>
       </div>
+    );
+  } else if (showRestorePrompt) {
+    mainContent = (
+      <SwipeablePageWrapper className="flex-grow flex flex-col bg-background overflow-hidden min-h-0">
+        <main className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar min-h-0 w-full" style={{ paddingTop: `${HEADER_HEIGHT_PX}px`, paddingBottom: `${BOTTOM_NAV_HEIGHT_PX}px` }}>
+            <RestoreBackupPrompt />
+        </main>
+      </SwipeablePageWrapper>
     );
   } else {
     mainContent = (
@@ -422,15 +440,10 @@ export default function HomePage() {
     <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background">
       <HomeHeader isHeaderContentLoaded={isHeaderContentLoaded} />
       {mainContent}
-      <Button variant="default" size="icon" className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-bharatconnect-bubble text-primary-foreground hover:opacity-90 transition-opacity z-30" aria-label="New chat" onClick={() => router.push('/new-chat')}>
+      <Button variant="default" size="icon" className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-bharatconnect-bubble text-primary-foreground hover:opacity-90 transition-opacity z-30" aria-label="New chat" onClick={() => router.push('/search')}>
         <Plus className="w-7 h-7" />
       </Button>
       <BottomNavigationBar />
     </div>
   );
 }
-    
-    
-    
-
-
