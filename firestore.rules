@@ -1,60 +1,83 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // By default, deny all reads and writes.
-    match /{document=**} {
-      allow read, write: if false;
+
+    // Helper functions for clarity and reuse
+    function isAuth() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuth() && request.auth.uid == userId;
     }
 
-    // Allow logged-in users to read and write to their own user document.
+    // bharatConnectUsers collection
     match /bharatConnectUsers/{userId} {
-      allow read, update: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null;
+      // Any authenticated user can read a profile (to see contact info)
+      allow read: if isAuth();
+      // Only the owner can write to their own profile
+      allow write: if isOwner(userId);
+
+      // Rules for subcollections of a user
+      match /requestsSent/{docId} {
+        // Only the owner can read/write their sent requests
+        allow read, write: if isOwner(userId);
+      }
+      match /requestsReceived/{docId} {
+        // Only the owner can read/write their received requests
+        allow read, write: if isOwner(userId);
+      }
     }
     
-    // Allow users to read/write to chats they are a part of.
+    // auras collection
+    match /auras/{auraId} {
+      // Any authenticated user can read an aura document.
+      // This is necessary for the homepage aura bar query to work.
+      allow read: if isAuth();
+      // Only the owner can create/update their own aura.
+      allow write: if isOwner(auraId);
+    }
+    
+    // chats collection
     match /chats/{chatId} {
-      allow read, write: if request.auth != null && resource.data.participants.hasAny([request.auth.uid]);
+      // A user can read/write a chat document if their UID is in the participants list.
+      allow read, write: if isAuth() && request.auth.uid in resource.data.participants;
+      
+      // messages subcollection
+      match /messages/{messageId} {
+        // A user can read/write messages if they are a participant of the parent chat doc.
+        // This requires a 'get' call to the parent document.
+         allow read, write: if isAuth() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+      }
     }
     
-    // Allow users to write messages to chats they are a part of.
-    match /chats/{chatId}/messages/{messageId} {
-        allow read, write: if request.auth != null && get(/databases/$(database)/documents/chats/$(chatId)).data.participants.hasAny([request.auth.uid]);
-    }
-
-    // Allow users to manage their own chat requests
-    match /bharatConnectUsers/{userId}/requestsSent/{requestId} {
-        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
-    }
-    match /bharatConnectUsers/{userId}/requestsReceived/{requestId} {
-        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Allow read access to auras for any authenticated user
-    match /auras/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Allow read access to status for any authenticated user
+    // status collection
     match /status/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      // Any authenticated user can read status updates.
+      // A more complex rule could limit this to contacts only.
+      allow read: if isAuth();
+      // Only the owner can write their own status.
+      allow write: if isOwner(userId);
     }
 
-    // Allow authenticated users to manage their own calls
+    // calls collection
     match /calls/{callId} {
-      allow read, write: if request.auth != null; // Simplified for now
+      // The caller or callee can read/write the call document.
+      allow read, write: if isAuth() && (request.auth.uid == resource.data.callerId || request.auth.uid == resource.data.calleeId);
+      
+      // ICE candidates subcollections
+      match /{candidatesCollection=**}/{candidateId} {
+        // Allow creating candidates if user is part of the call.
+        allow create: if isAuth() && (request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.callerId || request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.calleeId);
+      }
     }
-     match /calls/{callId}/{subcollection}/{candidateId} {
-      allow create: if request.auth != null;
-    }
-
-    // Allow users to manage their request cooldowns
+    
+    // requestCooldowns collection
     match /requestCooldowns/{cooldownId} {
-        allow read, write: if request.auth != null;
+        // The sender who initiated the cooldown can read/create it.
+        // cooldownId is formatted as "senderId_receiverId".
+        allow read, create: if isAuth() && request.auth.uid == cooldownId.split('_')[0];
     }
   }
 }
