@@ -10,7 +10,8 @@
 #    - Find the principal with the email: service-YOUR_PROJECT_NUMBER@gcp-sa-apphosting.iam.gserviceaccount.com
 
 # 2. GRANT SECRET ACCESS:
-#    - For EACH secret below, go to Secret Manager, click the secret, go to the PERMISSIONS tab,
+#    - For EACH secret below, go to Secret Manager, create a secret with the specified name (e.g., FIREBASE_API_KEY),
+#    - paste the correct value into it, then go to the secret's PERMISSIONS tab,
 #    - and grant the 'Secret Manager Secret Accessor' role to the service account from Step 1.
 #    - This allows the build process to access your environment variables.
 
@@ -31,40 +32,46 @@ runConfig:
 # The 'secret' field specifies the name of the secret in Google Cloud Secret Manager.
 env:
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-    secret: AIzaSyCmVRTIvMTgZ_IBhzlc-Ml0yt106l0EyOk
+    secret: FIREBASE_API_KEY
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-    secret: bharatconnect-i8510.firebaseapp.com
+    secret: FIREBASE_AUTH_DOMAIN
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    secret: bharatconnect-i8510
+    secret: FIREBASE_PROJECT_ID
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-    secret: bharatconnect-i8510.firebasestorage.app
+    secret: FIREBASE_STORAGE_BUCKET
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-    secret: 1011856991455
+    secret: FIREBASE_MESSAGING_SENDER_ID
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
-    secret: 1:1011856991455:web:b8611aad228c31ccbf756a
+    secret: FIREBASE_APP_ID
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_DATABASE_URL
-    secret: https://bharatconnect-i8510-default-rtdb.asia-southeast1.firebasedatabase.app
+    secret: FIREBASE_DATABASE_URL
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_FCM_VAPID_KEY
+    secret: FCM_VAPID_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+      
   - variable: NEXT_PUBLIC_FCM_VAPID_KEY
     secret: FCM_VAPID_KEY
     availability:
