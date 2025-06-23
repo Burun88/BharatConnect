@@ -7,9 +7,8 @@ import TypingIndicatorBubble from '@/components/chat/TypingIndicatorBubble';
 import type { Message } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronDown, Lock, UploadCloud, Loader2 } from 'lucide-react';
+import { ChevronDown, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Progress } from '@/components/ui/progress';
 
 interface MessageAreaProps {
   messages: Message[];
@@ -17,8 +16,7 @@ interface MessageAreaProps {
   contactId: string | null;
   dynamicPaddingBottom: number;
   isContactTyping: boolean;
-  isUploading: boolean;
-  uploadProgress: number;
+  onRetryUpload: (clientTempId: string) => void;
 }
 
 const SCROLL_NEAR_BOTTOM_THRESHOLD = 150; 
@@ -29,8 +27,7 @@ export default function MessageArea({
   contactId,
   dynamicPaddingBottom,
   isContactTyping,
-  isUploading,
-  uploadProgress,
+  onRetryUpload,
 }: MessageAreaProps) {
   const messageListContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollToBottomButton, setShowScrollToBottomButton] = useState(false);
@@ -62,10 +59,11 @@ export default function MessageArea({
 
   useEffect(() => {
     const newMessagesCount = messages.length - prevMessagesLengthRef.current;
+    const newMessages = messages.slice(-newMessagesCount);
+
     if (showScrollToBottomButton && newMessagesCount > 0) {
-      const newIncomingMessages = messages
-        .slice(-newMessagesCount)
-        .filter(msg => msg.senderId !== currentUserId).length;
+      const newIncomingMessages = newMessages
+        .filter(msg => msg.senderId !== currentUserId && !msg.clientTempId).length;
       
       if (newIncomingMessages > 0) {
         setUnreadWhileScrolledUp(prev => prev + newIncomingMessages);
@@ -79,7 +77,7 @@ export default function MessageArea({
     if (container && wasAtBottomRef.current) {
       container.scrollTop = container.scrollHeight;
     }
-  }, [messages, isContactTyping, isUploading]);
+  }, [messages, isContactTyping]);
 
   useEffect(() => {
     const container = messageListContainerRef.current;
@@ -107,7 +105,7 @@ export default function MessageArea({
         className="h-full overflow-y-auto hide-scrollbar p-2 space-y-2"
         style={{ paddingBottom: `${dynamicPaddingBottom}px` }}
       >
-        {messages.length === 0 && !isContactTyping && !isUploading && (
+        {messages.length === 0 && !isContactTyping && (
           <div className="px-4 py-2 my-1 w-full animate-fade-in-scale-up">
             <p className={cn("mx-auto max-w-sm rounded-md p-2 text-center text-xs", "flex items-center justify-center bg-muted text-muted-foreground")}>
               <Lock className="w-3 h-3 mr-1.5 flex-shrink-0" />
@@ -122,20 +120,13 @@ export default function MessageArea({
             isOutgoing={msg.senderId === currentUserId}
             contactId={contactId}
             currentUserId={currentUserId}
+            onRetry={onRetryUpload}
           />
         ))}
         {isContactTyping && (
             <div className="flex flex-col max-w-[70%] my-1 mr-auto">
                  <TypingIndicatorBubble />
             </div>
-        )}
-        {isUploading && (
-          <div className="flex flex-col items-center justify-center p-4 space-y-3 bg-muted rounded-lg m-2 animate-pulse">
-            <UploadCloud className="w-8 h-8 text-primary" />
-            <p className="text-sm font-medium text-foreground">Sending encrypted file...</p>
-            <Progress value={uploadProgress} className="w-full h-2" />
-            <p className="text-xs text-muted-foreground">{Math.round(uploadProgress)}%</p>
-          </div>
         )}
       </div>
 

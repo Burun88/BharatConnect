@@ -62,8 +62,6 @@ export default function ChatPage() {
   const [isContactTyping, setIsContactTyping] = useState(false);
   const [contactPresence, setContactPresence] = useState<ChatSpecificPresence | null>(null);
   const [privateKeyExists, setPrivateKeyExists] = useState<boolean | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomBarRef = useRef<HTMLDivElement>(null); 
@@ -378,6 +376,9 @@ export default function ChatPage() {
       Promise.all(decryptionPromises).then(decryptedMessages => {
         if (!isMountedRef.current) return;
 
+        // Filter out temp messages that now have a corresponding real message
+        const finalMessages = messages.filter(m => m.clientTempId).concat(decryptedMessages);
+
         const batchForReadUpdates = writeBatch(firestore);
         let markReadUpdatesMade = false;
 
@@ -389,7 +390,7 @@ export default function ChatPage() {
           }
         });
         
-        setMessages(decryptedMessages);
+        setMessages(finalMessages);
 
         if (markReadUpdatesMade && currentUserId) {
           const chatDocRefForUpdate = doc(firestore, `chats/${effectiveChatId}`);
@@ -458,60 +459,84 @@ export default function ChatPage() {
     }
   };
 
-  const handleFileSelect = async (file: File) => {
-    if (!authUser || !contact || !effectiveChatId) return;
+  const startImageUpload = async (tempMessage: Message) => {
+    if (!authUser || !contact || !effectiveChatId || !tempMessage.file) return;
 
-    setIsUploading(true);
-    setUploadProgress(0);
+    // Update message state to 'uploading'
+    setMessages(prev => prev.map(m =>
+        m.clientTempId === tempMessage.clientTempId
+        ? { ...m, uploadStatus: 'uploading', uploadProgress: 0, error: undefined }
+        : m
+    ));
+
     try {
-      const { mediaInfo, encryptedAesKey } = await encryptAndUploadChunks(
-        file,
-        effectiveChatId,
-        authUser.id,
-        [contact.id],
-        (progress) => setUploadProgress(progress)
-      );
-
-      const messageDataForFirestore = {
-        senderId: authUser.id,
-        type: 'image' as const,
-        timestamp: serverTimestamp(),
-        readBy: [authUser.id],
-        mediaInfo,
-        encryptedKeys: encryptedAesKey,
-      };
-
-      const chatDocRef = doc(firestore, `chats/${effectiveChatId}`);
-      const newMessageRef = collection(firestore, `chats/${effectiveChatId}/messages`);
-      await addDoc(newMessageRef, messageDataForFirestore);
-
-      await updateDoc(chatDocRef, {
-        lastMessage: {
-          senderId: authUser.id,
-          timestamp: serverTimestamp(),
-          type: 'image' as const,
-          readBy: [authUser.id],
-          mediaInfo: {
-            fileName: mediaInfo.fileName,
-            fileType: mediaInfo.fileType,
-            fileId: mediaInfo.fileId,
-          },
-          encryptedKeys: encryptedAesKey,
-        },
-        updatedAt: serverTimestamp(),
-      });
-
-      toast({ title: "Image Sent!", description: "Your encrypted image has been sent." });
+        const { mediaInfo, encryptedAesKey } = await encryptAndUploadChunks(
+            tempMessage.file,
+            effectiveChatId,
+            authUser.id,
+            [contact.id],
+            (progress) => {
+                setMessages(prev => prev.map(m =>
+                    m.clientTempId === tempMessage.clientTempId
+                    ? { ...m, uploadProgress: progress }
+                    : m
+                ));
+            }
+        );
+        
+        const messageDataForFirestore = {
+            senderId: authUser.id, type: 'image' as const, timestamp: serverTimestamp(),
+            readBy: [authUser.id], mediaInfo, encryptedKeys: encryptedAesKey,
+        };
+        const chatDocRef = doc(firestore, `chats/${effectiveChatId}`);
+        const newMessageRef = collection(firestore, `chats/${effectiveChatId}/messages`);
+        await addDoc(newMessageRef, messageDataForFirestore);
+        await updateDoc(chatDocRef, {
+            lastMessage: {
+                senderId: authUser.id, timestamp: serverTimestamp(), type: 'image' as const,
+                readBy: [authUser.id],
+                mediaInfo: { fileName: mediaInfo.fileName, fileType: mediaInfo.fileType, fileId: mediaInfo.fileId },
+                encryptedKeys: encryptedAesKey,
+            },
+            updatedAt: serverTimestamp(),
+        });
+        
+        // Remove the temporary message now that the real one will appear via the listener
+        setMessages(prev => prev.filter(m => m.clientTempId !== tempMessage.clientTempId));
 
     } catch (err: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Upload Failed',
-        description: err.message || 'Could not send the image.',
-      });
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
+        toast({
+            variant: 'destructive',
+            title: 'Upload Failed',
+            description: err.message || 'Could not send the image.',
+        });
+        setMessages(prev => prev.map(m =>
+            m.clientTempId === tempMessage.clientTempId
+            ? { ...m, uploadStatus: 'error', error: err.message || 'Upload failed' }
+            : m
+        ));
+    }
+  };
+
+  const handleFileSelect = async (file: File) => {
+      if (!authUser || !contact || !effectiveChatId) return;
+      const clientTempId = `temp_${Date.now()}_${file.name}`;
+      const mediaUrl = URL.createObjectURL(file);
+
+      const tempMessage: Message = {
+          id: clientTempId, clientTempId: clientTempId, chatId: effectiveChatId,
+          senderId: authUser.id, timestamp: Date.now(), type: 'image',
+          file: file, mediaUrl: mediaUrl, uploadStatus: 'pending', uploadProgress: 0,
+      };
+
+      setMessages(prev => [...prev, tempMessage]);
+      await startImageUpload(tempMessage);
+  };
+  
+  const handleRetryUpload = (clientTempId: string) => {
+    const messageToRetry = messages.find(m => m.clientTempId === clientTempId);
+    if (messageToRetry) {
+        startImageUpload(messageToRetry);
     }
   };
 
@@ -620,8 +645,7 @@ export default function ChatPage() {
             contactId={contact?.id || null}
             dynamicPaddingBottom={dynamicPaddingBottom}
             isContactTyping={isContactTyping}
-            uploadProgress={uploadProgress}
-            isUploading={isUploading}
+            onRetryUpload={handleRetryUpload}
           />
           
           {showInputArea && ( 
@@ -631,7 +655,7 @@ export default function ChatPage() {
                 onToggleEmojiPicker={toggleEmojiPicker} isEmojiPickerOpen={isEmojiPickerOpen}
                 onFileSelect={handleFileSelect}
                 textareaRef={textareaRef}
-                isDisabled={!isChatReady || !isChatActive || isUploading}
+                isDisabled={!isChatReady || !isChatActive}
                 justSelectedEmoji={justSelectedEmojiRef.current}
               />
             </div>

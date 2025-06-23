@@ -48,17 +48,22 @@ export type Message = {
   text?: string; // Decrypted text, optional
   // For media messages
   mediaInfo?: MediaInfo;
-  mediaUrl?: string; // This will hold the local Blob URL for the decrypted image
+  mediaUrl?: string; // This will hold the local Blob URL for the decrypted image or temp preview
   // Common fields
   readBy?: string[];
-  clientTempId?: string;
+  clientTempId?: string; // For tracking client-side messages before they get a firestoreId
   firestoreId?: string;
   // E2EE fields
   encryptedText?: string;
   iv?: string; // For text messages
   encryptedKeys?: { [uid: string]: string }; // For text (AES key) and media (AES key)
-  error?: 'DECRYPTION_FAILED';
+  error?: 'DECRYPTION_FAILED' | string; // Allow general error strings
+  // Upload-specific fields for client-side state
+  uploadStatus?: 'pending' | 'uploading' | 'success' | 'error';
+  uploadProgress?: number;
+  file?: File;
 };
+
 
 export type ChatRequestStatus = 'pending' | 'awaiting_action' | 'accepted' | 'rejected' | 'none';
 

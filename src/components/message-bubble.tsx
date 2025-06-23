@@ -4,17 +4,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Message } from '@/types';
 import { cn } from '@/lib/utils';
-import { Check, CheckCheck, Clock, ShieldAlert, ImageIcon, Loader2 } from 'lucide-react';
+import { Check, CheckCheck, Clock, ShieldAlert, ImageIcon, Loader2, UploadCloud, AlertTriangle, RefreshCw, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { decryptAndAssembleChunks } from '@/services/storageService';
-import { getPrivateKey, aesImportParams } from '@/services/encryptionService';
+import { getPrivateKey } from '@/services/encryptionService';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
 
 interface MessageBubbleProps {
   message: Message;
   isOutgoing: boolean;
   contactId: string | null;
   currentUserId: string;
+  onRetry?: (clientTempId: string) => void;
+  onCancel?: (clientTempId: string) => void; // Optional: To cancel uploads
 }
 
 // Helper needed locally if not exported from encryptionService
@@ -28,32 +32,27 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-export default function MessageBubble({ message, isOutgoing, contactId, currentUserId }: MessageBubbleProps) {
+export default function MessageBubble({ message, isOutgoing, contactId, currentUserId, onRetry, onCancel }: MessageBubbleProps) {
   const [decryptedImageUrl, setDecryptedImageUrl] = useState<string | null>(null);
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [decryptionError, setDecryptionError] = useState<string | null>(null);
 
   const decryptImage = useCallback(async () => {
-    if (message.type !== 'image' || !message.mediaInfo || !message.encryptedKeys) return;
+    if (message.type !== 'image' || !message.mediaInfo || !message.encryptedKeys || !message.firestoreId) return;
     if (decryptedImageUrl || isDecrypting) return;
 
     setIsDecrypting(true);
     setDecryptionError(null);
     try {
-      // 1. Get user's private key
       const privateKey = await getPrivateKey(currentUserId);
-
-      // 2. Decrypt the AES key
       const encryptedAesKeyBase64 = message.encryptedKeys[currentUserId];
       if (!encryptedAesKeyBase64) throw new Error("No encrypted AES key found for this user.");
       
       const encryptedAesKeyBuffer = base64ToArrayBuffer(encryptedAesKeyBase64);
       const rawAesKey = await window.crypto.subtle.decrypt({ name: 'RSA-OAEP' }, privateKey, encryptedAesKeyBuffer);
       
-      // 3. Import the AES key
       const aesKey = await window.crypto.subtle.importKey('raw', rawAesKey, { name: 'AES-GCM' }, false, ['decrypt']);
 
-      // 4. Decrypt and assemble chunks
       const blobUrl = await decryptAndAssembleChunks(aesKey, message.mediaInfo);
       setDecryptedImageUrl(blobUrl);
 
@@ -66,13 +65,16 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
   }, [message, currentUserId, decryptedImageUrl, isDecrypting]);
 
   useEffect(() => {
-    if (message.type === 'image') {
+    if (message.type === 'image' && message.firestoreId) {
       decryptImage();
     }
     // Cleanup blob URL on unmount
     return () => {
       if (decryptedImageUrl) {
         URL.revokeObjectURL(decryptedImageUrl);
+      }
+      if (message.mediaUrl && message.clientTempId) { // Also clean up temp preview URL
+        URL.revokeObjectURL(message.mediaUrl);
       }
     };
   }, [message, decryptImage, decryptedImageUrl]);
@@ -83,7 +85,7 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
   const applyAnimation = !!message.clientTempId && !message.firestoreId;
 
   const DeliveryStatusIcon = () => {
-    if (!isOutgoing || message.type === 'system') return null;
+    if (!isOutgoing || message.type === 'system' || message.uploadStatus) return null;
     
     const isReadByContact = contactId && message.readBy?.includes(contactId);
 
@@ -109,27 +111,49 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
   const renderMediaContent = () => {
     if (message.type !== 'image') return null;
 
-    if (isDecrypting) {
-      return <Skeleton className="w-64 h-40" />;
-    }
-    if (decryptionError) {
+    // Handle Uploading State
+    if (message.uploadStatus === 'uploading' || message.uploadStatus === 'error') {
       return (
-        <div className="p-4 flex flex-col items-center justify-center text-destructive-foreground/80 italic w-64 h-40">
-          <ShieldAlert className="w-6 h-6 mb-2" />
-          <span>Image Decryption Failed</span>
+        <div className="relative w-64 h-48 bg-black rounded-md overflow-hidden">
+          {message.mediaUrl && <img src={message.mediaUrl} alt="Uploading preview" className="w-full h-full object-cover opacity-40" data-ai-hint="upload preview" />}
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4">
+            {message.uploadStatus === 'uploading' ? (
+              <>
+                <div className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin"/>
+                    <span className="text-sm font-medium">Sending...</span>
+                </div>
+                <Progress value={message.uploadProgress || 0} className="w-full h-1.5 mt-3 bg-white/20" />
+              </>
+            ) : ( // 'error' state
+              <>
+                <AlertTriangle className="w-6 h-6 text-destructive mb-2"/>
+                <p className="text-sm font-semibold">Upload Failed</p>
+                <p className="text-xs text-center mb-3 text-white/80">{message.error || "An unknown error occurred"}</p>
+                <Button size="sm" variant="secondary" onClick={() => onRetry?.(message.clientTempId!)}>
+                  <RefreshCw className="w-4 h-4 mr-2"/>
+                  Retry
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       );
     }
-    if (decryptedImageUrl) {
-      // eslint-disable-next-line @next/next/no-img-element
-      return <img src={decryptedImageUrl} alt={message.mediaInfo?.fileName || "Shared image"} className="mt-1 rounded-md max-w-full h-auto max-h-80 object-contain" data-ai-hint="chat media" />;
-    }
-    // Fallback/initial state before decryption starts
+    
+    // Handle Decrypting State
+    if (isDecrypting) return <Skeleton className="w-64 h-48" />;
+    if (decryptionError) return (
+        <div className="p-4 flex flex-col items-center justify-center text-destructive-foreground/80 italic w-64 h-48">
+            <ShieldAlert className="w-6 h-6 mb-2" /> <span>Image Decryption Failed</span>
+        </div>
+    );
+    if (decryptedImageUrl) return <img src={decryptedImageUrl} alt={message.mediaInfo?.fileName || "Shared image"} className="mt-1 rounded-md max-w-full h-auto max-h-80 object-contain" data-ai-hint="chat media" />;
+
+    // Fallback if no other state matches
     return (
-       <div className="p-4 flex flex-col items-center justify-center text-current/80 w-64 h-40">
-          <ImageIcon className="w-8 h-8 mb-2" />
-          <span>Encrypted Image</span>
-          <span className="text-xs">{message.mediaInfo?.fileName}</span>
+       <div className="p-4 flex flex-col items-center justify-center text-current/80 w-64 h-48">
+          <ImageIcon className="w-8 h-8 mb-2" /> <span>Encrypted Image</span>
         </div>
     );
   };
@@ -146,18 +170,21 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
     </>
   );
 
+  const isUploadingOrError = message.uploadStatus === 'uploading' || message.uploadStatus === 'error';
+
   return (
     <div className={cn("flex flex-col max-w-[70%] my-1 group", alignmentClass, applyAnimation ? "animate-fade-in-scale-up" : "")}>
       <div className={cn(
           "px-3 py-2",
           bubbleClass,
-          (message.error === 'DECRYPTION_FAILED' || decryptionError) && 'bg-destructive/50 border border-destructive'
+          (message.error === 'DECRYPTION_FAILED' || decryptionError) && 'bg-destructive/50 border border-destructive',
+          isUploadingOrError && 'p-0 bg-transparent shadow-none' // Remove padding/bg for upload bubble container
         )}>
         {messageContent}
       </div>
       <div className={cn("flex items-center mt-0.5 px-1", isOutgoing ? 'justify-end' : 'justify-start')}>
         <span className="text-xs text-muted-foreground">
-          {format(new Date(message.timestamp), 'p')}
+          {isUploadingOrError ? message.uploadStatus : format(new Date(message.timestamp), 'p')}
         </span>
         {isOutgoing && <span className="ml-1"><DeliveryStatusIcon /></span>}
       </div>
