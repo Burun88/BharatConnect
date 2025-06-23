@@ -82,20 +82,18 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
   // Effect to handle cleanup of blob URLs when the component is unmounted
   useEffect(() => {
     const localDecryptedUrl = decryptedImageUrl;
-    const localPreviewUrl = message.mediaUrl;
 
     return () => {
       if (localDecryptedUrl) {
         URL.revokeObjectURL(localDecryptedUrl);
       }
-      // Only revoke the preview URL if it exists (i.e., it's a temporary message)
-      if (localPreviewUrl && message.clientTempId) {
-        URL.revokeObjectURL(localPreviewUrl);
+      // The preview URL from message.mediaUrl is a temporary object URL created on file select.
+      // It MUST be cleaned up when the component representing that temp message unmounts.
+      // This happens when the upload succeeds and the temporary message is replaced by the real one.
+      if (message.clientTempId && message.mediaUrl) {
+         URL.revokeObjectURL(message.mediaUrl);
       }
     };
-  // This effect's dependencies are crucial. It should only re-run (and clean up)
-  // if the URL values themselves change, or on final unmount.
-  // It should NOT re-run on every parent re-render.
   }, [decryptedImageUrl, message.mediaUrl, message.clientTempId]);
 
 
@@ -133,9 +131,9 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
     // Handle Uploading State
     if (message.uploadStatus === 'uploading' || message.uploadStatus === 'error') {
       return (
-        <div className="relative w-64 h-48 bg-black rounded-md overflow-hidden">
-          {message.mediaUrl && <img src={message.mediaUrl} alt="Uploading preview" className="w-full h-full object-cover opacity-40" data-ai-hint="upload preview" />}
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4">
+        <div className="relative w-64 h-48 bg-muted rounded-md overflow-hidden">
+          {message.mediaUrl && <img src={message.mediaUrl} alt="Uploading preview" className="w-full h-full object-cover filter blur-md" data-ai-hint="upload preview" />}
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4 bg-black/50">
             {message.uploadStatus === 'uploading' ? (
               <>
                 <div className="flex items-center gap-2">
