@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -59,6 +58,7 @@ export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [privateKeyExists, setPrivateKeyExists] = useState<boolean | null>(null);
   const [showRestoreNeeded, setShowRestoreNeeded] = useState(false);
+  const [userDismissedRestorePrompt, setUserDismissedRestorePrompt] = useState(false);
 
   // Raw data from Firestore listeners
   const [rawActiveChatDocs, setRawActiveChatDocs] = useState<DocumentData[]>([]);
@@ -388,7 +388,7 @@ export default function HomePage() {
 
   const showPageSpinner = !isMounted || isAuthLoading || (isAuthenticated && (isLoadingAuras || isProcessingData || privateKeyExists === null));
   
-  const showTheRestorePrompt = showRestoreNeeded || (isAuthenticated && privateKeyExists === false && contextChats.length > 0 && !showRestoreNeeded);
+  const showTheRestorePrompt = !userDismissedRestorePrompt && (showRestoreNeeded || (isAuthenticated && privateKeyExists === false && contextChats.length > 0 && !showRestoreNeeded));
 
   let mainContent;
   if (showPageSpinner) {
@@ -408,7 +408,7 @@ export default function HomePage() {
     mainContent = (
       <SwipeablePageWrapper className="flex-grow flex flex-col bg-background overflow-hidden min-h-0">
         <main className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar min-h-0 w-full" style={{ paddingTop: `${HEADER_HEIGHT_PX}px`, paddingBottom: `${BOTTOM_NAV_HEIGHT_PX}px` }}>
-            <RestoreBackupPrompt />
+            <RestoreBackupPrompt onDismiss={() => setUserDismissedRestorePrompt(true)} />
         </main>
       </SwipeablePageWrapper>
     );

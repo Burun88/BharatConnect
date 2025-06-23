@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useRouter } from 'next/navigation';
@@ -6,7 +5,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { ShieldQuestion, UploadCloud } from 'lucide-react';
 
-export default function RestoreBackupPrompt() {
+interface RestoreBackupPromptProps {
+  onDismiss: () => void;
+}
+
+export default function RestoreBackupPrompt({ onDismiss }: RestoreBackupPromptProps) {
   const router = useRouter();
 
   return (
@@ -21,10 +24,13 @@ export default function RestoreBackupPrompt() {
             Your chat history is end-to-end encrypted. To see your past messages on this new device, you need to restore them from a backup file.
           </CardDescription>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex-col space-y-3">
           <Button className="w-full" onClick={() => router.push('/account')}>
             <UploadCloud className="mr-2 h-4 w-4" />
             Go to Account to Restore
+          </Button>
+          <Button variant="ghost" className="w-full text-muted-foreground" onClick={onDismiss}>
+            Continue Without Restoring
           </Button>
         </CardFooter>
       </Card>
