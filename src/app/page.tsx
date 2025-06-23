@@ -104,6 +104,21 @@ export default function HomePage() {
     }
   }, [authUser?.id]);
 
+  const handleListenerError = useCallback((error: FirestoreError, context: string) => {
+    if (error.code === 'permission-denied') {
+        // This can happen during logout/login race conditions and is often temporary.
+        // We log it but don't show a disruptive toast.
+        console.warn(`[HomePage] Firestore listener permission error for ${context}:`, error.message);
+    } else {
+        console.error(`[HomePage] Firestore listener error for ${context}:`, error);
+        toast({
+            variant: 'destructive',
+            title: 'Network Error',
+            description: `Could not load ${context}. Please check your connection.`
+        });
+    }
+  }, [toast]);
+
   // Effect for Aura Bar
   useEffect(() => {
     if (!isMounted || !authUser?.id) {
@@ -159,8 +174,7 @@ export default function HomePage() {
       setIsLoadingAuras(false);
       console.log(`[HomePage] Updated allDisplayAuras. Count: ${fetchedDisplayAuras.length}`);
     }, (error: FirestoreError) => {
-      console.error("[HomePage] Error fetching auras:", error);
-      toast({ variant: 'destructive', title: 'Aura Error', description: "Could not load auras from Firestore." });
+      handleListenerError(error, 'auras');
       setIsLoadingAuras(false);
     });
 
@@ -168,7 +182,7 @@ export default function HomePage() {
       console.log(`[HomePage] Unsubscribing listener for ALL active auras.`);
       unsubscribeAuras();
     };
-  }, [isMounted, authUser?.id, toast]);
+  }, [isMounted, authUser?.id, handleListenerError]);
 
   const connectedUserIds = useMemo(() => {
     if (!authUser?.id || contextChats.length === 0) {
@@ -198,17 +212,17 @@ export default function HomePage() {
     const activeChatsQuery = query(collection(firestore, 'chats'), where('participants', 'array-contains', authUser.id), orderBy('updatedAt', 'desc'));
     const unsubActive = onSnapshot(activeChatsQuery, (snapshot) => {
       setRawActiveChatDocs(snapshot.docs.map(d => ({...d.data(), id: d.id})));
-    }, (error) => toast({ variant: 'destructive', title: 'Chat Error', description: `Active chats: ${error.message}`}));
+    }, (error) => handleListenerError(error, 'active chats'));
 
     const sentRequestsQuery = query(collection(firestore, `bharatConnectUsers/${authUser.id}/requestsSent`), where('status', '==', 'pending'), orderBy('timestamp', 'desc'));
     const unsubSent = onSnapshot(sentRequestsQuery, (snapshot) => {
       setRawSentRequestDocs(snapshot.docs.map(d => ({...d.data(), id: d.id})));
-    }, (error) => toast({ variant: 'destructive', title: 'Request Error', description: `Sent requests: ${error.message}`}));
+    }, (error) => handleListenerError(error, 'sent requests'));
 
     const receivedRequestsQuery = query(collection(firestore, `bharatConnectUsers/${authUser.id}/requestsReceived`), where('status', '==', 'pending'), orderBy('timestamp', 'desc'));
     const unsubReceived = onSnapshot(receivedRequestsQuery, (snapshot) => {
       setRawReceivedRequestDocs(snapshot.docs.map(d => ({...d.data(), id: d.id})));
-    }, (error) => toast({ variant: 'destructive', title: 'Request Error', description: `Received requests: ${error.message}`}));
+    }, (error) => handleListenerError(error, 'received requests'));
 
     return () => {
       unsubActive();
@@ -216,7 +230,7 @@ export default function HomePage() {
       unsubReceived();
       setAreListenersSetup(false);
     };
-  }, [isMounted, authUser?.id, isAuthLoading, toast]);
+  }, [isMounted, authUser?.id, isAuthLoading, handleListenerError]);
 
 
   // EFFECT 2: PROCESS RAW DATA. Depends on raw data & enrichment data (auras, etc.)
