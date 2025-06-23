@@ -56,7 +56,7 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
-    secret: 1:1011856991455:web:b8611aad228c31ccbf756a"
+    secret: 1:1011856991455:web:b8611aad228c31ccbf756a
     availability:
       - BUILD
       - RUNTIME
