@@ -79,22 +79,30 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
     }
   }, [message.type, message.firestoreId, decryptImage]);
 
-  // Effect to handle cleanup of blob URLs when the component is unmounted
+  // Effect to handle cleanup of blob URLs when the component is unmounted.
+  // This is separated into two effects to prevent premature cleanup during re-renders.
   useEffect(() => {
+    // This cleans up the URL for the fully decrypted image when it changes or on unmount.
     const localDecryptedUrl = decryptedImageUrl;
-
     return () => {
       if (localDecryptedUrl) {
         URL.revokeObjectURL(localDecryptedUrl);
       }
-      // The preview URL from message.mediaUrl is a temporary object URL created on file select.
-      // It MUST be cleaned up when the component representing that temp message unmounts.
-      // This happens when the upload succeeds and the temporary message is replaced by the real one.
-      if (message.clientTempId && message.mediaUrl) {
-         URL.revokeObjectURL(message.mediaUrl);
+    };
+  }, [decryptedImageUrl]);
+
+  useEffect(() => {
+    // This effect runs only once for the component's lifetime.
+    // Its cleanup function runs only when the component is fully unmounted.
+    // This is perfect for the temporary preview URL.
+    const urlToClean = message.mediaUrl;
+    const isTemp = !!message.clientTempId;
+    return () => {
+      if (isTemp && urlToClean) {
+        URL.revokeObjectURL(urlToClean);
       }
     };
-  }, [decryptedImageUrl, message.mediaUrl, message.clientTempId]);
+  }, []); // <-- Empty dependency array is crucial here.
 
 
   const alignmentClass = isOutgoing ? 'ml-auto' : 'mr-auto';
@@ -131,9 +139,9 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
     // Handle Uploading State
     if (message.uploadStatus === 'uploading' || message.uploadStatus === 'error') {
       return (
-        <div className="relative w-64 h-48 bg-muted rounded-md overflow-hidden">
-          {message.mediaUrl && <img src={message.mediaUrl} alt="Uploading preview" className="w-full h-full object-cover filter blur-md" data-ai-hint="upload preview" />}
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4 bg-black/50">
+        <div className="relative w-64 h-48 rounded-md overflow-hidden">
+          {message.mediaUrl && <img src={message.mediaUrl} alt="Uploading preview" className="w-full h-full object-cover filter blur-sm" data-ai-hint="upload preview" />}
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4 filter backdrop-blur-sm bg-black/40">
             {message.uploadStatus === 'uploading' ? (
               <>
                 <div className="flex items-center gap-2">
