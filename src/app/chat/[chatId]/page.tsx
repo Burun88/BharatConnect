@@ -183,8 +183,24 @@ export default function ChatPage() {
                         participantInfo: participantInfoMap, lastMessage: null, updatedAt: serverTimestamp(), requestStatus: 'accepted' as Chat['requestStatus'],
                         acceptedTimestamp: serverTimestamp(), typingStatus: {}, chatSpecificPresence: {}
                     };
-                    await setDoc(chatDocRef, newChatPayload);
-                    console.log(`[ChatPage] New chat doc ${determinedChatId} created.`);
+
+                    const batch = writeBatch(firestore);
+                    batch.set(chatDocRef, newChatPayload);
+
+                    // Add a dummy system message to explicitly create the 'messages' subcollection
+                    // This resolves race conditions with storage security rules that check for the chat document's existence.
+                    const messagesCollectionRef = collection(firestore, `chats/${determinedChatId}/messages`);
+                    const systemMessageRef = doc(messagesCollectionRef); 
+                    batch.set(systemMessageRef, {
+                        senderId: 'system',
+                        type: 'system',
+                        text: 'Chat created',
+                        timestamp: serverTimestamp(),
+                        readBy: [currentUserId, contactUserForChat.id]
+                    });
+
+                    await batch.commit();
+                    console.log(`[ChatPage] New chat doc ${determinedChatId} and messages collection created atomically.`);
                 }
                 setIsChatReady(true); // Chat is ready only after doc is confirmed/created.
             }
