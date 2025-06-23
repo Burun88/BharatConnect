@@ -62,22 +62,41 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
     } finally {
       setIsDecrypting(false);
     }
-  }, [message, currentUserId, decryptedImageUrl, isDecrypting]);
-
+  }, [
+    message.type, 
+    message.mediaInfo, 
+    message.encryptedKeys, 
+    message.firestoreId, 
+    currentUserId, 
+    decryptedImageUrl, 
+    isDecrypting
+  ]);
+  
+  // Effect to trigger decryption for received images
   useEffect(() => {
     if (message.type === 'image' && message.firestoreId) {
       decryptImage();
     }
-    // Cleanup blob URL on unmount
+  }, [message.type, message.firestoreId, decryptImage]);
+
+  // Effect to handle cleanup of blob URLs when the component is unmounted
+  useEffect(() => {
+    const localDecryptedUrl = decryptedImageUrl;
+    const localPreviewUrl = message.mediaUrl;
+
     return () => {
-      if (decryptedImageUrl) {
-        URL.revokeObjectURL(decryptedImageUrl);
+      if (localDecryptedUrl) {
+        URL.revokeObjectURL(localDecryptedUrl);
       }
-      if (message.mediaUrl && message.clientTempId) { // Also clean up temp preview URL
-        URL.revokeObjectURL(message.mediaUrl);
+      // Only revoke the preview URL if it exists (i.e., it's a temporary message)
+      if (localPreviewUrl && message.clientTempId) {
+        URL.revokeObjectURL(localPreviewUrl);
       }
     };
-  }, [message, decryptImage, decryptedImageUrl]);
+  // This effect's dependencies are crucial. It should only re-run (and clean up)
+  // if the URL values themselves change, or on final unmount.
+  // It should NOT re-run on every parent re-render.
+  }, [decryptedImageUrl, message.mediaUrl, message.clientTempId]);
 
 
   const alignmentClass = isOutgoing ? 'ml-auto' : 'mr-auto';
