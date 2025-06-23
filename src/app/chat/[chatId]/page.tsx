@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -524,7 +525,7 @@ export default function ChatPage() {
               <ChatInputZone
                 newMessage={newMessage} onNewMessageChange={setNewMessage} onSendMessage={processAndSendMessage}
                 onToggleEmojiPicker={toggleEmojiPicker} isEmojiPickerOpen={isEmojiPickerOpen}
-                textareaRef={textareaRef} isDisabled={!isChatActive || privateKeyExists === false} justSelectedEmoji={justSelectedEmojiRef.current}
+                textareaRef={textareaRef} isDisabled={!isChatActive} justSelectedEmoji={justSelectedEmojiRef.current}
               />
             </div>
           )}
