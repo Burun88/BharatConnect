@@ -59,6 +59,7 @@ export default function HomePage() {
   const [isLoadingPageData, setIsLoadingPageData] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [privateKeyExists, setPrivateKeyExists] = useState<boolean | null>(null);
+  const [showRestoreNeeded, setShowRestoreNeeded] = useState(false);
 
   const [liveActiveChats, setLiveActiveChats] = useState<Chat[]>([]);
   const [liveSentRequests, setLiveSentRequests] = useState<Chat[]>([]);
@@ -70,13 +71,23 @@ export default function HomePage() {
 
   const scrollableContainerRef = useRef<HTMLDivElement>(null);
   const [isHeaderContentLoaded, setIsHeaderContentLoaded] = useState(true);
-  const lastScrollYRef = useRef(0);
   const prevAuthUserIdRef = useRef<string | null | undefined>(null);
 
   const [allDisplayAuras, setAllDisplayAuras] = useState<DisplayAura[]>([]);
   const [isLoadingAuras, setIsLoadingAuras] = useState(true);
 
   useEffect(() => { setIsMounted(true); }, []);
+
+  // Check for the one-time "restore needed" flag from a new device login
+  useEffect(() => {
+    if (isMounted) {
+      const needsRestore = sessionStorage.getItem('needs-restore-prompt');
+      if (needsRestore === 'true') {
+        setShowRestoreNeeded(true);
+        sessionStorage.removeItem('needs-restore-prompt'); // Clear the flag
+      }
+    }
+  }, [isMounted]);
 
   useEffect(() => {
     if (authUser?.id) {
@@ -397,7 +408,9 @@ export default function HomePage() {
   }, [isLoadingPageData, isAuthenticated, handleScroll, isMounted]);
 
   const showPageSpinner = !isMounted || isAuthLoading || (isAuthenticated && (isLoadingAuras || isLoadingPageData || privateKeyExists === null));
-  const showRestorePrompt = privateKeyExists === false && contextChats.length > 0;
+  
+  // Revised condition for showing the restore prompt
+  const showTheRestorePrompt = showRestoreNeeded || (privateKeyExists === false && contextChats.length > 0 && !showRestoreNeeded);
 
   let mainContent;
   if (showPageSpinner) {
@@ -413,7 +426,7 @@ export default function HomePage() {
         <p className="text-muted-foreground text-center">Redirecting...</p>
       </div>
     );
-  } else if (showRestorePrompt) {
+  } else if (showTheRestorePrompt) {
     mainContent = (
       <SwipeablePageWrapper className="flex-grow flex flex-col bg-background overflow-hidden min-h-0">
         <main className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar min-h-0 w-full" style={{ paddingTop: `${HEADER_HEIGHT_PX}px`, paddingBottom: `${BOTTOM_NAV_HEIGHT_PX}px` }}>

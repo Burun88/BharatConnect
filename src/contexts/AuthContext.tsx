@@ -9,6 +9,7 @@ import { auth, signInUser, signOutUser as fbSignOutUser, firestore } from '@/lib
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { generateAndStoreKeyPair } from '@/services/encryptionService'; // Import key generation
 
 interface AuthContextType {
   authUser: User | null;
@@ -46,6 +47,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [internalAuthStep, setInternalAuthStep] = useState<AuthStep>('initial_loading');
   const [isInitialAuthResolved, setIsInitialAuthResolved] = useState(false);
   const [sessionConflict, setSessionConflict] = useState<ActiveSession | null>(null);
+  const [conflictingUser, setConflictingUser] = useState<FirebaseUser | null>(null);
 
   const router = useRouter();
   const { toast } = useToast();
@@ -79,6 +81,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (docSnap.exists()) {
       const existingSession = docSnap.data().activeSession as ActiveSession | undefined;
       if (existingSession?.sessionId) {
+        setConflictingUser(userCredential.user);
         setSessionConflict(existingSession);
         return; // Halt the login process until user makes a choice
       }
@@ -89,17 +92,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const handleForceLogin = async () => {
-    if (stableUser?.id) {
-      await createNewSession(stableUser.id);
+    if (conflictingUser?.uid) {
+      // Generate a new key pair for the new device *before* creating the session
+      await generateAndStoreKeyPair(conflictingUser.uid);
+      await createNewSession(conflictingUser.uid);
+
+      // Signal to the homepage that a restore is the next logical step
+      sessionStorage.setItem('needs-restore-prompt', 'true');
+      
       setSessionConflict(null);
-      // Let the regular auth flow continue
+      setConflictingUser(null);
+      // The FirebaseAuthObserver will now see the logged-in user and handle the rest of the state updates.
     }
   };
 
   const handleCancelLogin = async () => {
     await fbSignOutUser(auth); // Sign out from the new device
     setSessionConflict(null);
-    // Observer will clear user data
+    setConflictingUser(null);
+    // Observer will clear user data, context will redirect to login/welcome.
   };
 
   useEffect(() => {
@@ -159,7 +170,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     authStep: internalAuthStep,
     loginAndManageSession,
     logout
-  }), [stableUser, setUserFromLS, isAuthenticated, isInitialAuthResolved, internalAuthStep, logout]);
+  }), [stableUser, setUserFromLS, isAuthenticated, isInitialAuthResolved, internalAuthStep, loginAndManageSession, logout]);
 
   return (
     <AuthContext.Provider value={contextValue}>
