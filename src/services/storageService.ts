@@ -1,35 +1,43 @@
-'use client'; // This is now a client-side service
 
-import { storage } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+'use client'; 
+
+import { auth, storage } from '@/lib/firebase';
+import { ref, deleteObject } from 'firebase/storage';
 
 export async function uploadProfileImage(uid: string, file: File): Promise<string> {
-  console.log('[StorageService-Client] uploadProfileImage client-side function STARTED.');
+  console.log('[StorageService-API] uploadProfileImage via API route STARTED.');
   
   if (!uid) throw new Error('User ID is required for profile image upload.');
   if (!file) throw new Error('File is required for upload.');
 
-  const extension = file.name.split('.').pop();
-  if (!extension) throw new Error('Profile image file must have an extension.');
-
-  const finalFileNameWithExtension = `profileImage.${extension.toLowerCase()}`;
-  const storagePath = `profileImages/${uid}/${finalFileNameWithExtension}`;
-
-  try {
-    const storageRef = ref(storage, storagePath);
-    console.log(`[StorageService-Client] Uploading to path: ${storagePath}`);
-
-    const snapshot = await uploadBytes(storageRef, file);
-    const downloadURL = await getDownloadURL(snapshot.ref);
-    
-    console.log('[StorageService-Client] File uploaded successfully. Public URL:', downloadURL);
-    return downloadURL;
-  } catch (error: any) {
-    console.error('[StorageService-Client] Firebase client-side Storage operation failed:', error);
-    // You can check for specific errors here if needed
-    // e.g., if (error.code === 'storage/unauthorized') { ... }
-    throw new Error(`Firebase Storage operation failed: ${error.message || 'Unknown error'}`);
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error("User not authenticated.");
   }
+  
+  const token = await currentUser.getIdToken();
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('uid', uid);
+
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData,
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    console.error('[StorageService-API] API route returned an error:', result);
+    throw new Error(result.error || 'Failed to upload file via server.');
+  }
+  
+  console.log('[StorageService-API] File uploaded successfully. Public URL:', result.downloadURL);
+  return result.downloadURL;
 }
 
 export async function deleteProfileImageByUrl(fullStorageUrl: string): Promise<void> {

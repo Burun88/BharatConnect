@@ -3,16 +3,20 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Rules for user profile images
+    // Note: The new server-side upload via the API route bypasses these rules.
+    // These rules are for any client-side operations that might still exist (like read/delete).
     match /profileImages/{userId}/{fileName} {
-      // Anyone can read any profile image
+      // Allow anyone to read profile images.
       allow read: if true;
 
-      // Only the authenticated user can upload their own profile image.
-      // NOTE: Temporarily removed size and content-type checks for debugging CORS.
-      allow create: if request.auth != null && request.auth.uid == userId;
-
-      // Only the user can update or delete their own profile image.
+      // Allow a user to create their own profile image, with size and type checks.
+      // This is for potential future client-side uploads, the current API route doesn't use this.
+      allow create: if request.auth != null && request.auth.uid == userId
+                    && request.resource.size < 5 * 1024 * 1024 // 5MB limit
+                    && request.resource.contentType.matches('image/.*');
+      
+      // Allow a user to update or delete their own profile image.
+      // This rule is still used by the client-side delete function.
       allow update, delete: if request.auth != null && request.auth.uid == userId;
     }
   }
