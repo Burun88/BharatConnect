@@ -7,8 +7,16 @@
       "https://bharatconnect-i8510.firebaseapp.com",
       "http://localhost:9002"
     ],
-    "method": ["GET", "PUT", "POST", "DELETE"],
-    "responseHeader": ["Content-Type", "x-goog-resumable"],
+    "method": ["GET", "PUT", "POST", "DELETE", "OPTIONS"],
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "Content-Length",
+      "User-Agent",
+      "X-Goog-Upload-Protocol",
+      "x-goog-resumable",
+      "x-firebase-gmpid"
+    ],
     "maxAgeSeconds": 3600
   }
 ]
