@@ -1,22 +1,85 @@
 
 "use client";
 
+import React, { useState, useEffect, useCallback } from 'react';
 import type { Message } from '@/types';
 import { cn } from '@/lib/utils';
-import { Check, CheckCheck, Clock, ShieldAlert } from 'lucide-react';
+import { Check, CheckCheck, Clock, ShieldAlert, ImageIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { decryptAndAssembleChunks } from '@/services/storageService';
+import { getPrivateKey, aesImportParams } from '@/services/encryptionService';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface MessageBubbleProps {
   message: Message;
   isOutgoing: boolean;
-  contactId: string | null; // ID of the other participant in a 1-on-1 chat
+  contactId: string | null;
+  currentUserId: string;
 }
 
-export default function MessageBubble({ message, isOutgoing, contactId }: MessageBubbleProps) {
+// Helper needed locally if not exported from encryptionService
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binary_string = window.atob(base64);
+  const len = binary_string.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binary_string.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+export default function MessageBubble({ message, isOutgoing, contactId, currentUserId }: MessageBubbleProps) {
+  const [decryptedImageUrl, setDecryptedImageUrl] = useState<string | null>(null);
+  const [isDecrypting, setIsDecrypting] = useState(false);
+  const [decryptionError, setDecryptionError] = useState<string | null>(null);
+
+  const decryptImage = useCallback(async () => {
+    if (message.type !== 'image' || !message.mediaInfo || !message.encryptedKeys) return;
+    if (decryptedImageUrl || isDecrypting) return;
+
+    setIsDecrypting(true);
+    setDecryptionError(null);
+    try {
+      // 1. Get user's private key
+      const privateKey = await getPrivateKey(currentUserId);
+
+      // 2. Decrypt the AES key
+      const encryptedAesKeyBase64 = message.encryptedKeys[currentUserId];
+      if (!encryptedAesKeyBase64) throw new Error("No encrypted AES key found for this user.");
+      
+      const encryptedAesKeyBuffer = base64ToArrayBuffer(encryptedAesKeyBase64);
+      const rawAesKey = await window.crypto.subtle.decrypt({ name: 'RSA-OAEP' }, privateKey, encryptedAesKeyBuffer);
+      
+      // 3. Import the AES key
+      const aesKey = await window.crypto.subtle.importKey('raw', rawAesKey, { name: 'AES-GCM' }, false, ['decrypt']);
+
+      // 4. Decrypt and assemble chunks
+      const blobUrl = await decryptAndAssembleChunks(aesKey, message.mediaInfo);
+      setDecryptedImageUrl(blobUrl);
+
+    } catch (err: any) {
+      console.error("Image decryption failed:", err);
+      setDecryptionError(err.message || "Failed to decrypt image.");
+    } finally {
+      setIsDecrypting(false);
+    }
+  }, [message, currentUserId, decryptedImageUrl, isDecrypting]);
+
+  useEffect(() => {
+    if (message.type === 'image') {
+      decryptImage();
+    }
+    // Cleanup blob URL on unmount
+    return () => {
+      if (decryptedImageUrl) {
+        URL.revokeObjectURL(decryptedImageUrl);
+      }
+    };
+  }, [message, decryptImage, decryptedImageUrl]);
+
+
   const alignmentClass = isOutgoing ? 'ml-auto' : 'mr-auto';
   const bubbleClass = isOutgoing ? 'message-bubble-outgoing' : 'message-bubble-incoming';
-
-  // Apply animation only if it's an optimistic message (has clientTempId but no firestoreId yet)
   const applyAnimation = !!message.clientTempId && !message.firestoreId;
 
   const DeliveryStatusIcon = () => {
@@ -27,8 +90,6 @@ export default function MessageBubble({ message, isOutgoing, contactId }: Messag
     if (isReadByContact) {
       return <CheckCheck className="w-3 h-3 text-blue-400 group-hover:text-blue-300" />;
     }
-    // If firestoreId exists, it means delivered to server.
-    // If not, it's still pending (optimistic).
     if (message.firestoreId) { 
         return <Check className="w-3 h-3 text-muted-foreground group-hover:text-primary-foreground/80" />;
     }
@@ -45,13 +106,44 @@ export default function MessageBubble({ message, isOutgoing, contactId }: Messag
     );
   }
 
-  const messageContent = message.error === 'DECRYPTION_FAILED' ? (
+  const renderMediaContent = () => {
+    if (message.type !== 'image') return null;
+
+    if (isDecrypting) {
+      return <Skeleton className="w-64 h-40" />;
+    }
+    if (decryptionError) {
+      return (
+        <div className="p-4 flex flex-col items-center justify-center text-destructive-foreground/80 italic w-64 h-40">
+          <ShieldAlert className="w-6 h-6 mb-2" />
+          <span>Image Decryption Failed</span>
+        </div>
+      );
+    }
+    if (decryptedImageUrl) {
+      // eslint-disable-next-line @next/next/no-img-element
+      return <img src={decryptedImageUrl} alt={message.mediaInfo?.fileName || "Shared image"} className="mt-1 rounded-md max-w-full h-auto max-h-80 object-contain" data-ai-hint="chat media" />;
+    }
+    // Fallback/initial state before decryption starts
+    return (
+       <div className="p-4 flex flex-col items-center justify-center text-current/80 w-64 h-40">
+          <ImageIcon className="w-8 h-8 mb-2" />
+          <span>Encrypted Image</span>
+          <span className="text-xs">{message.mediaInfo?.fileName}</span>
+        </div>
+    );
+  };
+
+  const messageContent = message.type === 'text' && message.error === 'DECRYPTION_FAILED' ? (
     <div className="flex items-center text-destructive-foreground/80 italic">
         <ShieldAlert className="w-4 h-4 mr-2" />
         <span>{message.text || 'Decryption failed'}</span>
     </div>
   ) : (
-    <p className="text-sm whitespace-pre-wrap break-words break-all">{message.text}</p>
+    <>
+      {message.type === 'text' && <p className="text-sm whitespace-pre-wrap break-words break-all">{message.text}</p>}
+      {message.type === 'image' && renderMediaContent()}
+    </>
   );
 
   return (
@@ -59,13 +151,9 @@ export default function MessageBubble({ message, isOutgoing, contactId }: Messag
       <div className={cn(
           "px-3 py-2",
           bubbleClass,
-          message.error === 'DECRYPTION_FAILED' && 'bg-destructive/50 border border-destructive'
+          (message.error === 'DECRYPTION_FAILED' || decryptionError) && 'bg-destructive/50 border border-destructive'
         )}>
         {messageContent}
-        {message.type === 'image' && message.mediaUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={message.mediaUrl} alt="Shared media" className="mt-2 rounded-md max-w-full h-auto" data-ai-hint="chat media" />
-        )}
       </div>
       <div className={cn("flex items-center mt-0.5 px-1", isOutgoing ? 'justify-end' : 'justify-start')}>
         <span className="text-xs text-muted-foreground">

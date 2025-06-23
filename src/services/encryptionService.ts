@@ -1,3 +1,4 @@
+
 'use client';
 
 import { firestore } from '@/lib/firebase';
@@ -34,10 +35,16 @@ const rsaKeygenParams: RsaHashedKeyGenParams = {
   hash: 'SHA-256',
 };
 
-const rsaImportParams: RsaHashedImportParams = {
+export const rsaImportParams: RsaHashedImportParams = {
   name: 'RSA-OAEP',
   hash: 'SHA-256',
 };
+
+export const aesImportParams: AesKeyGenParams = {
+  name: 'AES-GCM',
+  length: 256,
+};
+
 
 /**
  * Generates an RSA key pair, stores the public key in Firestore, and the private key in localStorage.
@@ -72,7 +79,7 @@ export async function generateAndStoreKeyPair(uid: string): Promise<void> {
  * Retrieves the current user's private key from localStorage and imports it for use.
  * @returns A CryptoKey object representing the private key.
  */
-async function getPrivateKey(uid: string): Promise<CryptoKey> {
+export async function getPrivateKey(uid: string): Promise<CryptoKey> {
   const privateKeyBase64 = localStorage.getItem(`privateKey_${uid}`);
   if (!privateKeyBase64) {
     throw new Error('Private key not found in local storage.');
@@ -87,7 +94,7 @@ async function getPrivateKey(uid: string): Promise<CryptoKey> {
  * @param uid The user ID whose public key is needed.
  * @returns A CryptoKey object representing the public key.
  */
-async function getPublicKey(uid: string): Promise<CryptoKey> {
+export async function getPublicKey(uid: string): Promise<CryptoKey> {
   const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
   const userDocSnap = await getDoc(userDocRef);
 

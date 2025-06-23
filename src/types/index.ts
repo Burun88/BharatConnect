@@ -15,7 +15,7 @@ export type ActiveSession = {
 };
 
 export type User = {
-  id: string;
+  id:string;
   name: string;
   username?: string;
   email?: string;
@@ -29,21 +29,34 @@ export type User = {
   activeSession?: ActiveSession | null;
 };
 
+export type MediaInfo = {
+  fileName: string;
+  fileType: string;
+  totalChunks: number;
+  chunkPaths: string[];
+  chunkIVs: string[]; // Base64 encoded IVs for each chunk
+  fileId: string;
+};
+
 export type Message = {
   id: string;
   chatId: string;
   senderId: string;
-  text?: string; // Decrypted text, now optional
   timestamp: number;
   type: 'text' | 'image' | 'system' | 'file';
-  mediaUrl?: string;
+  // For text messages
+  text?: string; // Decrypted text, optional
+  // For media messages
+  mediaInfo?: MediaInfo;
+  mediaUrl?: string; // This will hold the local Blob URL for the decrypted image
+  // Common fields
   readBy?: string[];
   clientTempId?: string;
   firestoreId?: string;
   // E2EE fields
   encryptedText?: string;
-  iv?: string;
-  encryptedKeys?: { [uid: string]: string };
+  iv?: string; // For text messages
+  encryptedKeys?: { [uid: string]: string }; // For text (AES key) and media (AES key)
   error?: 'DECRYPTION_FAILED';
 };
 
@@ -69,14 +82,18 @@ export type Chat = {
   participants: string[];
   participantInfo?: { [uid: string]: ParticipantInfo };
   lastMessage: {
-    text?: string; // Decrypted text, optional
+    // Shared
     senderId: string;
     timestamp: number;
     type: 'text' | 'image' | 'system' | 'file';
     readBy?: string[];
-    // E2EE fields
+    // For text
+    text?: string;
     encryptedText?: string;
     iv?: string;
+    // For media
+    mediaInfo?: Pick<MediaInfo, 'fileName' | 'fileType' | 'fileId'>; // Store a preview
+    // Shared E2EE
     encryptedKeys?: { [uid: string]: string };
   } | null;
   updatedAt: number;

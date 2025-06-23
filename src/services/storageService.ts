@@ -1,7 +1,12 @@
 'use client'; 
 
-import { storage } from '@/lib/firebase';
-import { ref, deleteObject, uploadString, getDownloadURL } from 'firebase/storage';
+import { storage, firestore } from '@/lib/firebase';
+import { ref, deleteObject, uploadBytes, getDownloadURL, getBytes } from 'firebase/storage';
+import { getPublicKey } from '@/services/encryptionService';
+import type { MediaInfo } from '@/types';
+import { doc, collection } from 'firebase/firestore';
+
+const CHUNK_SIZE = 512 * 1024; // 512 KB
 
 // Helper function to read file as Data URL
 function readFileAsDataURL(file: File): Promise<string> {
@@ -11,6 +16,17 @@ function readFileAsDataURL(file: File): Promise<string> {
     reader.onerror = (error) => reject(error);
     reader.readAsDataURL(file);
   });
+}
+
+// Re-usable helper from encryptionService to avoid circular dependencies
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
 }
 
 export async function uploadProfileImage(uid: string, file: File): Promise<string> {
@@ -29,14 +45,9 @@ export async function uploadProfileImage(uid: string, file: File): Promise<strin
   const storageRef = ref(storage, `profileImages/${uid}/profileImage.${extension}`);
 
   try {
-    // 1. Read the file as a Data URL string
     const dataUrl = await readFileAsDataURL(file);
-    
-    // 2. Upload the string using the 'data_url' format
-    const snapshot = await uploadString(storageRef, dataUrl, 'data_url');
+    const snapshot = await uploadString(storage, storageRef, dataUrl, 'data_url');
     console.log('[StorageService] Upload via uploadString successful.');
-
-    // 3. Get the download URL
     const downloadURL = await getDownloadURL(snapshot.ref);
     return downloadURL;
   } catch (error: any) {
@@ -46,6 +57,110 @@ export async function uploadProfileImage(uid: string, file: File): Promise<strin
     }
     throw new Error(`Upload failed: ${error.code || error.message}`);
   }
+}
+
+export async function encryptAndUploadChunks(
+  file: File,
+  chatId: string,
+  senderUid: string,
+  recipientUids: string[],
+  onProgress: (progress: number) => void
+): Promise<{ mediaInfo: MediaInfo; encryptedAesKey: { [uid: string]: string } }> {
+  const fileId = doc(collection(firestore, '_')).id; // Generate a unique ID for the file
+  const fileBuffer = await file.arrayBuffer();
+
+  // 1. Generate a single AES key for the entire file
+  const aesKey = await window.crypto.subtle.generateKey(
+    { name: 'AES-GCM', length: 256 },
+    true,
+    ['encrypt', 'decrypt']
+  );
+
+  const chunkPaths: string[] = [];
+  const chunkIVs: string[] = [];
+  const totalChunks = Math.ceil(fileBuffer.byteLength / CHUNK_SIZE);
+
+  for (let i = 0; i < totalChunks; i++) {
+    const chunk = fileBuffer.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+
+    // 2. Encrypt each chunk with the AES key and a unique IV
+    const encryptedChunk = await window.crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv: iv },
+      aesKey,
+      chunk
+    );
+
+    // 3. Upload the encrypted chunk
+    const chunkPath = `mediaChunks/${chatId}/${fileId}/chunk_${i}`;
+    const chunkRef = ref(storage, chunkPath);
+    await uploadBytes(chunkRef, encryptedChunk);
+
+    chunkPaths.push(chunkPath);
+    chunkIVs.push(arrayBufferToBase64(iv));
+
+    onProgress(((i + 1) / totalChunks) * 100);
+  }
+
+  // 4. Encrypt the AES key for all participants (including sender)
+  const rawAesKey = await window.crypto.subtle.exportKey('raw', aesKey);
+  const allParticipantUids = Array.from(new Set([...recipientUids, senderUid]));
+  const encryptedAesKey: { [uid: string]: string } = {};
+
+  for (const uid of allParticipantUids) {
+    const publicKey = await getPublicKey(uid);
+    const encryptedKeyBuffer = await window.crypto.subtle.encrypt({ name: 'RSA-OAEP' }, publicKey, rawAesKey);
+    encryptedAesKey[uid] = arrayBufferToBase64(encryptedKeyBuffer);
+  }
+  
+  const mediaInfo: MediaInfo = {
+    fileName: file.name,
+    fileType: file.type,
+    totalChunks,
+    chunkPaths,
+    chunkIVs,
+    fileId,
+  };
+
+  return { mediaInfo, encryptedAesKey };
+}
+
+export async function decryptAndAssembleChunks(
+  aesKey: CryptoKey,
+  mediaInfo: MediaInfo
+): Promise<string> {
+  const decryptedChunks: ArrayBuffer[] = [];
+
+  for (let i = 0; i < mediaInfo.totalChunks; i++) {
+    const chunkPath = mediaInfo.chunkPaths[i];
+    const ivBase64 = mediaInfo.chunkIVs[i];
+
+    const chunkRef = ref(storage, chunkPath);
+    const encryptedChunk = await getBytes(chunkRef);
+    
+    const iv = base64ToArrayBuffer(ivBase64);
+
+    const decryptedChunk = await window.crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: iv },
+      aesKey,
+      encryptedChunk
+    );
+    decryptedChunks.push(decryptedChunk);
+  }
+
+  const blob = new Blob(decryptedChunks, { type: mediaInfo.fileType });
+  return URL.createObjectURL(blob);
+}
+
+// Helper needed for decryptAndAssembleChunks
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binary_string = window.atob(base64);
+  const len = binary_string.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binary_string.charCodeAt(i);
+  }
+  return bytes.buffer;
 }
 
 export async function deleteProfileImageByUrl(fullStorageUrl: string): Promise<void> {

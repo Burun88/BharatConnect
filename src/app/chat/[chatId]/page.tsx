@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import type { Message, User, Chat, ParticipantInfo, UserAura, FirestoreAura, ChatSpecificPresence } from '@/types';
+import type { Message, User, Chat, ParticipantInfo, UserAura, FirestoreAura, ChatSpecificPresence, MediaInfo } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,6 +28,7 @@ import EncryptedChatBanner from '@/components/chat/EncryptedChatBanner';
 import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 import { useElementHeight } from '@/hooks/useElementHeight';
 import { encryptMessage, decryptMessage } from '@/services/encryptionService';
+import { encryptAndUploadChunks } from '@/services/storageService';
 
 const EMOJI_PICKER_HEIGHT_PX = 300;
 const AURA_EXPIRATION_MS = 60 * 60 * 1000; 
@@ -60,6 +61,8 @@ export default function ChatPage() {
   const [isContactTyping, setIsContactTyping] = useState(false);
   const [contactPresence, setContactPresence] = useState<ChatSpecificPresence | null>(null);
   const [privateKeyExists, setPrivateKeyExists] = useState<boolean | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomBarRef = useRef<HTMLDivElement>(null); 
@@ -299,39 +302,44 @@ export default function ChatPage() {
       const decryptionPromises: Promise<Message>[] = querySnapshot.docs.map(async docSnap => {
         const data = docSnap.data();
         const firestoreId = docSnap.id;
-        let decryptedText = data.text;
-        let decryptionError: 'DECRYPTION_FAILED' | undefined = undefined;
-
-        if (data.encryptedText && currentUserId) {
-          if (privateKeyExists) {
-            try {
-              decryptedText = await decryptMessage(data, currentUserId);
-            } catch (e) {
-              console.error(`Decryption failed for message ${firestoreId}:`, e);
-              decryptionError = 'DECRYPTION_FAILED';
-              decryptedText = '[Message could not be decrypted]';
-            }
-          } else {
-            decryptionError = 'DECRYPTION_FAILED';
-            decryptedText = '[Encrypted message - Restore backup to read]';
-          }
-        }
         
-        return {
+        const baseMessage: Message = {
           id: firestoreId,
           firestoreId: firestoreId,
           chatId: effectiveChatId,
           senderId: data.senderId,
-          text: decryptedText,
           timestamp: (data.timestamp as Timestamp)?.toMillis() || Date.now(),
           type: data.type || 'text',
-          mediaUrl: data.mediaUrl,
           readBy: data.readBy || [],
-          encryptedText: data.encryptedText,
-          iv: data.iv,
           encryptedKeys: data.encryptedKeys,
-          error: decryptionError,
         };
+
+        if (data.type === 'image') {
+          baseMessage.mediaInfo = data.mediaInfo;
+        } else if (data.type === 'text') {
+            let decryptedText = data.text;
+            let decryptionError: 'DECRYPTION_FAILED' | undefined = undefined;
+
+            if (data.encryptedText && currentUserId) {
+              if (privateKeyExists) {
+                try {
+                  decryptedText = await decryptMessage(data, currentUserId);
+                } catch (e) {
+                  console.error(`Decryption failed for message ${firestoreId}:`, e);
+                  decryptionError = 'DECRYPTION_FAILED';
+                  decryptedText = '[Message could not be decrypted]';
+                }
+              } else {
+                decryptionError = 'DECRYPTION_FAILED';
+                decryptedText = '[Encrypted message - Restore backup to read]';
+              }
+            }
+            baseMessage.text = decryptedText;
+            baseMessage.error = decryptionError;
+            baseMessage.iv = data.iv;
+            baseMessage.encryptedText = data.encryptedText;
+        }
+        return baseMessage;
       });
 
       Promise.all(decryptionPromises).then(decryptedMessages => {
@@ -374,7 +382,7 @@ export default function ChatPage() {
       
       const messageDataForFirestore = {
         senderId: currentSenderId,
-        type: 'text',
+        type: 'text' as const,
         timestamp: serverTimestamp(),
         readBy: [currentSenderId],
         ...encryptedPayload
@@ -398,9 +406,12 @@ export default function ChatPage() {
         lastMessage: {
            senderId: currentSenderId, 
            timestamp: serverTimestamp(), 
-           type: 'text', 
+           type: 'text' as const,
            readBy: [currentSenderId],
-           ...encryptedPayload
+           text: textToSend, // Store plaintext for display in chat list (will be encrypted in message doc)
+           iv: encryptedPayload.iv,
+           encryptedKeys: encryptedPayload.encryptedKeys,
+           encryptedText: encryptedPayload.encryptedText
         },
         updatedAt: serverTimestamp(),
         typingStatus: { [currentSenderId]: false }
@@ -413,6 +424,64 @@ export default function ChatPage() {
       setNewMessage(textToSend); // Restore message on failure
     }
   };
+
+  const handleFileSelect = async (file: File) => {
+    if (!authUser || !contact || !effectiveChatId) return;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+    try {
+      const { mediaInfo, encryptedAesKey } = await encryptAndUploadChunks(
+        file,
+        effectiveChatId,
+        authUser.id,
+        [contact.id],
+        (progress) => setUploadProgress(progress)
+      );
+
+      const messageDataForFirestore = {
+        senderId: authUser.id,
+        type: 'image' as const,
+        timestamp: serverTimestamp(),
+        readBy: [authUser.id],
+        mediaInfo,
+        encryptedKeys: encryptedAesKey,
+      };
+
+      const chatDocRef = doc(firestore, `chats/${effectiveChatId}`);
+      const newMessageRef = collection(firestore, `chats/${effectiveChatId}/messages`);
+      await addDoc(newMessageRef, messageDataForFirestore);
+
+      await updateDoc(chatDocRef, {
+        lastMessage: {
+          senderId: authUser.id,
+          timestamp: serverTimestamp(),
+          type: 'image' as const,
+          readBy: [authUser.id],
+          mediaInfo: {
+            fileName: mediaInfo.fileName,
+            fileType: mediaInfo.fileType,
+            fileId: mediaInfo.fileId,
+          },
+          encryptedKeys: encryptedAesKey,
+        },
+        updatedAt: serverTimestamp(),
+      });
+
+      toast({ title: "Image Sent!", description: "Your encrypted image has been sent." });
+
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Upload Failed',
+        description: err.message || 'Could not send the image.',
+      });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     setNewMessage(prevMessage => prevMessage + emoji);
@@ -479,7 +548,7 @@ export default function ChatPage() {
   
   const contactStatusText = getDynamicStatus();
   const contactAuraIconUrl = isContactTyping ? null : (contactActiveAura ? contactActiveAura.iconUrl : undefined);
-  const contactAuraName = isContactTyping ? null : (contactActiveAura ? contactActiveAura.name : undefined);
+  const contactAuraName = isContactTyping ? null : (contactActiveAura ? contactAura.name : undefined);
   const headerContactName = contact?.name || chatDetails?.name || (chatDetails?.participantInfo && chatDetails.contactUserId && chatDetails.participantInfo[chatDetails.contactUserId]?.name) || 'Chat';
   const headerContactAvatar = contact?.avatarUrl || chatDetails?.avatarUrl || (chatDetails?.participantInfo && chatDetails.contactUserId && chatDetails.participantInfo[chatDetails.contactUserId]?.avatarUrl);
 
@@ -518,6 +587,8 @@ export default function ChatPage() {
             contactId={contact?.id || null}
             dynamicPaddingBottom={dynamicPaddingBottom}
             isContactTyping={isContactTyping}
+            uploadProgress={uploadProgress}
+            isUploading={isUploading}
           />
           
           {showInputArea && ( 
@@ -525,7 +596,8 @@ export default function ChatPage() {
               <ChatInputZone
                 newMessage={newMessage} onNewMessageChange={setNewMessage} onSendMessage={processAndSendMessage}
                 onToggleEmojiPicker={toggleEmojiPicker} isEmojiPickerOpen={isEmojiPickerOpen}
-                textareaRef={textareaRef} isDisabled={!isChatActive} justSelectedEmoji={justSelectedEmojiRef.current}
+                onFileSelect={handleFileSelect}
+                textareaRef={textareaRef} isDisabled={!isChatActive || isUploading} justSelectedEmoji={justSelectedEmojiRef.current}
               />
             </div>
           )}
