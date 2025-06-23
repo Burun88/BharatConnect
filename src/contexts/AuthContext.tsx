@@ -5,7 +5,7 @@ import { createContext, useContext, useState, useEffect, useMemo, type ReactNode
 import { useRouter, usePathname } from 'next/navigation';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { User, ActiveSession } from '@/types';
-import { auth, signInUser, signOutUser as fbSignOutUser, firestore } from '@/lib/firebase';
+import { auth, signInUser, signOutUser as fbSignOutUser, firestore, type FirebaseUser } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -80,21 +80,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     if (docSnap.exists()) {
       const existingSession = docSnap.data().activeSession as ActiveSession | undefined;
-      if (existingSession?.sessionId) {
+      // Only show conflict if a session exists AND it's not the same as the one in localStorage.
+      // This handles the case where logout didn't fully clear the remote session but the user is on the same device.
+      if (existingSession?.sessionId && existingSession.sessionId !== localSessionId) {
         setConflictingUser(userCredential.user);
         setSessionConflict(existingSession);
-        return; // Halt the login process until user makes a choice
+        return; // Halt the login process
       }
     }
-    // No active session, proceed to create one
+    // No session conflict, proceed to create a new session.
+    // This will also overwrite any lingering session from the same device.
     await createNewSession(uid);
     // Observer will pick up user and redirect
   };
 
   const handleForceLogin = async () => {
     if (conflictingUser?.uid) {
-      // Generate a new key pair for the new device *before* creating the session
-      await generateAndStoreKeyPair(conflictingUser.uid);
+      // DO NOT generate new keys. The user must restore their old private key from backup
+      // to read their old messages. This is the correct E2EE flow for a new device.
       await createNewSession(conflictingUser.uid);
 
       // Signal to the homepage that a restore is the next logical step

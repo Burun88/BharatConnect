@@ -53,6 +53,16 @@ export const aesImportParams: AesKeyGenParams = {
  */
 export async function generateAndStoreKeyPair(uid: string): Promise<void> {
   try {
+    const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
+    const docSnap = await getDoc(userDocRef);
+
+    // If a public key already exists in Firestore, do not generate a new pair.
+    // This prevents overwriting keys on a new device login.
+    if (docSnap.exists() && docSnap.data().publicKey) {
+      console.log(`[Encryption] Public key already exists for user ${uid}. Skipping key generation.`);
+      return;
+    }
+
     const keyPair = await window.crypto.subtle.generateKey(rsaKeygenParams, true, ['encrypt', 'decrypt']);
 
     const publicKeyBuffer = await window.crypto.subtle.exportKey('spki', keyPair.publicKey);
@@ -62,7 +72,6 @@ export async function generateAndStoreKeyPair(uid: string): Promise<void> {
     const privateKeyBase64 = arrayBufferToBase64(privateKeyBuffer);
 
     // Save public key to Firestore
-    const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
     // Use setDoc with merge:true to prevent errors if the document doesn't exist yet.
     // This will create the document or update it safely.
     await setDoc(userDocRef, { publicKey: publicKeyBase64 }, { merge: true });
