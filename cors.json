@@ -1,9 +1,20 @@
 
 [
   {
-    "origin": ["*"],
+    "origin": [
+      "https://bharatconnect--bharatconnect-i8510.us-central1.hosted.app",
+      "https://t-796215510---bharatconnect-euykw7saaa-uc.a.run.app",
+      "http://localhost:9002"
+    ],
     "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    "responseHeader": ["*"],
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "X-Goog-Resumable",
+      "X-Upload-Content-Type",
+      "x-firebase-gmpid",
+      "x-goog-api-client"
+    ],
     "maxAgeSeconds": 3600
   }
 ]
