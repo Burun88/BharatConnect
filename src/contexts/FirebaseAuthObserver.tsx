@@ -22,12 +22,19 @@ export default function FirebaseAuthObserver() {
           let userToStore: User;
 
           if (firestoreProfile) {
-            // Check for E2EE keys and generate if missing
-            if (!firestoreProfile.publicKey) {
+            const localPrivateKey = localStorage.getItem(`privateKey_${firebaseUser.uid}`);
+
+            // Generate keys if it's a new user (no public key yet)
+            // OR if it's an existing user on a new device (no local private key).
+            if (!firestoreProfile.publicKey || !localPrivateKey) {
+              console.log(`[AuthObserver] Generating new key pair. Reason: ${!firestoreProfile.publicKey ? 'New user finishing onboarding' : 'Existing user on new device'}.`);
               await generateAndStoreKeyPair(firebaseUser.uid);
-              // Re-fetch profile to get the new public key
+              // Re-fetch profile to get the new public key for the current session.
               const updatedProfile = await getUserFullProfile(firebaseUser.uid);
-              if (updatedProfile) Object.assign(firestoreProfile, updatedProfile);
+              if (updatedProfile) {
+                // Mutate the profile object we're working with to include the new key.
+                Object.assign(firestoreProfile, updatedProfile);
+              }
             }
 
             userToStore = {
@@ -45,7 +52,7 @@ export default function FirebaseAuthObserver() {
             };
           } else {
             // This case is for first-time signup before profile is created.
-            // Keys will be generated after profile setup.
+            // Keys will be generated after profile setup completes.
             userToStore = {
               id: firebaseUser.uid,
               email: firebaseUser.email || '',
