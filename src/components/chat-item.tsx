@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNowStrict } from 'date-fns';
-import { UserCircle2, MailQuestion, CheckCircle, XCircle, Send, MessageSquareText } from 'lucide-react';
+import { UserCircle2, MailQuestion, CheckCircle, XCircle, Send, MessageSquareText, ImageIcon } from 'lucide-react';
 
 interface ChatItemProps {
   chat: Chat;
@@ -52,7 +52,18 @@ export default function ChatItem({ chat, currentUserId }: ChatItemProps) {
     chat.lastMessage &&
     chat.lastMessage.senderId !== currentUserId;
     
-  let subText: string = chat.lastMessage?.text || 'No messages yet';
+  let subText: React.ReactNode;
+  
+  if (chat.lastMessage?.type === 'image') {
+    subText = (
+      <div className="flex items-center gap-1.5">
+        <ImageIcon className="w-4 h-4" />
+        <span>Photo</span>
+      </div>
+    );
+  } else {
+    subText = chat.lastMessage?.text || 'No messages yet';
+  }
   
   let subTextColor = 'text-muted-foreground';
   let specialBadge = null;
