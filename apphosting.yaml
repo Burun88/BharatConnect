@@ -62,7 +62,7 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FCM_VAPID_KEY
-    secret: FCM_VAPID_KEY
+    value: "BPo4BiMEaoCmoKOeBCOeCCqgy16Q1TFyLN6o_iPT6-3vGDQNyC-Jv8KWbzHCgTtZP-FqiExb9rFs_jF9p9mH1KI"
     availability:
       - BUILD
       - RUNTIME
