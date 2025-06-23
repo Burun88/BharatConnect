@@ -48,6 +48,7 @@ export default function ChatPage() {
   const chatContext = useChatContextHook();
 
   const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isChatReady, setIsChatReady] = useState(false); // New state to control interaction readiness
   const [effectiveChatId, setEffectiveChatId] = useState<string | null>(null);
   const [chatDetails, setChatDetails] = useState<Chat | null>(null);
   const [contact, setContact] = useState<User | null>(null);
@@ -135,6 +136,7 @@ export default function ChatPage() {
 
         if (initialLoadCompletedForChatIdRef.current !== initialRouteChatId) {
             setIsPageLoading(true);
+            setIsChatReady(false); // Reset readiness for new chat
         }
         
         let determinedChatId = initialRouteChatId;
@@ -162,23 +164,37 @@ export default function ChatPage() {
         setContact(contactUserForChat);
         setEffectiveChatId(determinedChatId);
 
-        if (contactUserForChat && determinedChatId && !initialRouteChatId.startsWith('req_') && currentUserId && authUser.name) {
+        if (contactUserForChat && determinedChatId && currentUserId && authUser.name) {
           const chatDocRef = doc(firestore, `chats/${determinedChatId}`);
           try {
-            const chatDocSnap = await getDoc(chatDocRef);
-            if (!chatDocSnap.exists()) {
-                const participantInfoMap: { [uid: string]: ParticipantInfo } = {
-                    [currentUserId]: { name: authUser.name, avatarUrl: authUser.avatarUrl || null },
-                    [contactUserForChat.id]: { name: contactUserForChat.name, avatarUrl: contactUserForChat.avatarUrl || null }
-                };
-                const newChatPayload = {
-                    id: determinedChatId, type: 'individual' as 'individual' | 'group', participants: [currentUserId, contactUserForChat.id].sort(),
-                    participantInfo: participantInfoMap, lastMessage: null, updatedAt: serverTimestamp(), requestStatus: 'accepted' as Chat['requestStatus'],
-                    acceptedTimestamp: serverTimestamp(), typingStatus: {}, chatSpecificPresence: {}
-                };
-                await setDoc(chatDocRef, newChatPayload);
+             if (initialRouteChatId.startsWith('req_')) {
+                // Requests block interaction via UI logic, so chat is considered "ready".
+                setIsChatReady(true);
+            } else {
+                const chatDocSnap = await getDoc(chatDocRef);
+                if (!chatDocSnap.exists()) {
+                    console.log(`[ChatPage] New chat. Creating doc for ${determinedChatId}`);
+                    const participantInfoMap: { [uid: string]: ParticipantInfo } = {
+                        [currentUserId]: { name: authUser.name, avatarUrl: authUser.avatarUrl || null },
+                        [contactUserForChat.id]: { name: contactUserForChat.name, avatarUrl: contactUserForChat.avatarUrl || null }
+                    };
+                    const newChatPayload = {
+                        id: determinedChatId, type: 'individual' as 'individual' | 'group', participants: [currentUserId, contactUserForChat.id].sort(),
+                        participantInfo: participantInfoMap, lastMessage: null, updatedAt: serverTimestamp(), requestStatus: 'accepted' as Chat['requestStatus'],
+                        acceptedTimestamp: serverTimestamp(), typingStatus: {}, chatSpecificPresence: {}
+                    };
+                    await setDoc(chatDocRef, newChatPayload);
+                    console.log(`[ChatPage] New chat doc ${determinedChatId} created.`);
+                }
+                setIsChatReady(true); // Chat is ready only after doc is confirmed/created.
             }
-          } catch (e) { console.error(`[ChatPage INIT] Error creating/checking chat doc ${determinedChatId} in init:`, e); }
+          } catch (e) { 
+            console.error(`[ChatPage INIT] Error creating/checking chat doc ${determinedChatId}:`, e); 
+            setIsChatReady(false); // Not ready on error.
+          }
+        } else {
+             // Fallback for cases without a contact (e.g., group chat) or error states
+            setIsChatReady(true);
         }
         setIsPageLoading(false);
         initialLoadCompletedForChatIdRef.current = initialRouteChatId; 
@@ -186,6 +202,7 @@ export default function ChatPage() {
       if (currentUserId) initializeChat();
     } else { 
       setIsPageLoading(false); 
+      setIsChatReady(false);
       initialLoadCompletedForChatIdRef.current = null; 
     }
   }, [initialRouteChatId, authUser, isAuthLoading, currentUserId, chatContext]);
@@ -597,7 +614,9 @@ export default function ChatPage() {
                 newMessage={newMessage} onNewMessageChange={setNewMessage} onSendMessage={processAndSendMessage}
                 onToggleEmojiPicker={toggleEmojiPicker} isEmojiPickerOpen={isEmojiPickerOpen}
                 onFileSelect={handleFileSelect}
-                textareaRef={textareaRef} isDisabled={!isChatActive || isUploading} justSelectedEmoji={justSelectedEmojiRef.current}
+                textareaRef={textareaRef}
+                isDisabled={!isChatReady || !isChatActive || isUploading}
+                justSelectedEmoji={justSelectedEmojiRef.current}
               />
             </div>
           )}
