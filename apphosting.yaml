@@ -65,3 +65,8 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_FCM_VAPID_KEY
+    secret: FCM_VAPID_KEY
+    availability:
+      - BUILD
+      - RUNTIME
