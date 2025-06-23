@@ -1,3 +1,4 @@
+
 'use client'; 
 
 import { storage, firestore } from '@/lib/firebase';
@@ -45,13 +46,12 @@ export async function uploadProfileImage(uid: string, file: File): Promise<strin
   const storageRef = ref(storage, `profileImages/${uid}/profileImage.${extension}`);
 
   try {
-    const dataUrl = await readFileAsDataURL(file);
-    const snapshot = await uploadString(storage, storageRef, dataUrl, 'data_url');
-    console.log('[StorageService] Upload via uploadString successful.');
+    const snapshot = await uploadBytes(storageRef, file);
+    console.log('[StorageService] Upload via uploadBytes successful.');
     const downloadURL = await getDownloadURL(snapshot.ref);
     return downloadURL;
   } catch (error: any) {
-    console.error('[StorageService-Client] Error uploading profile image with uploadString:', error);
+    console.error('[StorageService-Client] Error uploading profile image with uploadBytes:', error);
     if (error.code === 'storage/unauthorized') {
       throw new Error('You do not have permission to upload this file. Check storage rules.');
     }
@@ -76,6 +76,14 @@ export async function encryptAndUploadChunks(
     ['encrypt', 'decrypt']
   );
 
+  const allParticipantUids = Array.from(new Set([...recipientUids, senderUid]));
+  const metadata = {
+    customMetadata: {
+      participants: allParticipantUids.join(','),
+      chatId: chatId,
+    }
+  };
+
   const chunkPaths: string[] = [];
   const chunkIVs: string[] = [];
   const totalChunks = Math.ceil(fileBuffer.byteLength / CHUNK_SIZE);
@@ -91,10 +99,10 @@ export async function encryptAndUploadChunks(
       chunk
     );
 
-    // 3. Upload the encrypted chunk
+    // 3. Upload the encrypted chunk with metadata
     const chunkPath = `mediaChunks/${chatId}/${fileId}/chunk_${i}`;
     const chunkRef = ref(storage, chunkPath);
-    await uploadBytes(chunkRef, encryptedChunk);
+    await uploadBytes(chunkRef, encryptedChunk, metadata);
 
     chunkPaths.push(chunkPath);
     chunkIVs.push(arrayBufferToBase64(iv));
@@ -104,7 +112,6 @@ export async function encryptAndUploadChunks(
 
   // 4. Encrypt the AES key for all participants (including sender)
   const rawAesKey = await window.crypto.subtle.exportKey('raw', aesKey);
-  const allParticipantUids = Array.from(new Set([...recipientUids, senderUid]));
   const encryptedAesKey: { [uid: string]: string } = {};
 
   for (const uid of allParticipantUids) {

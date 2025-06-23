@@ -1,19 +1,28 @@
+
 rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Profile Images
+    // Match any file in a user's profileImages directory
     match /profileImages/{userId}/{allPaths=**} {
+      
+      // Anyone can read a profile image. This is common for social apps.
       allow read;
+
+      // Only the authenticated user is allowed to write (create, update, delete)
+      // to their own profileImages directory.
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Encrypted Media Chunks
-    match /mediaChunks/{chatId}/{allPaths=**} {
-      // TEMPORARY DEBUGGING RULE: Allow any authenticated user to write.
-      // This helps determine if the issue is with the Firestore 'get()' call in the original rule.
-      // THIS IS NOT SECURE FOR PRODUCTION.
-      allow read, write: if request.auth != null;
+    // Secure rule for chat media using file metadata
+    match /mediaChunks/{chatId}/{fileId}/{chunkName} {
+      // Allow read if the user's UID is in the file's custom metadata.
+      allow read: if request.auth != null 
+                  && request.auth.uid in resource.metadata.participants.split(',');
+      
+      // Allow write (upload) if the user's UID is in the metadata of the file being uploaded.
+      allow write: if request.auth != null 
+                   && request.auth.uid in request.resource.metadata.participants.split(',');
     }
   }
 }
