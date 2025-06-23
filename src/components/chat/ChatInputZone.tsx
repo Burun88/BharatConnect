@@ -96,7 +96,7 @@ export default function ChatInputZone({
         ref={fileInputRef}
         onChange={handleFileChange}
         className="hidden"
-        accept="image/*"
+        accept="image/png, image/jpeg, image/gif, image/*"
       />
       <form
         onSubmit={(e) => {

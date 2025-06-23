@@ -133,15 +133,24 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
     );
   }
 
+  const isUploadingOrError = message.uploadStatus === 'uploading' || message.uploadStatus === 'error';
+
   const renderMediaContent = () => {
     if (message.type !== 'image') return null;
 
     // Handle Uploading State
-    if (message.uploadStatus === 'uploading' || message.uploadStatus === 'error') {
+    if (isUploadingOrError) {
       return (
         <div className="relative w-64 h-48 rounded-md overflow-hidden">
-          {message.mediaUrl && <img src={message.mediaUrl} alt="Uploading preview" className="w-full h-full object-cover filter blur-sm" data-ai-hint="upload preview" />}
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4 filter backdrop-blur-sm bg-black/40">
+          {message.mediaUrl && (
+            <img 
+              src={message.mediaUrl} 
+              alt="Uploading preview" 
+              className="absolute inset-0 w-full h-full object-cover filter blur-sm z-0" 
+              data-ai-hint="upload preview" 
+            />
+          )}
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-white p-4 filter backdrop-blur-sm bg-black/40">
             {message.uploadStatus === 'uploading' ? (
               <>
                 <div className="flex items-center gap-2">
@@ -195,15 +204,13 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
     </>
   );
 
-  const isUploadingOrError = message.uploadStatus === 'uploading' || message.uploadStatus === 'error';
-
   return (
     <div className={cn("flex flex-col max-w-[70%] my-1 group", alignmentClass, applyAnimation ? "animate-fade-in-scale-up" : "")}>
       <div className={cn(
           "px-3 py-2",
-          bubbleClass,
+          !isUploadingOrError && bubbleClass, // Only apply bubble styles if not uploading/error
           (message.error === 'DECRYPTION_FAILED' || decryptionError) && 'bg-destructive/50 border border-destructive',
-          isUploadingOrError && 'p-0 bg-transparent shadow-none' // Remove padding/bg for upload bubble container
+          isUploadingOrError && 'p-0 bg-transparent shadow-none'
         )}>
         {messageContent}
       </div>
