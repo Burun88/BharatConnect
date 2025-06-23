@@ -17,7 +17,7 @@ import { useChat as useChatContextHook } from '@/contexts/ChatContext';
 import SwipeablePageWrapper from '@/components/shared/SwipeablePageWrapper';
 import { useToast } from '@/hooks/use-toast';
 import { firestore, getFirebaseTimestampMinutesAgo, Timestamp } from '@/lib/firebase';
-import { collection, query, where, orderBy, onSnapshot, doc, getDoc, type FirestoreError, limit, getDocs, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc, type FirestoreError, limit, getDocs, serverTimestamp, type DocumentData } from 'firebase/firestore';
 import { getUserFullProfile } from '@/services/profileService';
 import { decryptMessage } from '@/services/encryptionService';
 
@@ -56,22 +56,28 @@ export default function HomePage() {
   const { chats: contextChats, setChats: setContextChats, isLoadingChats: isContextChatsLoading } = useChatContextHook();
 
   const [isMounted, setIsMounted] = useState(false);
-  const [isLoadingPageData, setIsLoadingPageData] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [privateKeyExists, setPrivateKeyExists] = useState<boolean | null>(null);
   const [showRestoreNeeded, setShowRestoreNeeded] = useState(false);
 
+  // Raw data from Firestore listeners
+  const [rawActiveChatDocs, setRawActiveChatDocs] = useState<DocumentData[]>([]);
+  const [rawSentRequestDocs, setRawSentRequestDocs] = useState<DocumentData[]>([]);
+  const [rawReceivedRequestDocs, setRawReceivedRequestDocs] = useState<DocumentData[]>([]);
+  
+  // Processed data
   const [liveActiveChats, setLiveActiveChats] = useState<Chat[]>([]);
   const [liveSentRequests, setLiveSentRequests] = useState<Chat[]>([]);
   const [liveReceivedRequests, setLiveReceivedRequests] = useState<Chat[]>([]);
 
-  const [initialActiveChatsProcessed, setInitialActiveChatsProcessed] = useState(false);
-  const [initialSentRequestsProcessed, setInitialSentRequestsProcessed] = useState(false);
-  const [initialReceivedRequestsProcessed, setInitialReceivedRequestsProcessed] = useState(false);
+  // Loading state management
+  const [areListenersSetup, setAreListenersSetup] = useState(false);
+  const [isProcessingData, setIsProcessingData] = useState(true);
 
   const scrollableContainerRef = useRef<HTMLDivElement>(null);
   const [isHeaderContentLoaded, setIsHeaderContentLoaded] = useState(true);
-  const prevAuthUserIdRef = useRef<string | null | undefined>(null);
+  
+  const lastScrollYRef = useRef(0);
 
   const [allDisplayAuras, setAllDisplayAuras] = useState<DisplayAura[]>([]);
   const [isLoadingAuras, setIsLoadingAuras] = useState(true);
@@ -180,213 +186,171 @@ export default function HomePage() {
     ));
   }, [authUser?.id, contextChats]);
 
-
-  // Effect for Chat List Data Fetching
+  // EFFECT 1: SETUP LISTENERS. Depends only on auth state.
   useEffect(() => {
-    if (!isMounted) return;
-    let unsubActive: (() => void) | undefined, unsubSent: (() => void) | undefined, unsubReceived: (() => void) | undefined;
-
-    const currentAuthUserId = authUser?.id;
-
-    if (prevAuthUserIdRef.current !== currentAuthUserId) {
-        console.log(`[HomePage CHAT_FETCH] Auth user changed from ${prevAuthUserIdRef.current} to ${currentAuthUserId}. Resetting chat loading states.`);
-        setIsLoadingPageData(true); // Indicate fresh data load for chats specifically
-        setInitialActiveChatsProcessed(false);
-        setInitialSentRequestsProcessed(false);
-        setInitialReceivedRequestsProcessed(false);
-        setLiveActiveChats([]); // Clear previous user's data
-        setLiveSentRequests([]);
-        setLiveReceivedRequests([]);
+    if (!isMounted || !authUser?.id || isAuthLoading) {
+      setAreListenersSetup(false);
+      return;
     }
-    prevAuthUserIdRef.current = currentAuthUserId;
+    
+    setAreListenersSetup(true);
 
-    if (isAuthLoading || !isAuthenticated || !currentAuthUserId || !authUser?.name) {
-      if (unsubActive) unsubActive(); if (unsubSent) unsubSent(); if (unsubReceived) unsubReceived();
-      setLiveActiveChats([]); setLiveSentRequests([]); setLiveReceivedRequests([]);
-      if (prevAuthUserIdRef.current === currentAuthUserId) {
-          setInitialActiveChatsProcessed(true); setInitialSentRequestsProcessed(true); setInitialReceivedRequestsProcessed(true);
-      }
+    const activeChatsQuery = query(collection(firestore, 'chats'), where('participants', 'array-contains', authUser.id), orderBy('updatedAt', 'desc'));
+    const unsubActive = onSnapshot(activeChatsQuery, (snapshot) => {
+      setRawActiveChatDocs(snapshot.docs.map(d => ({...d.data(), id: d.id})));
+    }, (error) => toast({ variant: 'destructive', title: 'Chat Error', description: `Active chats: ${error.message}`}));
+
+    const sentRequestsQuery = query(collection(firestore, `bharatConnectUsers/${authUser.id}/requestsSent`), where('status', '==', 'pending'), orderBy('timestamp', 'desc'));
+    const unsubSent = onSnapshot(sentRequestsQuery, (snapshot) => {
+      setRawSentRequestDocs(snapshot.docs.map(d => ({...d.data(), id: d.id})));
+    }, (error) => toast({ variant: 'destructive', title: 'Request Error', description: `Sent requests: ${error.message}`}));
+
+    const receivedRequestsQuery = query(collection(firestore, `bharatConnectUsers/${authUser.id}/requestsReceived`), where('status', '==', 'pending'), orderBy('timestamp', 'desc'));
+    const unsubReceived = onSnapshot(receivedRequestsQuery, (snapshot) => {
+      setRawReceivedRequestDocs(snapshot.docs.map(d => ({...d.data(), id: d.id})));
+    }, (error) => toast({ variant: 'destructive', title: 'Request Error', description: `Received requests: ${error.message}`}));
+
+    return () => {
+      unsubActive();
+      unsubSent();
+      unsubReceived();
+      setAreListenersSetup(false);
+    };
+  }, [isMounted, authUser?.id, isAuthLoading, toast]);
+
+
+  // EFFECT 2: PROCESS RAW DATA. Depends on raw data & enrichment data (auras, etc.)
+  useEffect(() => {
+    if (!areListenersSetup || !authUser?.id || !authUser.name) {
       return;
     }
 
-    // --- Active Chats Listener ---
-    const activeChatsQuery = query(collection(firestore, 'chats'), where('participants', 'array-contains', currentAuthUserId), orderBy('updatedAt', 'desc'));
-    unsubActive = onSnapshot(activeChatsQuery, async (snapshot) => {
-      const latestAuthUser = authUser;
-      if (!latestAuthUser?.id || !latestAuthUser.name) { setLiveActiveChats([]); if (!initialActiveChatsProcessed) setInitialActiveChatsProcessed(true); return; }
-      const activeAuthUserIdInner = latestAuthUser.id;
+    const processData = async () => {
+      setIsProcessingData(true);
 
-      const activeChatsPromises = snapshot.docs.map(async (chatDoc): Promise<Chat | null> => {
-        try {
-          const data = chatDoc.data();
-          const contactId = data.participants?.find((pId: string) => pId !== activeAuthUserIdInner);
+      const processActiveChats = async () => {
+        const activeChatsPromises = rawActiveChatDocs.map(async (data): Promise<Chat | null> => {
+          const contactId = data.participants?.find((pId: string) => pId !== authUser.id);
           let participantInfoMap: { [uid: string]: ParticipantInfo } = { ...(data.participantInfo || {}) };
-          let chatTopLevelName = 'Chat User';
-          let chatTopLevelAvatar: string | undefined | null = undefined;
+          let chatTopLevelName = 'Chat User'; let chatTopLevelAvatar: string | undefined | null = undefined;
 
           if (data.type === 'individual' && contactId) {
             const profile = await getUserFullProfile(contactId);
             const fetchedContactName = profile?.name || participantInfoMap[contactId]?.name || 'User';
             const fetchedContactAvatar = profile?.avatarUrl || participantInfoMap[contactId]?.avatarUrl || undefined;
             const contactAuraFromState = allDisplayAuras.find(da => da.userId === contactId);
-            
-            let hasActiveUnviewedStatus = false;
-            let hasActiveViewedStatus = false;
-            const statusDocRef = doc(firestore, 'status', contactId);
-            const statusSnap = await getDoc(statusDocRef);
 
+            let hasActiveUnviewedStatus = false; let hasActiveViewedStatus = false;
+            const statusSnap = await getDoc(doc(firestore, 'status', contactId));
             if (statusSnap.exists()) {
-                const statusData = statusSnap.data() as UserStatusDoc;
-                const isActiveNow = statusData.isActive && statusData.expiresAt && (statusData.expiresAt as Timestamp).toMillis() > Date.now() && statusData.media && statusData.media.length > 0;
-
-                if (isActiveNow) {
-                    const allItemsViewed = statusData.media.every(item => item.viewers?.includes(activeAuthUserIdInner));
-
-                    if (allItemsViewed) {
-                        hasActiveViewedStatus = true;
-                        hasActiveUnviewedStatus = false;
-                    } else {
-                        hasActiveViewedStatus = false;
-                        hasActiveUnviewedStatus = true;
-                    }
+              const statusData = statusSnap.data() as UserStatusDoc;
+              const isActiveNow = statusData.isActive && statusData.expiresAt && (statusData.expiresAt as Timestamp).toMillis() > Date.now() && statusData.media?.length > 0;
+              if (isActiveNow) {
+                if (statusData.media.every(item => item.viewers?.includes(authUser.id!))) {
+                  hasActiveViewedStatus = true;
+                } else {
+                  hasActiveUnviewedStatus = true;
                 }
+              }
             }
-            
             participantInfoMap[contactId] = { name: fetchedContactName, avatarUrl: fetchedContactAvatar, currentAuraId: contactAuraFromState?.auraOptionId || null, hasActiveUnviewedStatus, hasActiveViewedStatus };
             chatTopLevelName = fetchedContactName; chatTopLevelAvatar = fetchedContactAvatar;
           } else if (data.type === 'group') {
             chatTopLevelName = data.name || 'Group Chat'; chatTopLevelAvatar = data.avatarUrl || undefined;
           }
 
-          if (!participantInfoMap[activeAuthUserIdInner] && latestAuthUser.name) {
-            const currentUserAuraFromState = allDisplayAuras.find(da => da.userId === activeAuthUserIdInner);
-            participantInfoMap[activeAuthUserIdInner] = { name: latestAuthUser.name, avatarUrl: latestAuthUser.avatarUrl || null, currentAuraId: currentUserAuraFromState?.auraOptionId || null };
+          if (!participantInfoMap[authUser.id] && authUser.name) {
+             const currentUserAuraFromState = allDisplayAuras.find(da => da.userId === authUser.id);
+             participantInfoMap[authUser.id] = { name: authUser.name, avatarUrl: authUser.avatarUrl || null, currentAuraId: currentUserAuraFromState?.auraOptionId || null };
           }
           
           let lastMessageWithDecryptedText = null;
           if (data.lastMessage) {
             let decryptedText = data.lastMessage.text;
-            if (data.lastMessage.encryptedText && activeAuthUserIdInner && privateKeyExists) {
-              try {
-                decryptedText = await decryptMessage(data.lastMessage, activeAuthUserIdInner);
-              } catch (e) {
-                console.error(`Failed to decrypt last message for chat ${chatDoc.id}`, e);
-                decryptedText = 'Encrypted message';
-              }
-            } else if (!data.lastMessage.text) {
-               decryptedText = '...';
-            }
-
-            lastMessageWithDecryptedText = {
-              ...data.lastMessage,
-              text: decryptedText,
-              timestamp: timestampToMillisSafe(data.lastMessage.timestamp),
-              readBy: data.lastMessage.readBy || [],
-            };
+            if (data.lastMessage.encryptedText && authUser.id && privateKeyExists) {
+              try { decryptedText = await decryptMessage(data.lastMessage, authUser.id); } 
+              catch (e) { decryptedText = 'Encrypted message'; }
+            } else if (!data.lastMessage.text) { decryptedText = '...'; }
+            lastMessageWithDecryptedText = { ...data.lastMessage, text: decryptedText, timestamp: timestampToMillisSafe(data.lastMessage.timestamp), readBy: data.lastMessage.readBy || [] };
           }
-
 
           let calculatedUnreadCount = 0;
-          if ((data.type === 'individual' || data.type === 'group') && activeAuthUserIdInner) {
-              const messagesColRef = collection(firestore, `chats/${chatDoc.id}/messages`);
-              const messagesQueryUnread = query(messagesColRef, orderBy('timestamp', 'desc'), limit(UNREAD_COUNT_MESSAGE_FETCH_LIMIT));
+          if ((data.type === 'individual' || data.type === 'group') && authUser.id) {
               try {
-                  const msgSnapshot = await getDocs(messagesQueryUnread);
-                  msgSnapshot.forEach(docSnap => { const msg = docSnap.data(); if (msg.senderId !== activeAuthUserIdInner && (!msg.readBy || !msg.readBy.includes(activeAuthUserIdInner))) calculatedUnreadCount++; });
-              } catch (err) { if (data.lastMessage && data.lastMessage.senderId !== activeAuthUserIdInner && !data.lastMessage.readBy?.includes(activeAuthUserIdInner)) calculatedUnreadCount = 1;}
+                  const msgSnapshot = await getDocs(query(collection(firestore, `chats/${data.id}/messages`), orderBy('timestamp', 'desc'), limit(UNREAD_COUNT_MESSAGE_FETCH_LIMIT)));
+                  msgSnapshot.forEach(docSnap => { const msg = docSnap.data(); if (msg.senderId !== authUser.id && !msg.readBy?.includes(authUser.id)) calculatedUnreadCount++; });
+              } catch (err) { if (data.lastMessage?.senderId !== authUser.id && !data.lastMessage.readBy?.includes(authUser.id)) calculatedUnreadCount = 1;}
           }
           return {
-            id: chatDoc.id, type: data.type || 'individual', name: chatTopLevelName, avatarUrl: chatTopLevelAvatar,
+            id: data.id, type: data.type || 'individual', name: chatTopLevelName, avatarUrl: chatTopLevelAvatar,
             participants: data.participants || [], participantInfo: participantInfoMap,
-            lastMessage: lastMessageWithDecryptedText,
-            updatedAt: timestampToMillisSafe(data.updatedAt), unreadCount: calculatedUnreadCount,
+            lastMessage: lastMessageWithDecryptedText, updatedAt: timestampToMillisSafe(data.updatedAt), unreadCount: calculatedUnreadCount,
             contactUserId: (data.type === 'individual' && contactId) ? contactId : undefined,
             requestStatus: 'accepted', acceptedTimestamp: data.acceptedTimestamp ? timestampToMillisSafe(data.acceptedTimestamp) : undefined,
           };
-        } catch (error) { console.error(`Error processing active chat ${chatDoc.id}:`, error); return null; }
-      });
-      try { const resolvedActiveChats = (await Promise.all(activeChatsPromises)).filter(Boolean) as Chat[]; setLiveActiveChats(resolvedActiveChats); }
-      catch (promiseAllError) { console.error("Error resolving active chat promises:", promiseAllError); }
-      if (!initialActiveChatsProcessed) setInitialActiveChatsProcessed(true);
-    }, (error: FirestoreError) => { toast({ variant: 'destructive', title: 'Chat Error', description: `Active chats: ${error.message}`}); setLiveActiveChats([]); if (!initialActiveChatsProcessed) setInitialActiveChatsProcessed(true); });
-
-    // --- Sent Requests Listener ---
-    const sentRequestsQuery = query(collection(firestore, `bharatConnectUsers/${currentAuthUserId}/requestsSent`), where('status', '==', 'pending'), orderBy('timestamp', 'desc'));
-    unsubSent = onSnapshot(sentRequestsQuery, async (snapshot) => {
-       const latestAuthUser = authUser;
-       if (!latestAuthUser?.id || !latestAuthUser.name) { setLiveSentRequests([]); if (!initialSentRequestsProcessed) setInitialSentRequestsProcessed(true); return; }
-       const activeAuthUserIdInner = latestAuthUser.id;
-       const requestsData: Chat[] = [];
-       for (const requestDoc of snapshot.docs) {
-         const data = requestDoc.data(); const contactUserId = data.to as string; if (!contactUserId) continue;
-         let contactName = data.name || 'User'; let contactAvatar = data.photoURL || undefined;
-         try { const profile = await getUserFullProfile(contactUserId); contactName = profile?.name || contactName; contactAvatar = profile?.avatarUrl || contactAvatar; } catch (profileError) { /* ignore */ }
-         const contactAuraFromState = allDisplayAuras.find(da => da.userId === contactUserId);
-         const currentUserAuraFromState = allDisplayAuras.find(da => da.userId === activeAuthUserIdInner);
-         requestsData.push({
-           id: `req_sent_${contactUserId}`, type: 'individual', name: contactName, contactUserId: contactUserId, participants: [activeAuthUserIdInner, contactUserId],
-           participantInfo: { [activeAuthUserIdInner]: { name: latestAuthUser.name, avatarUrl: latestAuthUser.avatarUrl || null, currentAuraId: currentUserAuraFromState?.auraOptionId || null }, [contactUserId]: { name: contactName, avatarUrl: contactAvatar, currentAuraId: contactAuraFromState?.auraOptionId || null }},
-           lastMessage: { text: data.firstMessageTextPreview || "Request sent...", senderId: activeAuthUserIdInner, timestamp: timestampToMillisSafe(data.timestamp), type: 'text', readBy: [activeAuthUserIdInner] },
-           updatedAt: timestampToMillisSafe(data.timestamp), unreadCount: 0, avatarUrl: contactAvatar,
-           requestStatus: 'pending', requesterId: activeAuthUserIdInner, firstMessageTextPreview: data.firstMessageTextPreview || "Request sent...",
-         });
-       }
-       setLiveSentRequests(requestsData); if (!initialSentRequestsProcessed) setInitialSentRequestsProcessed(true);
-    }, (error: FirestoreError) => { toast({ variant: 'destructive', title: 'Request Error', description: `Sent requests: ${error.message}`}); setLiveSentRequests([]); if (!initialSentRequestsProcessed) setInitialSentRequestsProcessed(true);});
-
-    // --- Received Requests Listener ---
-    const receivedRequestsQuery = query(collection(firestore, `bharatConnectUsers/${currentAuthUserId}/requestsReceived`), where('status', '==', 'pending'), orderBy('timestamp', 'desc'));
-    unsubReceived = onSnapshot(receivedRequestsQuery, async (snapshot) => {
-      const latestAuthUser = authUser;
-      if (!latestAuthUser?.id || !latestAuthUser.name) { setLiveReceivedRequests([]); if (!initialReceivedRequestsProcessed) setInitialReceivedRequestsProcessed(true); return; }
-      const activeAuthUserIdInner = latestAuthUser.id;
-      const requestsData: Chat[] = [];
-      for (const requestDoc of snapshot.docs) {
-        const data = requestDoc.data(); const contactUserId = data.from as string; if (!contactUserId) continue;
-        let contactName = data.name || 'User'; let contactAvatar = data.photoURL || undefined;
-        try { const profile = await getUserFullProfile(contactUserId); contactName = profile?.name || contactName; contactAvatar = profile?.avatarUrl || contactAvatar; } catch (profileError) { /* ignore */ }
-        const contactAuraFromState = allDisplayAuras.find(da => da.userId === contactUserId);
-        const currentUserAuraFromState = allDisplayAuras.find(da => da.userId === activeAuthUserIdInner);
-        requestsData.push({
-          id: `req_rec_${contactUserId}`, type: 'individual', name: contactName, contactUserId: contactUserId, participants: [activeAuthUserIdInner, contactUserId],
-          participantInfo: { [activeAuthUserIdInner]: { name: latestAuthUser.name, avatarUrl: latestAuthUser.avatarUrl || null, currentAuraId: currentUserAuraFromState?.auraOptionId || null }, [contactUserId]: { name: contactName, avatarUrl: contactAvatar, currentAuraId: contactAuraFromState?.auraOptionId || null }},
-          lastMessage: { text: data.firstMessageTextPreview || "Wants to connect...", senderId: contactUserId, timestamp: timestampToMillisSafe(data.timestamp), type: 'text', readBy: [contactUserId] },
-          updatedAt: timestampToMillisSafe(data.timestamp), unreadCount: 1, avatarUrl: contactAvatar,
-          requestStatus: 'awaiting_action', requesterId: contactUserId, firstMessageTextPreview: data.firstMessageTextPreview || "Wants to connect...",
         });
-      }
-      setLiveReceivedRequests(requestsData); if (!initialReceivedRequestsProcessed) setInitialReceivedRequestsProcessed(true);
-    }, (error: FirestoreError) => { toast({ variant: 'destructive', title: 'Request Error', description: `Received requests: ${error.message}`}); setLiveReceivedRequests([]); if (!initialReceivedRequestsProcessed) setInitialReceivedRequestsProcessed(true);});
+        setLiveActiveChats((await Promise.all(activeChatsPromises)).filter(Boolean) as Chat[]);
+      };
 
-    return () => { if (unsubActive) unsubActive(); if (unsubSent) unsubSent(); if (unsubReceived) unsubReceived(); };
-  }, [authUser, isAuthenticated, isAuthLoading, isMounted, toast, allDisplayAuras, privateKeyExists]);
+      const processSentRequests = async () => {
+        const requestsData = await Promise.all(rawSentRequestDocs.map(async (data): Promise<Chat | null> => {
+          const contactUserId = data.to as string; if (!contactUserId) return null;
+          let contactName = data.name || 'User'; let contactAvatar = data.photoURL || undefined;
+          try { const profile = await getUserFullProfile(contactUserId); contactName = profile?.name || contactName; contactAvatar = profile?.avatarUrl || contactAvatar; } catch { /* ignore */ }
+          const contactAuraFromState = allDisplayAuras.find(da => da.userId === contactUserId);
+          const currentUserAuraFromState = allDisplayAuras.find(da => da.userId === authUser.id);
+          return {
+            id: `req_sent_${contactUserId}`, type: 'individual', name: contactName, contactUserId: contactUserId, participants: [authUser.id!, contactUserId],
+            participantInfo: { [authUser.id!]: { name: authUser.name!, avatarUrl: authUser.avatarUrl || null, currentAuraId: currentUserAuraFromState?.auraOptionId || null }, [contactUserId]: { name: contactName, avatarUrl: contactAvatar, currentAuraId: contactAuraFromState?.auraOptionId || null }},
+            lastMessage: { text: data.firstMessageTextPreview || "Request sent...", senderId: authUser.id!, timestamp: timestampToMillisSafe(data.timestamp), type: 'text', readBy: [authUser.id!]},
+            updatedAt: timestampToMillisSafe(data.timestamp), unreadCount: 0, avatarUrl: contactAvatar,
+            requestStatus: 'pending', requesterId: authUser.id!, firstMessageTextPreview: data.firstMessageTextPreview || "Request sent...",
+          };
+        }));
+        setLiveSentRequests(requestsData.filter(Boolean) as Chat[]);
+      };
+      
+      const processReceivedRequests = async () => {
+        const requestsData = await Promise.all(rawReceivedRequestDocs.map(async (data): Promise<Chat | null> => {
+          const contactUserId = data.from as string; if (!contactUserId) return null;
+          let contactName = data.name || 'User'; let contactAvatar = data.photoURL || undefined;
+          try { const profile = await getUserFullProfile(contactUserId); contactName = profile?.name || contactName; contactAvatar = profile?.avatarUrl || contactAvatar; } catch { /* ignore */ }
+          const contactAuraFromState = allDisplayAuras.find(da => da.userId === contactUserId);
+          const currentUserAuraFromState = allDisplayAuras.find(da => da.userId === authUser.id);
+          return {
+            id: `req_rec_${contactUserId}`, type: 'individual', name: contactName, contactUserId: contactUserId, participants: [authUser.id!, contactUserId],
+            participantInfo: { [authUser.id!]: { name: authUser.name!, avatarUrl: authUser.avatarUrl || null, currentAuraId: currentUserAuraFromState?.auraOptionId || null }, [contactUserId]: { name: contactName, avatarUrl: contactAvatar, currentAuraId: contactAuraFromState?.auraOptionId || null }},
+            lastMessage: { text: data.firstMessageTextPreview || "Wants to connect...", senderId: contactUserId, timestamp: timestampToMillisSafe(data.timestamp), type: 'text', readBy: [contactUserId] },
+            updatedAt: timestampToMillisSafe(data.timestamp), unreadCount: 1, avatarUrl: contactAvatar,
+            requestStatus: 'awaiting_action', requesterId: contactUserId, firstMessageTextPreview: data.firstMessageTextPreview || "Wants to connect...",
+          };
+        }));
+        setLiveReceivedRequests(requestsData.filter(Boolean) as Chat[]);
+      };
 
-  // Combine and sort chats for ChatContext and local page loading state
+      await Promise.all([processActiveChats(), processSentRequests(), processReceivedRequests()]);
+      setIsProcessingData(false);
+    };
+
+    processData();
+
+  }, [rawActiveChatDocs, rawSentRequestDocs, rawReceivedRequestDocs, allDisplayAuras, privateKeyExists, authUser, areListenersSetup]);
+
+  // EFFECT 3: COMBINE & SORT DATA. Depends on processed data.
   useEffect(() => {
-    if (!isMounted || isAuthLoading || !authUser || !authUser.id || !authUser.name) {
-      setContextChats([]);
-      if (isLoadingPageData && !isAuthLoading) setIsLoadingPageData(false);
-      return;
-    }
+    if (isProcessingData || !authUser?.id) return;
+    
+    const combinedChatsMap = new Map<string, Chat>();
+    liveActiveChats.forEach(chat => combinedChatsMap.set(chat.id, chat));
+    liveSentRequests.forEach(req => { if (req.contactUserId) { const activeChatIdToCheck = generateChatId(authUser.id, req.contactUserId); if (!combinedChatsMap.has(activeChatIdToCheck)) combinedChatsMap.set(req.id, req); } });
+    liveReceivedRequests.forEach(req => { if (req.contactUserId) { const activeChatIdToCheck = generateChatId(authUser.id, req.contactUserId); const sentRequestIdToCheck = `req_sent_${req.contactUserId}`; if (!combinedChatsMap.has(activeChatIdToCheck) && !combinedChatsMap.has(sentRequestIdToCheck)) { if (!combinedChatsMap.has(req.id)) combinedChatsMap.set(req.id, req); } } });
 
-    const allInitialSnapshotsHaveFired = initialActiveChatsProcessed && initialSentRequestsProcessed && initialReceivedRequestsProcessed;
+    const finalChatsArray = Array.from(combinedChatsMap.values());
+    const getChatSortPriority = (chat: Chat): number => { if (chat.requestStatus === 'awaiting_action') return 0; if (chat.unreadCount > 0) return 1; if (chat.requestStatus === 'pending') return 2; if (chat.requestStatus === 'rejected') return 4; return 3; };
+    const sortedChats = finalChatsArray.sort((a, b) => { const priorityA = getChatSortPriority(a); const priorityB = getChatSortPriority(b); if (priorityA !== priorityB) return priorityA - priorityB; return (b.lastMessage?.timestamp || b.updatedAt || 0) - (a.lastMessage?.timestamp || a.updatedAt || 0); });
 
-    if (allInitialSnapshotsHaveFired) {
-      const currentAuthUserId = authUser.id;
-      const combinedChatsMap = new Map<string, Chat>();
-      liveActiveChats.forEach(chat => combinedChatsMap.set(chat.id, chat));
-      liveSentRequests.forEach(req => { if (req.contactUserId) { const activeChatIdToCheck = generateChatId(currentAuthUserId, req.contactUserId); if (!combinedChatsMap.has(activeChatIdToCheck)) combinedChatsMap.set(req.id, req); } });
-      liveReceivedRequests.forEach(req => { if (req.contactUserId) { const activeChatIdToCheck = generateChatId(currentAuthUserId, req.contactUserId); const sentRequestIdToCheck = `req_sent_${req.contactUserId}`; if (!combinedChatsMap.has(activeChatIdToCheck) && !combinedChatsMap.has(sentRequestIdToCheck)) { if (!combinedChatsMap.has(req.id)) combinedChatsMap.set(req.id, req); } } });
-
-      const finalChatsArray = Array.from(combinedChatsMap.values());
-      const getChatSortPriority = (chat: Chat): number => { if (chat.requestStatus === 'awaiting_action' && chat.requesterId !== currentAuthUserId) return 0; if (chat.unreadCount > 0 && (chat.requestStatus === 'accepted' || !chat.requestStatus)) return 1; if (chat.requestStatus === 'pending' && chat.requesterId === currentAuthUserId) return 2; if (chat.requestStatus === 'accepted' || !chat.requestStatus || chat.requestStatus === 'none') return 3; if (chat.requestStatus === 'rejected') return 4; return 3; };
-      const sortedChats = finalChatsArray.sort((a, b) => { const priorityA = getChatSortPriority(a); const priorityB = getChatSortPriority(b); if (priorityA !== priorityB) return priorityA - priorityB; return (b.lastMessage?.timestamp || b.updatedAt || 0) - (a.lastMessage?.timestamp || a.updatedAt || 0); });
-
-      setContextChats(sortedChats);
-      if (isLoadingPageData) setIsLoadingPageData(false);
-    }
-  }, [ liveActiveChats, liveSentRequests, liveReceivedRequests, authUser, isAuthenticated, isAuthLoading, isMounted, setContextChats,
-       initialActiveChatsProcessed, initialSentRequestsProcessed, initialReceivedRequestsProcessed, isLoadingPageData ]);
+    setContextChats(sortedChats);
+  }, [liveActiveChats, liveSentRequests, liveReceivedRequests, authUser?.id, isProcessingData, setContextChats]);
 
   const handleScroll = useCallback(() => {
     if (scrollableContainerRef.current) {
@@ -399,17 +363,15 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (isLoadingPageData || !isAuthenticated || !isMounted) return;
     const container = scrollableContainerRef.current;
-    if (container) {
+    if (container && isAuthenticated) {
       container.addEventListener('scroll', handleScroll);
       return () => container.removeEventListener('scroll', handleScroll);
     }
-  }, [isLoadingPageData, isAuthenticated, handleScroll, isMounted]);
+  }, [isAuthenticated, handleScroll]);
 
-  const showPageSpinner = !isMounted || isAuthLoading || (isAuthenticated && (isLoadingAuras || isLoadingPageData || privateKeyExists === null));
+  const showPageSpinner = !isMounted || isAuthLoading || (isAuthenticated && (isLoadingAuras || isProcessingData || privateKeyExists === null));
   
-  // Revised condition for showing the restore prompt
   const showTheRestorePrompt = showRestoreNeeded || (privateKeyExists === false && contextChats.length > 0 && !showRestoreNeeded);
 
   let mainContent;
