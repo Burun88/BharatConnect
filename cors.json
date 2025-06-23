@@ -1,7 +1,10 @@
-
 [
   {
-    "origin": ["*"],
+    "origin": [
+      "https://bharatconnect--bharatconnect-i8510.us-central1.hosted.app",
+      "https://6000-firebase-studio-1749304397466.cluster-fdkw7vjj7bgguspe3fbbc25tra.cloudworkstations.dev",
+      "http://localhost:9002"
+    ],
     "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     "responseHeader": [
       "Content-Type",
