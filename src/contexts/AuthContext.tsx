@@ -60,7 +60,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const isAuthenticated = useMemo(() => !!(stableUser?.id && stableUser?.onboardingComplete), [stableUser]);
 
-  const createNewSession = async (uid: string) => {
+  const establishSession = async (uid: string) => {
     const newSessionId = generateSessionId();
     const newSession: ActiveSession = {
       sessionId: newSessionId,
@@ -70,6 +70,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
     await updateDoc(userDocRef, { activeSession: newSession });
     setLocalSessionId(newSessionId);
+    console.log(`[AuthContext] New session established: ${newSessionId}`);
   };
 
   const loginAndManageSession = async (email: string, pass: string) => {
@@ -80,27 +81,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     if (docSnap.exists()) {
       const existingSession = docSnap.data().activeSession as ActiveSession | undefined;
-      // Only show conflict if a session exists AND it's not the same as the one in localStorage.
-      // This handles the case where logout didn't fully clear the remote session but the user is on the same device.
       if (existingSession?.sessionId && existingSession.sessionId !== localSessionId) {
         setConflictingUser(userCredential.user);
         setSessionConflict(existingSession);
         return; // Halt the login process
       }
     }
-    // No session conflict, proceed to create a new session.
-    // This will also overwrite any lingering session from the same device.
-    await createNewSession(uid);
+    // No session conflict, proceed to establish a new session.
+    await establishSession(uid);
     // Observer will pick up user and redirect
   };
 
   const handleForceLogin = async () => {
     if (conflictingUser?.uid) {
-      // DO NOT generate new keys. The user must restore their old private key from backup
-      // to read their old messages. This is the correct E2EE flow for a new device.
-      await createNewSession(conflictingUser.uid);
-
-      // Signal to the homepage that a restore is the next logical step
+      // Establish a new session for this device.
+      await establishSession(conflictingUser.uid);
+      // DO NOT generate new keys here. The observer will handle profile loading.
+      // If the private key is missing on this device, the UI should prompt for restore.
+      
+      // Signal to the homepage that a restore is the next logical step after this forceful login
       sessionStorage.setItem('needs-restore-prompt', 'true');
       
       setSessionConflict(null);
@@ -158,10 +157,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = useCallback(async () => {
     if (stableUser?.id) {
         const userDocRef = doc(firestore, 'bharatConnectUsers', stableUser.id);
+        // Set the active session to null before signing out.
         await updateDoc(userDocRef, { activeSession: null });
     }
     await fbSignOutUser(auth);
     setLocalSessionId(null);
+    // The observer will handle clearing user from LS and state will update.
     toast({ title: "Logged Out", description: "You have been successfully logged out." });
   }, [stableUser?.id, setLocalSessionId, toast]);
 

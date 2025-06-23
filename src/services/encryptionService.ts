@@ -57,7 +57,7 @@ export async function generateAndStoreKeyPair(uid: string): Promise<void> {
     const docSnap = await getDoc(userDocRef);
 
     // If a public key already exists in Firestore, do not generate a new pair.
-    // This prevents overwriting keys on a new device login.
+    // This is a CRITICAL safety check to prevent overwriting keys on a new device login.
     if (docSnap.exists() && docSnap.data().publicKey) {
       console.log(`[Encryption] Public key already exists for user ${uid}. Skipping key generation.`);
       return;
@@ -71,15 +71,14 @@ export async function generateAndStoreKeyPair(uid: string): Promise<void> {
     const privateKeyBuffer = await window.crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
     const privateKeyBase64 = arrayBufferToBase64(privateKeyBuffer);
 
-    // Save public key to Firestore
-    // Use setDoc with merge:true to prevent errors if the document doesn't exist yet.
-    // This will create the document or update it safely.
+    // Save public key to Firestore.
+    // Using setDoc with merge: true creates the doc if it doesn't exist or updates it if it does.
     await setDoc(userDocRef, { publicKey: publicKeyBase64 }, { merge: true });
 
     // Save private key to local storage, keyed by UID for multi-user safety
     localStorage.setItem(`privateKey_${uid}`, privateKeyBase64);
 
-    console.warn(`[Encryption] E2EE Key pair generated and stored for user ${uid}.`);
+    console.warn(`[Encryption] NEW E2EE Key pair generated and stored for user ${uid}.`);
   } catch (error) {
     console.error('[Encryption] Error generating key pair:', error);
     throw new Error('Could not generate or store encryption keys.');
@@ -176,7 +175,9 @@ export async function decryptMessage(payload: any, myUid: string): Promise<strin
   try {
     const { encryptedText, iv: ivBase64, encryptedKeys } = payload;
     if (!encryptedText || !ivBase64 || !encryptedKeys || !encryptedKeys[myUid]) {
-      return '[Unsupported message format]';
+      // Return a standard text for messages encrypted before this user joined/had keys
+      if (payload.text) return payload.text; // For system messages or unencrypted older messages
+      return '[Message not encrypted for you]';
     }
 
     // 1. Get the user's private key

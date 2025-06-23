@@ -379,6 +379,9 @@ export default function ChatPage() {
             baseMessage.error = decryptionError;
             baseMessage.iv = data.iv;
             baseMessage.encryptedText = data.encryptedText;
+        } else {
+          // For system messages or other types
+          baseMessage.text = data.text;
         }
         return baseMessage;
       });

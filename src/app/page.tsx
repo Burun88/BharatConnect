@@ -284,6 +284,8 @@ export default function HomePage() {
             if (data.lastMessage.encryptedText && authUser.id && privateKeyExists) {
               try { decryptedText = await decryptMessage(data.lastMessage, authUser.id); } 
               catch (e) { decryptedText = 'Encrypted message'; }
+            } else if (data.lastMessage.encryptedText && !privateKeyExists) {
+              decryptedText = 'Encrypted message';
             } else if (!data.lastMessage.text) { decryptedText = '...'; }
             lastMessageWithDecryptedText = { ...data.lastMessage, text: decryptedText, timestamp: timestampToMillisSafe(data.lastMessage.timestamp), readBy: data.lastMessage.readBy || [] };
           }
@@ -386,7 +388,7 @@ export default function HomePage() {
 
   const showPageSpinner = !isMounted || isAuthLoading || (isAuthenticated && (isLoadingAuras || isProcessingData || privateKeyExists === null));
   
-  const showTheRestorePrompt = showRestoreNeeded || (privateKeyExists === false && contextChats.length > 0 && !showRestoreNeeded);
+  const showTheRestorePrompt = showRestoreNeeded || (isAuthenticated && privateKeyExists === false && contextChats.length > 0 && !showRestoreNeeded);
 
   let mainContent;
   if (showPageSpinner) {

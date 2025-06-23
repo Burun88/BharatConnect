@@ -137,13 +137,14 @@ export default function ChatBackupCard() {
       if (decryptedData.privateKeyBase64) {
         localStorage.setItem(`privateKey_${authUser.id}`, decryptedData.privateKeyBase64);
         console.log(`[Restore] Private key for user ${authUser.id} has been restored to localStorage.`);
+        // Manually trigger a refresh/rerender after restoring key
+        window.location.reload();
       } else {
         throw new Error('Backup file is invalid or does not contain an encryption key.');
       }
-
-      if (decryptedData.chats) {
-        setChats(decryptedData.chats as Chat[]);
-      }
+      
+      // The page will reload, and the ChatProvider will pick up the new state.
+      // So, setting chats locally is not necessary and might be out of sync.
 
       toast({
         title: 'Restore Successful',

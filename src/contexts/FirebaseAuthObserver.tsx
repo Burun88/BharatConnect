@@ -4,13 +4,12 @@
 import { useEffect, useRef } from 'react';
 import { auth, onAuthUserChanged, type FirebaseUser, firestore } from '@/lib/firebase';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import type { User, ActiveSession } from '@/types'; // Use the main User type
+import type { User, ActiveSession } from '@/types';
 import { getUserFullProfile } from '@/services/profileService';
 import { generateAndStoreKeyPair } from '@/services/encryptionService';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 import { signOutUser } from '@/lib/firebase';
-
 
 export default function FirebaseAuthObserver() {
   const [userInLs, setUserInLs] = useLocalStorage<User | null>('bharatconnect-user', null);
@@ -19,7 +18,7 @@ export default function FirebaseAuthObserver() {
 
   useEffect(() => {
     const authUnsubscribe = onAuthUserChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      // Clean up previous user's Firestore listener
+      // Clean up previous user's Firestore listener if it exists
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
         unsubscribeRef.current = undefined;
@@ -28,20 +27,22 @@ export default function FirebaseAuthObserver() {
       if (firebaseUser) {
         console.log("[AuthObserver] Firebase user detected:", firebaseUser.uid);
         
-        // Set up real-time listener for the current user's document
-        const userDocRef = doc(firestore, 'bharatConnectUsers', firebaseUser.uid);
-        unsubscribeRef.current = onSnapshot(userDocRef, (docSnap) => {
-          if (docSnap.exists()) {
+        // This is a crucial check. If we are logging in, the localSessionId might not be set yet.
+        // We let the login flow handle the initial session check. The observer's job is to
+        // watch for takeovers *after* we are already in a session.
+        if (localSessionId) {
+          const userDocRef = doc(firestore, 'bharatConnectUsers', firebaseUser.uid);
+          unsubscribeRef.current = onSnapshot(userDocRef, (docSnap) => {
+            if (!docSnap.exists()) return;
+            
             const data = docSnap.data();
             const activeSession = data.activeSession as ActiveSession | undefined;
 
-            console.log(`[AuthObserver] Firestore snapshot received for ${firebaseUser.uid}.`);
-            console.log(`[AuthObserver] Local Session ID: ${localSessionId}`);
-            console.log(`[AuthObserver] Firestore Session ID: ${activeSession?.sessionId}`);
-
-            // If there's an active session in Firestore and it doesn't match the local one, force logout.
-            if (localSessionId && activeSession && activeSession.sessionId !== localSessionId) {
-              console.warn(`[AuthObserver] Session mismatch. Forcing logout on this device.`);
+            // This is the core logic for detecting a session takeover.
+            // If there's a session ID in Firestore and it does NOT match our local one,
+            // it means another device has logged in and taken over.
+            if (activeSession?.sessionId && activeSession.sessionId !== localSessionId) {
+              console.warn(`[AuthObserver] Session mismatch detected. Remote: ${activeSession.sessionId}, Local: ${localSessionId}. Forcing logout.`);
               
               toast({
                 title: "Session Expired",
@@ -49,45 +50,36 @@ export default function FirebaseAuthObserver() {
                 variant: 'destructive',
               });
               
-              // Clear local state and sign out
-              setUserInLs(null);
-              setLocalSessionId(null);
-              signOutUser(); // This will trigger the auth state change and redirect via AuthContext
-              if (unsubscribeRef.current) {
-                 unsubscribeRef.current(); // Stop listening after logout
-              }
+              signOutUser(); // This triggers the auth state change, which will clean up everything else.
             }
-          }
-        });
+          });
+        }
         
-        const previousUserInLs = userInLs;
+        // Always try to fetch the latest profile and update local state
         try {
           const firestoreProfile = await getUserFullProfile(firebaseUser.uid);
           let userToStore: User;
 
           if (firestoreProfile) {
-            const localPrivateKey = localStorage.getItem(`privateKey_${firebaseUser.uid}`);
-            if (!firestoreProfile.publicKey || !localPrivateKey) {
-              await generateAndStoreKeyPair(firebaseUser.uid);
-              const updatedProfile = await getUserFullProfile(firebaseUser.uid);
-              if (updatedProfile) Object.assign(firestoreProfile, updatedProfile);
-            }
-            userToStore = { ...firestoreProfile, activeSession: firestoreProfile.activeSession || null };
+            // After fetching the profile, ensure keys exist. This is the correct place.
+            await generateAndStoreKeyPair(firebaseUser.uid);
+            userToStore = firestoreProfile;
           } else {
+            // This case handles a brand new user who hasn't completed onboarding.
             userToStore = {
               id: firebaseUser.uid, email: firebaseUser.email || '',
               name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
               avatarUrl: firebaseUser.photoURL || undefined, onboardingComplete: false,
             };
           }
-          if (JSON.stringify(userToStore) !== JSON.stringify(previousUserInLs)) {
+          // Only update local storage if the data has actually changed to prevent render loops
+          if (JSON.stringify(userToStore) !== JSON.stringify(userInLs)) {
             setUserInLs(userToStore);
           }
         } catch (error) {
           console.error("[AuthObserver] Error fetching/processing profile:", error);
-          // Handle error case
         }
-      } else { // No firebaseUser
+      } else { // No firebaseUser (logged out)
         if (userInLs !== null) setUserInLs(null);
         if (localSessionId !== null) setLocalSessionId(null);
       }
@@ -100,7 +92,7 @@ export default function FirebaseAuthObserver() {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run only once
+  }, [localSessionId]); // Re-run if localSessionId changes, so we can attach the listener
 
   return null;
 }
