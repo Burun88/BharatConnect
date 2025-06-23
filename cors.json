@@ -1,0 +1,14 @@
+
+[
+  {
+    "origin": [
+      "https://bharatconnect--bharatconnect-i8510.us-central1.hosted.app",
+      "https://bharatconnect-i8510.web.app",
+      "https://bharatconnect-i8510.firebaseapp.com",
+      "http://localhost:9002"
+    ],
+    "method": ["GET", "PUT", "POST", "DELETE"],
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
+  }
+]
