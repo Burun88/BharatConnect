@@ -1,24 +1,19 @@
+
 rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Public read access for profile images
-    match /profileImages/{userId}/{allPaths=**} {
-      allow read;
-    }
-
-    // Secure write access for profile images
+    // Rules for user profile images
     match /profileImages/{userId}/{fileName} {
-      // Allow create (upload) only for authenticated users who are uploading to their own directory
-      // and the file is a reasonably sized image. This more explicit rule helps resolve preflight issues.
-      allow create: if request.auth != null &&
-                       request.auth.uid == userId &&
-                       request.resource.size < 5 * 1024 * 1024 && // Max 5MB
-                       request.resource.contentType.matches('image/.*');
+      // Anyone can read any profile image
+      allow read: if true;
 
-      // Allow delete and update only for the user who owns the file.
-      allow delete: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && request.auth.uid == userId;
+      // Only the authenticated user can upload their own profile image.
+      // NOTE: Temporarily removed size and content-type checks for debugging CORS.
+      allow create: if request.auth != null && request.auth.uid == userId;
+
+      // Only the user can update or delete their own profile image.
+      allow update, delete: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
