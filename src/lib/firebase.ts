@@ -1,3 +1,4 @@
+
 // "use client"; // Removed to allow server-side usage in Server Actions
 
 import { initializeApp, getApps, getApp, type FirebaseOptions } from 'firebase/app';
@@ -32,6 +33,7 @@ const firebaseConfig: FirebaseOptions = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
 };
 
 let app;

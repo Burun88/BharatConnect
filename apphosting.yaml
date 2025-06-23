@@ -1,3 +1,4 @@
+
 # Settings to manage and configure a Firebase App Hosting backend.
 # https://firebase.google.com/docs/app-hosting/configure
 
@@ -63,6 +64,11 @@ env:
       - RUNTIME
   - variable: NEXT_PUBLIC_FCM_VAPID_KEY
     secret: FCM_VAPID_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_DATABASE_URL
+    secret: FIREBASE_DATABASE_URL
     availability:
       - BUILD
       - RUNTIME
