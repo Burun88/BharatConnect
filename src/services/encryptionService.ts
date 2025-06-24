@@ -1,7 +1,7 @@
 
 'use client';
 
-import { firestore } from '@/lib/firebase';
+import { firestore, serverTimestamp } from '@/lib/firebase';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import type { EncryptedKeyPackage } from '@/types';
 
@@ -207,6 +207,7 @@ export async function encryptPrivateKeyForCloud(privateKeyBase64: string, pin: s
     iv: arrayBufferToBase64(iv),
     ciphertext: arrayBufferToBase64(ciphertext),
     checkValue: arrayBufferToBase64(checkValueCipher),
+    lastBackupTimestamp: serverTimestamp(), // Add timestamp here
   };
 }
 

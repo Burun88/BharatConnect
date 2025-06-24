@@ -17,6 +17,8 @@ import {
   storeEncryptedKeyInFirestore,
   deleteEncryptedKeyFromFirestore,
 } from '@/services/encryptionService';
+import type { EncryptedKeyPackage } from '@/types';
+import { format } from 'date-fns';
 
 export default function ChatBackupCard() {
   const { authUser } = useAuth();
@@ -28,17 +30,16 @@ export default function ChatBackupCard() {
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   
-  const [hasCloudBackup, setHasCloudBackup] = useState<boolean | null>(null);
+  const [backupDetails, setBackupDetails] = useState<EncryptedKeyPackage | null>(null);
 
   useEffect(() => {
     if (!authUser?.id) {
-      setHasCloudBackup(null);
+      setBackupDetails(null);
       return;
     }
     
-    // Check if a backup exists for the user on component mount.
     getEncryptedKeyFromFirestore(authUser.id).then(backup => {
-      setHasCloudBackup(!!backup);
+      setBackupDetails(backup);
     });
   }, [authUser?.id]);
 
@@ -75,12 +76,12 @@ export default function ChatBackupCard() {
       await storeEncryptedKeyInFirestore(authUser.id, encryptedPackage);
 
       toast({
-        title: 'Cloud Backup Created',
-        description: 'Your encrypted key is now securely backed up.',
+        title: 'Cloud Backup Secured',
+        description: 'Your encrypted key is now safely stored.',
         variant: 'default',
         action: <ShieldCheck className="w-5 h-5" />,
       });
-      setHasCloudBackup(true);
+      setBackupDetails(encryptedPackage);
       setIsBackupSetupDialogOpen(false);
     } catch (err: any) {
       console.error('Cloud backup failed:', err);
@@ -96,7 +97,7 @@ export default function ChatBackupCard() {
     setIsProcessing(true);
     try {
       await deleteEncryptedKeyFromFirestore(authUser.id);
-      setHasCloudBackup(false);
+      setBackupDetails(null);
       toast({
         title: 'Cloud Backup Deleted',
         description: 'Your encrypted key has been removed from the cloud.',
@@ -112,6 +113,8 @@ export default function ChatBackupCard() {
     }
   };
 
+  const lastBackupTimestamp = backupDetails?.lastBackupTimestamp?.toDate();
+  
   return (
     <>
       <Card className="rounded-2xl shadow-md bg-card">
@@ -121,7 +124,7 @@ export default function ChatBackupCard() {
             <CardTitle className="text-lg">Cloud Chat Backup</CardTitle>
           </div>
           <CardDescription>
-            Securely back up your encryption key to restore chats on a new device. We can't read it.
+            {backupDetails ? `Last backup: ${lastBackupTimestamp ? format(lastBackupTimestamp, "PPP, p") : 'Just now'}` : 'No cloud backup found.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
@@ -129,10 +132,10 @@ export default function ChatBackupCard() {
             variant="outline"
             className="w-full justify-center h-12"
             onClick={() => setIsBackupSetupDialogOpen(true)}
-            disabled={hasCloudBackup === null}
+            disabled={backupDetails === null && !authUser}
           >
             <KeyRound className="w-4 h-4 mr-2" />
-            {hasCloudBackup === null ? 'Checking...' : hasCloudBackup ? 'Change PIN' : 'Create Backup'}
+            {backupDetails ? 'Change PIN' : 'Create Backup'}
           </Button>
 
           <AlertDialog>
@@ -140,7 +143,7 @@ export default function ChatBackupCard() {
                <Button
                 variant="destructive"
                 className="w-full justify-center h-12 bg-destructive/80 hover:bg-destructive/90"
-                disabled={!hasCloudBackup || isProcessing}
+                disabled={!backupDetails || isProcessing}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete Backup
@@ -150,7 +153,7 @@ export default function ChatBackupCard() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently delete your encrypted key from the cloud. You will NOT be able to restore your chats on new devices without it.
+                  This will permanently delete your encrypted key from the cloud. You will NOT be able to restore your chats on new devices without it. This action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -165,8 +168,12 @@ export default function ChatBackupCard() {
       <Dialog open={isBackupSetupDialogOpen} onOpenChange={(isOpen) => { setIsBackupSetupDialogOpen(isOpen); if (!isOpen) resetBackupDialog(); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><KeyRound className="w-5 h-5 text-primary" /> Create Backup PIN</DialogTitle>
-            <DialogDescription>This PIN encrypts your key. We don't store it, so keep it safe. You'll need it to restore your chats on a new device.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><ShieldCheck className="w-6 h-6 text-primary" /> Your Backup is Safe!</DialogTitle>
+            <DialogDescription className="space-y-2 pt-2">
+              <p>Your chats are encrypted using a secret key that only you know. We cannot read your messages—even if we wanted to.</p>
+              <p>Create a password/PIN to protect your encrypted key. This is the only way to restore your chats on a new device.</p>
+              <p className="font-bold">Remember this password. We can't recover it for you.</p>
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -181,8 +188,8 @@ export default function ChatBackupCard() {
           </div>
           <DialogFooter>
             <DialogClose asChild><Button type="button" variant="outline" disabled={isProcessing}>Cancel</Button></DialogClose>
-            <Button onClick={handleCreateOrChangeBackup} disabled={isProcessing}>
-              {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+            <Button onClick={handleCreateOrChangeBackup} disabled={isProcessing || !pin || !confirmPin}>
+              {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <KeyRound className="mr-2 h-4 w-4" />}
               {isProcessing ? 'Encrypting...' : 'Set PIN & Backup'}
             </Button>
           </DialogFooter>

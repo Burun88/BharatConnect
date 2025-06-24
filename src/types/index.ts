@@ -115,6 +115,7 @@ export type EncryptedKeyPackage = {
   iv: string; // base64
   ciphertext: string; // base64
   checkValue: string; // base64 encrypted "OK" to verify password
+  lastBackupTimestamp?: any; // Firestore Server Timestamp
 };
 
 
