@@ -113,7 +113,11 @@ export default function ChatBackupCard() {
     }
   };
 
-  const lastBackupTimestamp = backupDetails?.lastBackupTimestamp?.toDate();
+  const lastBackupTimestamp =
+    backupDetails?.lastBackupTimestamp &&
+    typeof backupDetails.lastBackupTimestamp.toDate === 'function'
+      ? backupDetails.lastBackupTimestamp.toDate()
+      : null;
   
   return (
     <>
