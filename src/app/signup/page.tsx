@@ -10,11 +10,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import Logo from '@/components/shared/Logo';
 import { useToast } from '@/hooks/use-toast';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import type { LocalUserProfile } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 import { auth, createUser } from '@/lib/firebase'; 
-import type { AuthStep } from '@/contexts/AuthContext'; // Added import
-import { Loader2 } from 'lucide-react'; // Import Loader2
+import type { AuthStep } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -24,28 +23,15 @@ export default function SignupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false); 
   const router = useRouter();
   const { toast } = useToast();
-
-  const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
+  const { authUser } = useAuth(); // Use auth context to check for existing user
   const [isLoadingPage, setIsLoadingPage] = useState(true); 
-  const [, setAuthStepFromLS] = useLocalStorage<AuthStep>('bharatconnect-auth-step', 'initial_loading');
-
+  const [authStep, setAuthStep] = useLocalStorage<AuthStep>('bharatconnect-auth-step', 'initial_loading');
 
   useEffect(() => {
-    if (userProfileLs) { 
-      if (userProfileLs.uid && userProfileLs.onboardingComplete) {
-        router.replace('/');
-        return;
-      } else if (userProfileLs.uid && !userProfileLs.onboardingComplete) {
-        // If user is here but already has a profile in LS indicating onboarding isn't complete,
-        // let them proceed to profile-setup or stay if they are already there.
-        // This case is more relevant for direct navigation to /signup, not typically after a new signup.
-        // However, to be safe, if they somehow land here and are mid-onboarding, let profile-setup handle it.
-        // router.replace('/profile-setup'); // This could cause a loop if they are trying to re-signup.
-                                          // Better to just let them see the signup form or redirect if fully onboarded.
-      }
-    }
-    setIsLoadingPage(false); 
-  }, [userProfileLs, router]);
+    // Rely on AuthContext to handle main redirection logic.
+    // This effect is mainly for showing the loading state.
+    setIsLoadingPage(false);
+  }, []);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -69,26 +55,13 @@ export default function SignupPage() {
     }
 
     try {
-      const userCredential = await createUser(auth, email, password);
-      console.log("[Signup Page] Firebase Account Created:", userCredential.user.uid);
-
-      // Set initial basic profile in local storage immediately
-      // to ensure profile-setup page has the necessary data.
-      setUserProfileLs({
-        uid: userCredential.user.uid,
-        email: userCredential.user.email || '',
-        onboardingComplete: false,
-        displayName: userCredential.user.email?.split('@')[0] || 'User', // Default display name
-        photoURL: null,
-        phoneNumber: null,
-        bio: null, 
-      });
-
-      // The "Account Created!" toast has been removed from here.
-      // Navigation will happen, and profile-setup will show a welcome.
+      await createUser(auth, email, password);
+      // After user is created in Firebase Auth, the FirebaseAuthObserver
+      // will detect this change. It will then create the initial user
+      // object in localStorage and the AuthContext will handle routing
+      // to the profile setup page. We don't need to do anything else here.
       
-      router.push('/profile-setup'); 
-      // setIsSubmitting will implicitly be false when the component unmounts on navigation
+      // router.push('/profile-setup'); // This is now handled by AuthContext
     } catch (err: any) {
       console.error("[Signup Page] Firebase Signup Error:", err);
       if (err.code === 'auth/email-already-in-use') {
@@ -108,14 +81,13 @@ export default function SignupPage() {
         setError('An unexpected error occurred during signup. Please try again.');
         toast({ variant: 'destructive', title: 'Signup Error', description: err.message || 'An unexpected error occurred.' });
       }
-      setIsSubmitting(false); // Re-enable form only on error
+      setIsSubmitting(false);
     }
-    // No finally block to set isSubmitting to false, as successful navigation unmounts.
   };
 
   const handleLoginLinkClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
-    setAuthStepFromLS('login');
+    setAuthStep('login');
     router.push('/login');
   };
   

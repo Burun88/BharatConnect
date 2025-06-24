@@ -11,9 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserCircle2, Camera, Mail, AtSign, Loader2, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useAuth } from '@/contexts/AuthContext';
 import Logo from '@/components/shared/Logo';
-import type { LocalUserProfile } from '@/types';
+import type { User } from '@/types';
 import { auth, signOutUser as fbSignOutUser } from '@/lib/firebase'; 
 import { createOrUpdateUserFullProfile } from '@/services/profileService';
 import { uploadProfileImage, deleteProfileImageByUrl } from '@/services/storageService';
@@ -23,8 +23,7 @@ import { generateAndStoreKeyPair } from '@/services/encryptionService';
 function ProfileSetupContent() {
   const router = useRouter();
   const { toast } = useToast();
-
-  const [userProfileLs, setUserProfileLs] = useLocalStorage<LocalUserProfile | null>('userProfile', null);
+  const { authUser, setAuthUser, logout } = useAuth();
 
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
@@ -33,9 +32,6 @@ function ProfileSetupContent() {
   const [profilePicPreview, setProfilePicPreview] = useState<string | null>(null);
   const [profilePicFile, setProfilePicFile] = useState<File | null>(null);
 
-  const [authUid, setAuthUid] = useState<string | null>(null);
-  const [authEmail, setAuthEmail] = useState<string>('');
-
   const [error, setError] = useState('');
   const [usernameError, setUsernameError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -43,47 +39,41 @@ function ProfileSetupContent() {
 
 
   useEffect(() => {
-    const currentLocalProfile = userProfileLs;
-    
-    if (currentLocalProfile?.uid) {
-      setAuthUid(currentLocalProfile.uid);
-      setAuthEmail(currentLocalProfile.email || '');
-
-      // Redirection is now handled by the central AuthContext to prevent loops.
-      // This page's responsibility is only to handle the profile setup form.
-
+    // AuthContext now handles redirection centrally. This effect's only job
+    // is to populate the form with data from the context.
+    if (authUser) {
       const isGenericDisplayName =
-        currentLocalProfile.displayName === (currentLocalProfile.email?.split('@')[0]) ||
-        currentLocalProfile.displayName === 'User';
+        authUser.name === (authUser.email?.split('@')[0]) ||
+        authUser.name === 'User';
 
       if (displayName === '') {
-        if (currentLocalProfile.displayName && !isGenericDisplayName) {
-          setDisplayName(currentLocalProfile.displayName);
+        if (authUser.name && !isGenericDisplayName) {
+          setDisplayName(authUser.name);
         } else {
           setDisplayName('');
         }
       }
-      if (username === '' && currentLocalProfile.username) {
-        setUsername(currentLocalProfile.username);
+      if (username === '' && authUser.username) {
+        setUsername(authUser.username);
       }
 
-      if (profilePicPreview === null && currentLocalProfile.photoURL) {
-        setProfilePicPreview(currentLocalProfile.photoURL);
+      if (profilePicPreview === null && authUser.avatarUrl) {
+        setProfilePicPreview(authUser.avatarUrl);
       }
-      if (phoneNumber === '' && currentLocalProfile.phoneNumber) {
-        setPhoneNumber(currentLocalProfile.phoneNumber);
+      if (phoneNumber === '' && authUser.phone) {
+        setPhoneNumber(authUser.phone);
       }
-      if (bio === '' && currentLocalProfile.bio) {
-        setBio(currentLocalProfile.bio);
+      if (bio === '' && authUser.bio) {
+        setBio(authUser.bio);
       }
       
       setIsPageLoading(false);
     } else {
-      // If there's no UID in local storage, AuthContext will redirect to login.
-      // This just prevents the page from rendering anything while that happens.
+      // If authUser is null (e.g., on initial load), keep showing the loader.
+      // The AuthContext will redirect if the user is not authenticated.
       setIsPageLoading(true);
     }
-  }, [userProfileLs, router, displayName, username, profilePicPreview, phoneNumber, bio]);
+  }, [authUser, displayName, username, profilePicPreview, phoneNumber, bio]);
 
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -118,12 +108,14 @@ function ProfileSetupContent() {
     setError('');
     setUsernameError('');
     setIsLoading(true);
+    
+    const authUid = authUser?.id;
+    const authEmail = authUser?.email;
 
     if (!authUid || !authEmail) {
       setError('User authentication information is missing. Please try logging in again.');
       toast({ title: "User Info Error", description: "UID or Email missing. Please login.", variant: "destructive" });
       setIsLoading(false);
-      // Let AuthContext handle the redirect if necessary
       return;
     }
 
@@ -154,7 +146,7 @@ function ProfileSetupContent() {
       return;
     }
     
-    let finalPhotoURL = userProfileLs?.photoURL || null; 
+    let finalPhotoURL = authUser?.avatarUrl || null; 
 
     if (profilePicFile) {
       try {
@@ -166,10 +158,10 @@ function ProfileSetupContent() {
         setIsLoading(false);
         return;
       }
-    } else if (!profilePicPreview) { // Check if user cleared the picture
-        if (userProfileLs?.photoURL) {
+    } else if (!profilePicPreview) { 
+        if (authUser?.avatarUrl) {
             try {
-                await deleteProfileImageByUrl(userProfileLs.photoURL);
+                await deleteProfileImageByUrl(authUser.avatarUrl);
                 toast({ title: "Profile picture removed." });
             } catch (deleteError: any) {
                  toast({ variant: 'warning', title: 'Deletion Warning', description: `Could not delete old picture: ${deleteError.message}` });
@@ -196,17 +188,17 @@ function ProfileSetupContent() {
       await generateAndStoreKeyPair(authUid);
       toast({ title: "Secure keys generated!", description: "Your account is now end-to-end encrypted." });
 
-      const updatedProfileForLs: LocalUserProfile = {
-        uid: authUid,
+      const updatedProfileForContext: User = {
+        id: authUid,
         email: authEmail,
         username: trimmedUsername,
-        displayName: finalDisplayName,
-        photoURL: finalPhotoURL,
-        phoneNumber: phoneNumber.trim() || null,
-        bio: bio.trim() || null,
+        name: finalDisplayName,
+        avatarUrl: finalPhotoURL,
+        phone: phoneNumber.trim() || undefined,
+        bio: bio.trim() || undefined,
         onboardingComplete: true,
       };
-      setUserProfileLs(updatedProfileForLs);
+      setAuthUser(updatedProfileForContext);
 
       toast({
         title: `Welcome, ${finalDisplayName}!`,
@@ -230,15 +222,9 @@ function ProfileSetupContent() {
   const handleLogoutAndStartOver = () => {
     setError('');
     setIsLoading(true);
-    fbSignOutUser(auth).then(() => {
-        setUserProfileLs(null); 
-        toast({ title: "Logged Out", description: "You have been logged out." });
-        // AuthContext will handle the redirect to login page.
-      }).catch((error) => {
-        toast({ title: "Logout Error", description: error.message, variant: "destructive" });
-      }).finally(() => {
+    logout().finally(() => {
         setIsLoading(false);
-      });
+    });
   };
 
   if (isPageLoading) {
@@ -292,7 +278,7 @@ function ProfileSetupContent() {
               <Label htmlFor="auth-email-display">Email</Label>
               <div className="flex items-center space-x-2 p-2.5 rounded-md border bg-muted/30 text-muted-foreground">
                 <Mail className="w-4 h-4" />
-                <span id="auth-email-display" className="flex-1 text-sm">{authEmail || 'Loading email...'}</span>
+                <span id="auth-email-display" className="flex-1 text-sm">{authUser?.email || 'Loading email...'}</span>
               </div>
             </div>
 

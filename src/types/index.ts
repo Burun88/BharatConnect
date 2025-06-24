@@ -167,18 +167,6 @@ export interface UserStatusDoc {
   lastMediaTimestamp?: any; // Firestore Timestamp of the latest media item in the 'media' array
 }
 
-
-export interface LocalUserProfile {
-  uid: string;
-  email: string;
-  username?: string | null;
-  displayName?: string | null;
-  photoURL?: string | null;
-  phoneNumber?: string | null;
-  bio?: string | null;
-  onboardingComplete: boolean;
-}
-
 export interface FirestoreAura {
   userId: string;
   auraOptionId: string;
