@@ -93,16 +93,18 @@ export default function InitialBackupPrompt({ isOpen, onClose }: InitialBackupPr
             <ShieldCheck className="w-14 h-14 text-primary mb-2" />
             <DialogTitle className="text-xl">Secure Your Chat History</DialogTitle>
           </DialogHeader>
-          <DialogDescription className="text-center space-y-3 px-2 text-foreground/80">
-              <p>
+          <DialogDescription asChild>
+            <div className="text-center space-y-3 px-2 text-foreground/80">
+              <div>
                   Enable encrypted cloud backup to restore your chats if you ever lose your phone or switch devices.
-              </p>
-               <p className="font-semibold text-foreground/90 p-3 bg-muted/50 rounded-lg border border-border">
+              </div>
+               <div className="font-semibold text-foreground/90 p-3 bg-muted/50 rounded-lg border border-border">
                   Only you can unlock your backup with a secret PIN. We can never access your chats or your PIN.
-              </p>
-               <p className="text-xs text-amber-500">
+              </div>
+               <div className="text-xs text-amber-500">
                   <span className="font-bold">Important:</span> If you forget your PIN, we cannot recover it for you, and your backup will be lost forever.
-              </p>
+              </div>
+            </div>
           </DialogDescription>
           <DialogFooter className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Button type="button" variant="outline" onClick={onClose}>
@@ -120,9 +122,9 @@ export default function InitialBackupPrompt({ isOpen, onClose }: InitialBackupPr
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><ShieldCheck className="w-6 h-6 text-primary" /> Secure Your Cloud Backup</DialogTitle>
-            <DialogDescription className="space-y-2 pt-2">
-              <p>Create a password to protect your encrypted backup. You will need this password to restore your chats.</p>
-              <p className="font-bold text-amber-500">Important: If you forget this password, we cannot recover it for you, and your backup will be lost forever.</p>
+            <DialogDescription>
+              Create a password to protect your encrypted backup. You will need this password to restore your chats.
+              <strong className="block mt-2 text-amber-500">Important: If you forget this password, we cannot recover it for you, and your backup will be lost forever.</strong>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">

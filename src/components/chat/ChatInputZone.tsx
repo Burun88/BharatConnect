@@ -108,7 +108,7 @@ export default function ChatInputZone({
       {filePreviewUrl && (
         <div className="relative w-24 h-24 p-2">
             <div className="relative w-full h-full rounded-md overflow-hidden border-2 border-border">
-                <Image src={filePreviewUrl} alt="Image preview" layout="fill" objectFit="cover" />
+                <Image src={filePreviewUrl} alt="Image preview" fill className="object-cover" sizes="6rem" />
                 <Button 
                     variant="destructive" 
                     size="icon" 

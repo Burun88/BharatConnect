@@ -451,8 +451,9 @@ export default function StatusViewPage() {
             <Image
               src={currentMediaItem.url}
               alt={`Status from ${statusOwnerProfile.name || 'User'}`}
-              layout="fill"
-              objectFit="contain"
+              fill
+              className="object-contain"
+              sizes="100vw"
               priority={currentMediaIndex === 0}
               data-ai-hint="status image"
             />
