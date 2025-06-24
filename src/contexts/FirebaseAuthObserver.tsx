@@ -47,23 +47,16 @@ export default function FirebaseAuthObserver() {
         }
         
         try {
+          // New logic: Check for local keys BEFORE fetching profile.
+          if (!hasLocalKeys(firebaseUser.uid)) {
+            console.log(`[AuthObserver] No local keys found for ${firebaseUser.uid}. This is a new device/session.`);
+            await generateSessionKeyPair(firebaseUser.uid);
+          }
+          
           const firestoreProfile = await getUserFullProfile(firebaseUser.uid);
           if (firestoreProfile) {
-            // New logic: Check for local keys AFTER fetching profile.
-            if (!hasLocalKeys(firebaseUser.uid)) {
-              console.log(`[AuthObserver] No local keys found for ${firebaseUser.uid}. This is a new device/session.`);
-              await generateSessionKeyPair(firebaseUser.uid);
-              // Re-fetch profile to get the new activeKeyId
-              const updatedProfile = await getUserFullProfile(firebaseUser.uid);
-              if (updatedProfile) {
-                if (JSON.stringify(updatedProfile) !== JSON.stringify(userInLs)) {
-                  setUserInLs(updatedProfile);
-                }
-              }
-            } else {
-              if (JSON.stringify(firestoreProfile) !== JSON.stringify(userInLs)) {
-                setUserInLs(firestoreProfile);
-              }
+            if (JSON.stringify(firestoreProfile) !== JSON.stringify(userInLs)) {
+              setUserInLs(firestoreProfile);
             }
           } else {
             // New user, not yet onboarded.

@@ -40,7 +40,7 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
     setIsDecrypting(true);
     setDecryptionError(null);
     try {
-      const privateKey = await getPrivateKey(currentUserId);
+      const privateKey = await getPrivateKey(currentUserId, message.keyId);
       const encryptedAesKeyBase64 = message.encryptedKeys[currentUserId];
       if (!encryptedAesKeyBase64) throw new Error("No encrypted AES key found for this user.");
       
@@ -62,7 +62,8 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
     message.type, 
     message.mediaInfo, 
     message.encryptedKeys, 
-    message.firestoreId, 
+    message.firestoreId,
+    message.keyId,
     currentUserId, 
     decryptedImageUrl, 
     isDecrypting
@@ -133,10 +134,10 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
     );
   };
 
-  const messageContent = message.type === 'text' && message.error === 'DECRYPTION_FAILED' ? (
+  const messageContent = message.type === 'text' && (message.error === 'DECRYPTION_FAILED' || message.text === '[Encrypted message - Restore key to read]') ? (
     <div className="flex items-center text-destructive-foreground/80 italic">
         <ShieldAlert className="w-4 h-4 mr-2" />
-        <span>{message.text || 'Decryption failed'}</span>
+        <span>{message.text}</span>
     </div>
   ) : (
     <>
@@ -150,7 +151,7 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
       <div className={cn(
           "px-3 py-2",
           bubbleClass,
-          (message.error === 'DECRYPTION_FAILED' || decryptionError) && 'bg-destructive/50 border border-destructive'
+          (message.error === 'DECRYPTION_FAILED' || decryptionError || message.text === '[Encrypted message - Restore key to read]') && 'bg-destructive/50 border border-destructive'
         )}>
         {messageContent}
       </div>

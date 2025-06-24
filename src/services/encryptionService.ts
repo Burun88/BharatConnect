@@ -9,6 +9,7 @@ import type { EncryptedKeyPackage, UserKeyVault, UserKeyInfo } from '@/types';
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = '';
   const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
   for (let i = 0; i < len; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
@@ -51,9 +52,13 @@ async function getLocalKeyVault(uid: string): Promise<Record<string, CryptoKey>>
 
   const storedVault = JSON.parse(storedVaultJSON) as Record<string, string>;
   for (const keyId in storedVault) {
-    const privateKeyBase64 = storedVault[keyId];
-    const privateKeyBuffer = base64ToArrayBuffer(privateKeyBase64);
-    vault[keyId] = await window.crypto.subtle.importKey('pkcs8', privateKeyBuffer, rsaImportParams, true, ['decrypt']);
+    try {
+      const privateKeyBase64 = storedVault[keyId];
+      const privateKeyBuffer = base64ToArrayBuffer(privateKeyBase64);
+      vault[keyId] = await window.crypto.subtle.importKey('pkcs8', privateKeyBuffer, rsaImportParams, true, ['decrypt']);
+    } catch (e) {
+      console.error(`Failed to import key ${keyId} from local vault`, e);
+    }
   }
   return vault;
 }
@@ -69,8 +74,24 @@ async function saveKeyToLocalVault(uid: string, keyId: string, privateKey: Crypt
 }
 
 export function hasLocalKeys(uid: string): boolean {
-  return !!localStorage.getItem(`keyVault_${uid}`);
+  const vault = localStorage.getItem(`keyVault_${uid}`);
+  try {
+    // Check if the vault is not just an empty object string `{}`
+    return !!vault && Object.keys(JSON.parse(vault)).length > 0;
+  } catch {
+    return false;
+  }
 }
+
+export async function getPrivateKey(uid: string, keyId: string = 'main'): Promise<CryptoKey> {
+    const vault = await getLocalKeyVault(uid);
+    const key = vault[keyId];
+    if (!key) {
+        throw new Error(`Private key for keyId '${keyId}' not found locally.`);
+    }
+    return key;
+}
+
 
 // --- Remote Key Vault & Key Management ---
 

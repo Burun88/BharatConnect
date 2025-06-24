@@ -26,7 +26,7 @@ export type User = {
   hasViewedStatus?: boolean;
   onboardingComplete?: boolean;
   bio?: string | null;
-  activeKeyId?: string; // Moved from profileService
+  activeKeyId?: string;
   activeSession?: ActiveSession | null;
 };
 
