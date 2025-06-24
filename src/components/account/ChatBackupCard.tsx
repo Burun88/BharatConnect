@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Cloud, KeyRound, Loader2, ShieldCheck, Trash2, CloudOff } from 'lucide-react';
+import { KeyRound, Loader2, ShieldCheck, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -76,8 +76,8 @@ export default function ChatBackupCard() {
       await storeEncryptedKeyInFirestore(authUser.id, encryptedPackage);
 
       toast({
-        title: 'Cloud Backup Secured',
-        description: 'Your encrypted key is now safely stored.',
+        title: 'Encrypted Key Synced',
+        description: 'Your key is now safely stored in the cloud.',
         variant: 'default',
         action: <ShieldCheck className="w-5 h-5" />,
       });
@@ -86,7 +86,7 @@ export default function ChatBackupCard() {
     } catch (err: any) {
       console.error('Cloud backup failed:', err);
       setError(err.message || 'An unknown error occurred during backup.');
-      toast({ variant: 'destructive', title: 'Backup Failed', description: err.message });
+      toast({ variant: 'destructive', title: 'Sync Failed', description: err.message });
     } finally {
       setIsProcessing(false);
     }
@@ -99,10 +99,10 @@ export default function ChatBackupCard() {
       await deleteEncryptedKeyFromFirestore(authUser.id);
       setBackupDetails(null);
       toast({
-        title: 'Cloud Backup Deleted',
+        title: 'Key Sync Disabled',
         description: 'Your encrypted key has been removed from the cloud.',
         variant: 'default',
-        action: <CloudOff className="w-5 h-5" />,
+        action: <ShieldCheck className="w-5 h-5 text-destructive" />,
       });
     } catch (err: any)
     {
@@ -124,11 +124,11 @@ export default function ChatBackupCard() {
       <Card className="rounded-2xl shadow-md bg-card">
         <CardHeader>
           <div className="flex items-center">
-            <Cloud className="w-5 h-5 mr-2 text-transparent bg-clip-text bg-gradient-to-r from-accent to-primary" />
-            <CardTitle className="text-lg">Cloud Chat Backup</CardTitle>
+            <ShieldCheck className="w-5 h-5 mr-2 text-transparent bg-clip-text bg-gradient-to-r from-accent to-primary" />
+            <CardTitle className="text-lg">Encrypted Key Sync</CardTitle>
           </div>
           <CardDescription>
-            {backupDetails ? `Last backup: ${lastBackupTimestamp ? format(lastBackupTimestamp, "PPP, p") : 'Just now'}` : 'No cloud backup found.'}
+            {backupDetails ? `Last synced: ${lastBackupTimestamp ? format(lastBackupTimestamp, "PPP, p") : 'Just now'}` : 'Sync is off. Your key is only on this device.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
@@ -136,10 +136,10 @@ export default function ChatBackupCard() {
             variant="outline"
             className="w-full justify-center h-12"
             onClick={() => setIsBackupSetupDialogOpen(true)}
-            disabled={backupDetails === null && !authUser}
+            disabled={!authUser}
           >
             <KeyRound className="w-4 h-4 mr-2" />
-            {backupDetails ? 'Change PIN' : 'Create Backup'}
+            {backupDetails ? 'Sync Now / Change PIN' : 'Turn On Sync'}
           </Button>
 
           <AlertDialog>
@@ -150,19 +150,19 @@ export default function ChatBackupCard() {
                 disabled={!backupDetails || isProcessing}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                Delete Backup
+                Turn Off & Delete
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogTitle>Turn Off Encrypted Key Sync?</AlertDialogTitle>
                 <AlertDialogDescription>
                   This will permanently delete your encrypted key from the cloud. You will NOT be able to restore your chats on new devices without it. This action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDeleteBackup} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                <AlertDialogAction onClick={handleDeleteBackup} className="bg-destructive hover:bg-destructive/90">Yes, Turn Off</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -172,16 +172,15 @@ export default function ChatBackupCard() {
       <Dialog open={isBackupSetupDialogOpen} onOpenChange={(isOpen) => { setIsBackupSetupDialogOpen(isOpen); if (!isOpen) resetBackupDialog(); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><ShieldCheck className="w-6 h-6 text-primary" /> Your Backup is Safe!</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><ShieldCheck className="w-6 h-6 text-primary" /> Encrypted Key Sync</DialogTitle>
             <DialogDescription className="space-y-2 pt-2">
-              <p>Your chats are encrypted using a secret key that only you know. We cannot read your messages—even if we wanted to.</p>
-              <p>Create a password/PIN to protect your encrypted key. This is the only way to restore your chats on a new device.</p>
-              <p className="font-bold">Remember this password. We can't recover it for you.</p>
+              <p>To restore your chats on a new device, we need to sync your secret encryption key. It will be protected with a PIN that only you know.</p>
+              <p className="font-bold">We cannot recover this PIN for you. If you forget it, your synced key will be unusable.</p>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="backup-pin">New PIN (min. 6 digits)</Label>
+              <Label htmlFor="backup-pin">PIN (min. 6 digits)</Label>
               <Input id="backup-pin" type="password" value={pin} onChange={(e) => setPin(e.target.value)} disabled={isProcessing} />
             </div>
             <div className="space-y-2">
@@ -194,7 +193,7 @@ export default function ChatBackupCard() {
             <DialogClose asChild><Button type="button" variant="outline" disabled={isProcessing}>Cancel</Button></DialogClose>
             <Button onClick={handleCreateOrChangeBackup} disabled={isProcessing || !pin || !confirmPin}>
               {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <KeyRound className="mr-2 h-4 w-4" />}
-              {isProcessing ? 'Encrypting...' : 'Set PIN & Backup'}
+              {isProcessing ? 'Encrypting...' : 'Set PIN & Sync Key'}
             </Button>
           </DialogFooter>
         </DialogContent>

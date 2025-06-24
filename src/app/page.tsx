@@ -9,7 +9,7 @@ import HomeHeader from '@/components/home/home-header';
 import AuraBar from '@/components/home/aura-bar';
 import ChatList from '@/components/home/chat-list';
 import RestoreBackupPrompt from '@/components/home/RestoreBackupPrompt';
-import InitialBackupPrompt from '@/components/home/InitialBackupPrompt'; // Import new component
+import InitialBackupPrompt from '@/components/home/InitialBackupPrompt';
 import type { User, Chat, ParticipantInfo, DisplayAura, FirestoreAura, UserAura as UserAuraType, UserStatusDoc } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 import { Plus, Loader2 } from 'lucide-react';
@@ -20,7 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { firestore, getFirebaseTimestampMinutesAgo, Timestamp } from '@/lib/firebase';
 import { collection, query, where, orderBy, onSnapshot, doc, getDoc, type FirestoreError, limit, getDocs, serverTimestamp, type DocumentData } from 'firebase/firestore';
 import { getUserFullProfile } from '@/services/profileService';
-import { decryptMessage } from '@/services/encryptionService';
+import { decryptMessage, getEncryptedKeyFromFirestore } from '@/services/encryptionService';
 
 const HEADER_HEIGHT_PX = 64;
 const BOTTOM_NAV_HEIGHT_PX = 64;
@@ -60,7 +60,7 @@ export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [privateKeyExists, setPrivateKeyExists] = useState<boolean | null>(null);
   const [showRestorePrompt, setShowRestorePrompt] = useState(false);
-  const [showInitialBackupPrompt, setShowInitialBackupPrompt] = useState(false); // New state for initial prompt
+  const [showInitialBackupPrompt, setShowInitialBackupPrompt] = useState(false);
 
   // Raw data from Firestore listeners
   const [rawActiveChatDocs, setRawActiveChatDocs] = useState<DocumentData[]>([]);
@@ -86,29 +86,50 @@ export default function HomePage() {
 
   useEffect(() => { setIsMounted(true); }, []);
   
+  // New Effect to check for private key and prompt for restore
   useEffect(() => {
-    if (authUser?.id) {
-      const key = localStorage.getItem(`privateKey_${authUser.id}`);
-      setPrivateKeyExists(!!key);
-      if (isAuthenticated && !key) {
-        // Only show prompt if not dismissed this session
-        if (sessionStorage.getItem('restorePromptDismissed') !== 'true') {
-           setShowRestorePrompt(true);
-        }
-      } else {
-        setShowRestorePrompt(false);
-      }
-    } else {
-      setPrivateKeyExists(null);
-      setShowRestorePrompt(false);
+    if (isAuthLoading || !isAuthenticated || !authUser?.id) {
+        setPrivateKeyExists(null);
+        return;
     }
     
-    // Check if user just signed up to show the initial backup prompt
+    let isMountedInEffect = true;
+    
+    const checkKeyAndBackup = async () => {
+        const localKey = localStorage.getItem(`privateKey_${authUser.id}`);
+        if (localKey) {
+            if (isMountedInEffect) setPrivateKeyExists(true);
+            return;
+        }
+
+        if (isMountedInEffect) setPrivateKeyExists(false);
+
+        // Key is missing, check if a backup exists in Firestore
+        try {
+            const cloudBackup = await getEncryptedKeyFromFirestore(authUser.id);
+            if (cloudBackup && isMountedInEffect) {
+                // Key is missing locally, but a backup exists. Show the restore prompt.
+                setShowRestorePrompt(true);
+            }
+        } catch (error) {
+            console.error("Error checking for cloud backup:", error);
+        }
+    };
+    
+    checkKeyAndBackup();
+    
+    return () => {
+        isMountedInEffect = false;
+    };
+  }, [authUser?.id, isAuthenticated, isAuthLoading]);
+
+  useEffect(() => {
+    // This effect remains to show the *initial* backup prompt for brand new users
     if (sessionStorage.getItem('justSignedUp') === 'true') {
       setShowInitialBackupPrompt(true);
       sessionStorage.removeItem('justSignedUp');
     }
-  }, [authUser?.id, isAuthenticated]);
+  }, []);
 
   const handleListenerError = useCallback((error: FirestoreError, context: string) => {
     if (error.code === 'permission-denied') {
