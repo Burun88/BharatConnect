@@ -1,8 +1,8 @@
 
 "use client";
 
-import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogClose } from '@/components/ui/dialog';
+import React, { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,23 +23,22 @@ export default function InitialBackupPrompt({ isOpen, onClose }: InitialBackupPr
   const { authUser } = useAuth();
   const { toast } = useToast();
   
-  const [isSetupDialogOpen, setIsSetupDialogOpen] = useState(false);
+  const [promptStep, setPromptStep] = useState<'initial' | 'setup'>('initial');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleOpenSetupDialog = () => {
-    // This now only opens the second dialog. The first one remains mounted but visually obscured.
-    setIsSetupDialogOpen(true);
-  };
-
-  const resetBackupDialog = () => {
-    setPassword('');
-    setConfirmPassword('');
-    setError('');
-    setIsProcessing(false);
-  };
+  useEffect(() => {
+    // When the dialog is opened from the parent, always reset to the initial step.
+    if (isOpen) {
+      setPromptStep('initial');
+      setPassword('');
+      setConfirmPassword('');
+      setError('');
+      setIsProcessing(false);
+    }
+  }, [isOpen]);
 
   const handleCreateBackup = async () => {
     if (password.length < 6) {
@@ -74,9 +73,7 @@ export default function InitialBackupPrompt({ isOpen, onClose }: InitialBackupPr
         duration: 5000,
       });
       
-      // Close the entire flow on success.
-      setIsSetupDialogOpen(false);
-      onClose();
+      onClose(); // Close the entire flow on success.
       
     } catch (err: any) {
       console.error('Cloud backup failed:', err);
@@ -87,77 +84,70 @@ export default function InitialBackupPrompt({ isOpen, onClose }: InitialBackupPr
     }
   };
 
-  // This function handles when the setup dialog is closed (e.g., by Cancel button or Escape key)
-  const handleSetupDialogToggle = (open: boolean) => {
-    if (!open) {
-      // When the setup dialog closes, also close the initial prompt.
-      onClose(); 
-    }
-    setIsSetupDialogOpen(open);
-  };
-
   return (
-    <>
-      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent onInteractOutside={(e) => e.preventDefault()} showCloseButton={false} className="max-w-sm">
-          <DialogHeader className="items-center text-center">
-            <ShieldCheck className="w-14 h-14 text-primary mb-2" />
-            <DialogTitle className="text-xl">Secure Your Chat History</DialogTitle>
-          </DialogHeader>
-          <DialogDescription asChild>
-            <div className="text-center space-y-3 px-2 text-foreground/80">
-              <div>
-                  Enable encrypted cloud backup to restore your chats if you ever lose your phone or switch devices.
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent onInteractOutside={(e) => { if (!isProcessing) e.preventDefault(); }} showCloseButton={false} className="max-w-sm">
+        {promptStep === 'initial' && (
+          <>
+            <DialogHeader className="items-center text-center">
+              <ShieldCheck className="w-14 h-14 text-primary mb-2" />
+              <DialogTitle className="text-xl">Secure Your Chat History</DialogTitle>
+            </DialogHeader>
+            <DialogDescription asChild>
+              <div className="text-center space-y-3 px-2 text-foreground/80">
+                <div>
+                    Enable encrypted cloud backup to restore your chats if you ever lose your phone or switch devices.
+                </div>
+                 <div className="font-semibold text-foreground/90 p-3 bg-muted/50 rounded-lg border border-border">
+                    Only you can unlock your backup with a secret PIN. We can never access your chats or your PIN.
+                </div>
+                 <div className="text-xs text-amber-500">
+                    <span className="font-bold">Important:</span> If you forget your PIN, we cannot recover it for you, and your backup will be lost forever.
+                </div>
               </div>
-               <div className="font-semibold text-foreground/90 p-3 bg-muted/50 rounded-lg border border-border">
-                  Only you can unlock your backup with a secret PIN. We can never access your chats or your PIN.
-              </div>
-               <div className="text-xs text-amber-500">
-                  <span className="font-bold">Important:</span> If you forget your PIN, we cannot recover it for you, and your backup will be lost forever.
-              </div>
-            </div>
-          </DialogDescription>
-          <DialogFooter className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <Button type="button" variant="outline" onClick={onClose}>
-                  Maybe Later
-              </Button>
-              <Button onClick={handleOpenSetupDialog}>
-                  <KeyRound className="mr-2 h-4 w-4" />
-                  Set Up Backup
-              </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      <Dialog open={isSetupDialogOpen} onOpenChange={handleSetupDialogToggle}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><ShieldCheck className="w-6 h-6 text-primary" /> Secure Your Cloud Backup</DialogTitle>
-            <DialogDescription>
-              Create a password to protect your encrypted backup. You will need this password to restore your chats.
-              <strong className="block mt-2 text-amber-500">Important: If you forget this password, we cannot recover it for you, and your backup will be lost forever.</strong>
             </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="backup-password-initial">Password (min. 6 characters)</Label>
-              <Input id="backup-password-initial" type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isProcessing} />
+            <DialogFooter className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Button type="button" variant="outline" onClick={onClose}>
+                    Maybe Later
+                </Button>
+                <Button onClick={() => setPromptStep('setup')}>
+                    <KeyRound className="mr-2 h-4 w-4" />
+                    Set Up Backup
+                </Button>
+            </DialogFooter>
+          </>
+        )}
+        
+        {promptStep === 'setup' && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><ShieldCheck className="w-6 h-6 text-primary" /> Create Backup Password</DialogTitle>
+              <DialogDescription>
+                This password encrypts your backup key. You will need it to restore your chats.
+                <strong className="block mt-2 text-amber-500">Warning: We cannot recover this password for you.</strong>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="backup-password-initial">Password (min. 6 characters)</Label>
+                <Input id="backup-password-initial" type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isProcessing} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password-initial">Confirm Password</Label>
+                <Input id="confirm-password-initial" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={isProcessing} />
+              </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password-initial">Confirm Password</Label>
-              <Input id="confirm-password-initial" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={isProcessing} />
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
-          <DialogFooter>
-            <DialogClose asChild><Button type="button" variant="outline" disabled={isProcessing}>Cancel</Button></DialogClose>
-            <Button onClick={handleCreateBackup} disabled={isProcessing || !password || !confirmPassword}>
-              {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-              {isProcessing ? 'Encrypting...' : 'Save & Encrypt Backup'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose} disabled={isProcessing}>Cancel</Button>
+              <Button onClick={handleCreateBackup} disabled={isProcessing || !password || !confirmPassword}>
+                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                {isProcessing ? 'Encrypting...' : 'Save & Encrypt Backup'}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
