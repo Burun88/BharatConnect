@@ -214,7 +214,7 @@ function ProfileSetupContent() {
       });
 
       sessionStorage.setItem('justSignedUp', 'true');
-      // No router.push('/') here. AuthContext will handle the redirect based on the updated userProfileLs state.
+      router.push('/');
     } catch (error: any) {
       setError('Failed to save your profile or generate keys. Please try again.');
       toast({
