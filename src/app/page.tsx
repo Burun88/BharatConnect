@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -57,8 +58,7 @@ export default function HomePage() {
   const [isMounted, setIsMounted] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [privateKeyExists, setPrivateKeyExists] = useState<boolean | null>(null);
-  const [showRestoreNeeded, setShowRestoreNeeded] = useState(false);
-  const [userDismissedRestorePrompt, setUserDismissedRestorePrompt] = useState(false);
+  const [isRestorePromptDismissed, setIsRestorePromptDismissed] = useState(false);
 
   // Raw data from Firestore listeners
   const [rawActiveChatDocs, setRawActiveChatDocs] = useState<DocumentData[]>([]);
@@ -84,17 +84,15 @@ export default function HomePage() {
 
   useEffect(() => { setIsMounted(true); }, []);
 
-  // Check for the one-time "restore needed" flag from a new device login
+  // On mount, check if the prompt has been dismissed in the current session.
   useEffect(() => {
     if (isMounted) {
-      const needsRestore = sessionStorage.getItem('needs-restore-prompt');
-      if (needsRestore === 'true') {
-        setShowRestoreNeeded(true);
-        sessionStorage.removeItem('needs-restore-prompt'); // Clear the flag
+      if (sessionStorage.getItem('restorePromptDismissed') === 'true') {
+        setIsRestorePromptDismissed(true);
       }
     }
   }, [isMounted]);
-
+  
   useEffect(() => {
     if (authUser?.id) {
       const key = localStorage.getItem(`privateKey_${authUser.id}`);
@@ -106,8 +104,6 @@ export default function HomePage() {
 
   const handleListenerError = useCallback((error: FirestoreError, context: string) => {
     if (error.code === 'permission-denied') {
-        // This can happen during logout/login race conditions and is often temporary.
-        // We log it but don't show a disruptive toast.
         console.warn(`[HomePage] Firestore listener permission error for ${context}:`, error.message);
     } else {
         console.error(`[HomePage] Firestore listener error for ${context}:`, error);
@@ -385,10 +381,19 @@ export default function HomePage() {
       return () => container.removeEventListener('scroll', handleScroll);
     }
   }, [isAuthenticated, handleScroll]);
+  
+  const handleDismissRestorePrompt = () => {
+    sessionStorage.setItem('restorePromptDismissed', 'true');
+    setIsRestorePromptDismissed(true);
+  };
 
   const showPageSpinner = !isMounted || isAuthLoading || (isAuthenticated && (isLoadingAuras || isProcessingData || privateKeyExists === null));
   
-  const showTheRestorePrompt = !userDismissedRestorePrompt && (showRestoreNeeded || (isAuthenticated && privateKeyExists === false && contextChats.length > 0 && !showRestoreNeeded));
+  const showTheRestorePrompt = 
+    !isRestorePromptDismissed &&
+    isAuthenticated &&
+    privateKeyExists === false &&
+    contextChats.length > 0;
 
   let mainContent;
   if (showPageSpinner) {
@@ -408,7 +413,7 @@ export default function HomePage() {
     mainContent = (
       <SwipeablePageWrapper className="flex-grow flex flex-col bg-background overflow-hidden min-h-0">
         <main className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar min-h-0 w-full" style={{ paddingTop: `${HEADER_HEIGHT_PX}px`, paddingBottom: `${BOTTOM_NAV_HEIGHT_PX}px` }}>
-            <RestoreBackupPrompt onDismiss={() => setUserDismissedRestorePrompt(true)} />
+            <RestoreBackupPrompt onDismiss={handleDismissRestorePrompt} />
         </main>
       </SwipeablePageWrapper>
     );
