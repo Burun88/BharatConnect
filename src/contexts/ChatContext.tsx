@@ -60,14 +60,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
   // Allow setChats to accept an updater function for more complex state updates if needed
   const setChatsCallback = useCallback((newChatsOrUpdater: Chat[] | ((prevChats: Chat[]) => Chat[])) => {
-    setChatsState(newChatsOrUpdater); 
-    // This is a crucial point: isLoadingChats should only be set to false
-    // when HomePage has definitively finished its initial loading sequence.
-    // HomePage's effect (Effect 4) is responsible for this.
-    // Consider if this setIsLoadingChats(false) belongs here or should be more tightly controlled by HomePage.
-    // For now, if setChats is called, we assume some data has arrived or processing is done.
-    if(isLoadingChats) setIsLoadingChats(false);
-  }, [isLoadingChats]); // Added isLoadingChats to dependency array
+    setChatsState(newChatsOrUpdater);
+    // This check ensures we only try to set loading to false once.
+    setIsLoadingChats(prevIsLoading => {
+        if (prevIsLoading) {
+            return false;
+        }
+        return prevIsLoading;
+    });
+  }, []); // `setIsLoadingChats` and `setChatsState` are stable and don't need to be in the array.
   
   const contextValue = useMemo(() => ({
     contacts,
