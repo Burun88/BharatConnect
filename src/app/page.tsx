@@ -58,7 +58,7 @@ export default function HomePage() {
   const [isMounted, setIsMounted] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [privateKeyExists, setPrivateKeyExists] = useState<boolean | null>(null);
-  const [isRestorePromptDismissed, setIsRestorePromptDismissed] = useState(false);
+  const [showRestorePrompt, setShowRestorePrompt] = useState(false);
 
   // Raw data from Firestore listeners
   const [rawActiveChatDocs, setRawActiveChatDocs] = useState<DocumentData[]>([]);
@@ -83,24 +83,24 @@ export default function HomePage() {
   const [isLoadingAuras, setIsLoadingAuras] = useState(true);
 
   useEffect(() => { setIsMounted(true); }, []);
-
-  // On mount, check if the prompt has been dismissed in the current session.
-  useEffect(() => {
-    if (isMounted) {
-      if (sessionStorage.getItem('restorePromptDismissed') === 'true') {
-        setIsRestorePromptDismissed(true);
-      }
-    }
-  }, [isMounted]);
   
   useEffect(() => {
     if (authUser?.id) {
       const key = localStorage.getItem(`privateKey_${authUser.id}`);
       setPrivateKeyExists(!!key);
+      if (isAuthenticated && !key) {
+        // Only show prompt if not dismissed this session
+        if (sessionStorage.getItem('restorePromptDismissed') !== 'true') {
+           setShowRestorePrompt(true);
+        }
+      } else {
+        setShowRestorePrompt(false);
+      }
     } else {
-      setPrivateKeyExists(null); // Reset if user logs out
+      setPrivateKeyExists(null);
+      setShowRestorePrompt(false);
     }
-  }, [authUser?.id]);
+  }, [authUser?.id, isAuthenticated]);
 
   const handleListenerError = useCallback((error: FirestoreError, context: string) => {
     if (error.code === 'permission-denied') {
@@ -382,19 +382,17 @@ export default function HomePage() {
     }
   }, [isAuthenticated, handleScroll]);
   
-  const handleDismissRestorePrompt = () => {
-    sessionStorage.setItem('restorePromptDismissed', 'true');
-    setIsRestorePromptDismissed(true);
+  const handleRestorePromptClose = (restored: boolean) => {
+    setShowRestorePrompt(false);
+    if (!restored) {
+        // If they chose not to restore, don't show the prompt again this session.
+        sessionStorage.setItem('restorePromptDismissed', 'true');
+    }
+    // If restored is true, the page will reload, clearing sessionStorage anyway.
   };
 
   const showPageSpinner = !isMounted || isAuthLoading || (isAuthenticated && (isLoadingAuras || isProcessingData || privateKeyExists === null));
   
-  const showTheRestorePrompt = 
-    !isRestorePromptDismissed &&
-    isAuthenticated &&
-    privateKeyExists === false &&
-    contextChats.length > 0;
-
   let mainContent;
   if (showPageSpinner) {
     mainContent = (
@@ -408,14 +406,6 @@ export default function HomePage() {
       <div className="flex-grow flex flex-col items-center justify-center">
         <p className="text-muted-foreground text-center">Redirecting...</p>
       </div>
-    );
-  } else if (showTheRestorePrompt) {
-    mainContent = (
-      <SwipeablePageWrapper className="flex-grow flex flex-col bg-background overflow-hidden min-h-0">
-        <main className="flex-grow flex flex-col bg-background overflow-y-auto hide-scrollbar min-h-0 w-full" style={{ paddingTop: `${HEADER_HEIGHT_PX}px`, paddingBottom: `${BOTTOM_NAV_HEIGHT_PX}px` }}>
-            <RestoreBackupPrompt onDismiss={handleDismissRestorePrompt} />
-        </main>
-      </SwipeablePageWrapper>
     );
   } else {
     mainContent = (
@@ -437,6 +427,12 @@ export default function HomePage() {
     <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background">
       <HomeHeader isHeaderContentLoaded={isHeaderContentLoaded} />
       {mainContent}
+      {showRestorePrompt && (
+        <RestoreBackupPrompt 
+            isOpen={showRestorePrompt}
+            onClose={handleRestorePromptClose}
+        />
+      )}
       <Button variant="default" size="icon" className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-bharatconnect-bubble text-primary-foreground hover:opacity-90 transition-opacity z-30" aria-label="New chat" onClick={() => router.push('/search')}>
         <Plus className="w-7 h-7" />
       </Button>

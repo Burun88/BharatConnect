@@ -109,11 +109,12 @@ export type Chat = {
   chatSpecificPresence?: { [uid: string]: ChatSpecificPresence };
 };
 
-export type BackupData = {
-  chats: Chat[];
-  privateKeyBase64?: string;
-  // In a real app, you might include other data like contacts, settings, etc.
-  // messages: { [chatId: string]: Message[] };
+// Represents the encrypted private key package stored in Firestore.
+export type EncryptedKeyPackage = {
+  salt: string; // base64
+  iv: string; // base64
+  ciphertext: string; // base64
+  checkValue: string; // base64 encrypted "OK" to verify password
 };
 
 

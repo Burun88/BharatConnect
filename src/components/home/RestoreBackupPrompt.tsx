@@ -1,40 +1,111 @@
 
 "use client";
 
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ShieldQuestion, UploadCloud } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2, ShieldCheck, KeyRound } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { decryptPrivateKeyFromCloud, getEncryptedKeyFromFirestore } from '@/services/encryptionService';
 
 interface RestoreBackupPromptProps {
-  onDismiss: () => void;
+  isOpen: boolean;
+  onClose: (restored: boolean) => void;
 }
 
-export default function RestoreBackupPrompt({ onDismiss }: RestoreBackupPromptProps) {
+export default function RestoreBackupPrompt({ isOpen, onClose }: RestoreBackupPromptProps) {
+  const { authUser } = useAuth();
+  const { toast } = useToast();
   const router = useRouter();
 
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleRestore = async () => {
+    if (!pin) {
+      setError('Please enter your backup PIN.');
+      return;
+    }
+    if (!authUser?.id) {
+      setError('You must be logged in to restore a backup.');
+      return;
+    }
+    setError('');
+    setIsProcessing(true);
+
+    try {
+      const encryptedPackage = await getEncryptedKeyFromFirestore(authUser.id);
+      if (!encryptedPackage) {
+        throw new Error('No cloud backup found for your account.');
+      }
+
+      const privateKeyBase64 = await decryptPrivateKeyFromCloud(encryptedPackage, pin);
+
+      localStorage.setItem(`privateKey_${authUser.id}`, privateKeyBase64);
+
+      toast({
+        title: 'Restore Successful',
+        description: 'Your encryption key has been restored. Reloading...',
+        variant: 'default',
+        action: <ShieldCheck className="w-5 h-5 text-green-500" />,
+      });
+      
+      onClose(true); // Signal success
+      
+      // Force a full page reload to ensure all components and contexts re-read the new key
+      setTimeout(() => window.location.reload(), 1000);
+
+    } catch (err: any) {
+      console.error('Restore failed:', err);
+      setError(err.message || 'An unknown error occurred during restore.');
+      toast({ variant: 'destructive', title: 'Restore Failed', description: err.message });
+      setIsProcessing(false);
+    }
+  };
+
+  const handleNoBackup = () => {
+    toast({
+        title: "Continuing Without Backup",
+        description: "Past chats will remain unreadable on this device."
+    });
+    onClose(false);
+  }
+
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="items-center">
-          <ShieldQuestion className="w-16 h-16 text-primary mb-3" />
-          <CardTitle className="text-2xl">Restore Your Chats</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CardDescription>
-            Your chat history is end-to-end encrypted. To see your past messages on this new device, you need to restore them from a backup file.
-          </CardDescription>
-        </CardContent>
-        <CardFooter className="flex-col space-y-3">
-          <Button className="w-full" onClick={() => router.push('/account')}>
-            <UploadCloud className="mr-2 h-4 w-4" />
-            Go to Account to Restore
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose(false)}>
+      <DialogContent onInteractOutside={(e) => e.preventDefault()} showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><KeyRound className="w-5 h-5 text-primary" /> Unlock Your Chats</DialogTitle>
+          <DialogDescription>To read your past chats on this device, enter the backup PIN you created.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="restore-pin">Backup PIN</Label>
+            <Input
+              id="restore-pin"
+              type="password"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              disabled={isProcessing}
+            />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
+        <DialogFooter className="grid grid-cols-2 gap-2 sm:flex-col-reverse sm:space-x-0">
+          <Button type="button" variant="outline" onClick={handleNoBackup} disabled={isProcessing}>
+            Continue Without Backup
           </Button>
-          <Button variant="ghost" className="w-full text-muted-foreground" onClick={onDismiss}>
-            Continue Without Restoring
+          <Button onClick={handleRestore} disabled={isProcessing || !pin}>
+            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+            {isProcessing ? 'Unlocking...' : 'Unlock Chats'}
           </Button>
-        </CardFooter>
-      </Card>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

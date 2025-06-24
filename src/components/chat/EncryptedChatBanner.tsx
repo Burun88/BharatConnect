@@ -13,15 +13,15 @@ export default function EncryptedChatBanner() {
             <ShieldAlert className="h-4 w-4" />
             <AlertTitle>Encrypted History</AlertTitle>
             <AlertDescription className="flex flex-wrap items-baseline gap-x-1 text-balance">
-                <span>Past messages are unreadable on this device.</span>
+                <span>Past messages may be unreadable.</span>
                 <Button
                     variant="link"
                     onClick={() => router.push('/account')}
                     className="p-0 h-auto text-primary underline align-baseline whitespace-normal"
                 >
-                    Restore from backup
+                    Unlock your cloud backup
                 </Button>
-                <span>to view them.</span>
+                <span>in settings.</span>
             </AlertDescription>
         </Alert>
     );
