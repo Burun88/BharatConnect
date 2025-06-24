@@ -9,6 +9,7 @@ import HomeHeader from '@/components/home/home-header';
 import AuraBar from '@/components/home/aura-bar';
 import ChatList from '@/components/home/chat-list';
 import RestoreBackupPrompt from '@/components/home/RestoreBackupPrompt';
+import InitialBackupPrompt from '@/components/home/InitialBackupPrompt'; // Import new component
 import type { User, Chat, ParticipantInfo, DisplayAura, FirestoreAura, UserAura as UserAuraType, UserStatusDoc } from '@/types';
 import { AURA_OPTIONS } from '@/types';
 import { Plus, Loader2 } from 'lucide-react';
@@ -59,6 +60,7 @@ export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [privateKeyExists, setPrivateKeyExists] = useState<boolean | null>(null);
   const [showRestorePrompt, setShowRestorePrompt] = useState(false);
+  const [showInitialBackupPrompt, setShowInitialBackupPrompt] = useState(false); // New state for initial prompt
 
   // Raw data from Firestore listeners
   const [rawActiveChatDocs, setRawActiveChatDocs] = useState<DocumentData[]>([]);
@@ -99,6 +101,12 @@ export default function HomePage() {
     } else {
       setPrivateKeyExists(null);
       setShowRestorePrompt(false);
+    }
+    
+    // Check if user just signed up to show the initial backup prompt
+    if (sessionStorage.getItem('justSignedUp') === 'true') {
+      setShowInitialBackupPrompt(true);
+      sessionStorage.removeItem('justSignedUp');
     }
   }, [authUser?.id, isAuthenticated]);
 
@@ -431,6 +439,12 @@ export default function HomePage() {
         <RestoreBackupPrompt 
             isOpen={showRestorePrompt}
             onClose={handleRestorePromptClose}
+        />
+      )}
+      {showInitialBackupPrompt && (
+        <InitialBackupPrompt
+            isOpen={showInitialBackupPrompt}
+            onClose={() => setShowInitialBackupPrompt(false)}
         />
       )}
       <Button variant="default" size="icon" className="fixed bottom-20 right-4 w-14 h-14 rounded-full shadow-xl bg-gradient-bharatconnect-bubble text-primary-foreground hover:opacity-90 transition-opacity z-30" aria-label="New chat" onClick={() => router.push('/search')}>

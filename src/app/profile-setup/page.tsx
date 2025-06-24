@@ -213,6 +213,9 @@ function ProfileSetupContent() {
         title: `Welcome, ${finalDisplayName}!`,
         description: 'Your BharatConnect account is ready.',
       });
+
+      // Set flag for initial backup prompt on homepage
+      sessionStorage.setItem('justSignedUp', 'true');
       router.push('/');
     } catch (error: any) {
       console.error("[ProfileSetupPage] Error during handleSubmit (saving profile or keys):", error);
