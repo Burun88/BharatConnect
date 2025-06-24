@@ -30,8 +30,8 @@ export default function InitialBackupPrompt({ isOpen, onClose }: InitialBackupPr
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleOpenSetupDialog = () => {
-    onClose(); // Close the initial informational prompt
-    setIsSetupDialogOpen(true); // Open the password setup dialog
+    // This now only opens the second dialog. The first one remains mounted but visually obscured.
+    setIsSetupDialogOpen(true);
   };
 
   const resetBackupDialog = () => {
@@ -74,7 +74,9 @@ export default function InitialBackupPrompt({ isOpen, onClose }: InitialBackupPr
         duration: 5000,
       });
       
+      // Close the entire flow on success.
       setIsSetupDialogOpen(false);
+      onClose();
       
     } catch (err: any) {
       console.error('Cloud backup failed:', err);
@@ -83,6 +85,15 @@ export default function InitialBackupPrompt({ isOpen, onClose }: InitialBackupPr
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // This function handles when the setup dialog is closed (e.g., by Cancel button or Escape key)
+  const handleSetupDialogToggle = (open: boolean) => {
+    if (!open) {
+      // When the setup dialog closes, also close the initial prompt.
+      onClose(); 
+    }
+    setIsSetupDialogOpen(open);
   };
 
   return (
@@ -118,7 +129,7 @@ export default function InitialBackupPrompt({ isOpen, onClose }: InitialBackupPr
         </DialogContent>
       </Dialog>
       
-      <Dialog open={isSetupDialogOpen} onOpenChange={(open) => { setIsSetupDialogOpen(open); if (!open) resetBackupDialog(); }}>
+      <Dialog open={isSetupDialogOpen} onOpenChange={handleSetupDialogToggle}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><ShieldCheck className="w-6 h-6 text-primary" /> Secure Your Cloud Backup</DialogTitle>
