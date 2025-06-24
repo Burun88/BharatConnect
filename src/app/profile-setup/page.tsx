@@ -251,7 +251,7 @@ function ProfileSetupContent() {
               <Label htmlFor="profile-pic-upload" className="cursor-pointer">
                 <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center relative overflow-hidden border-2 border-dashed border-border hover:border-primary transition-colors">
                   {profilePicPreview ? (
-                    <Image src={profilePicPreview} alt="Profile preview" fill className="object-cover" sizes="6rem" data-ai-hint="person portrait"/>
+                    <Image src={profilePicPreview} alt="Profile preview" fill sizes="6rem" className="object-cover" data-ai-hint="person portrait"/>
                   ) : (
                     <UserCircle2 className="w-16 h-16 text-muted-foreground" />
                   )}
