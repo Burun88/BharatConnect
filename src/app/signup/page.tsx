@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { auth, createUser } from '@/lib/firebase'; 
 import type { AuthStep } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
