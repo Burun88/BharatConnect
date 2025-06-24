@@ -140,7 +140,7 @@ export default function MessageBubble({ message, isOutgoing, contactId, currentU
     </div>
   ) : (
     <>
-      {message.type === 'text' && <p className="text-sm whitespace-pre-wrap break-words break-all">{message.text}</p>}
+      {message.type === 'text' && <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>}
       {message.type === 'image' && renderMediaContent()}
     </>
   );
