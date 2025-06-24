@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useRouter } from 'next/navigation';
@@ -12,12 +11,12 @@ export default function EncryptedChatBanner() {
         <Alert variant="destructive" className="m-2 rounded-lg border-primary/50 text-primary [&>svg]:text-primary bg-primary/10">
             <ShieldAlert className="h-4 w-4" />
             <AlertTitle>Encrypted History</AlertTitle>
-            <AlertDescription>
-                <span>Past messages are unreadable on this device.</span>{' '}
+            <AlertDescription className="text-balance">
+                Past messages are unreadable on this device.{' '}
                 <Button variant="link" className="p-0 h-auto text-primary underline align-baseline" onClick={() => router.push('/account')}>
                     Restore from backup
                 </Button>
-                {' '}<span>to view them.</span>
+                {' '}to view them.
             </AlertDescription>
         </Alert>
     );
