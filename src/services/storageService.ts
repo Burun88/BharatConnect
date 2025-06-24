@@ -5,7 +5,7 @@ import { storage, firestore } from '@/lib/firebase';
 import { ref, deleteObject, uploadBytes, getDownloadURL, getBytes } from 'firebase/storage';
 import { getPublicKey } from '@/services/encryptionService';
 import type { MediaInfo } from '@/types';
-import { doc, collection } from 'firebase/firestore';
+import { doc, collection, getDoc } from 'firebase/firestore';
 
 const CHUNK_SIZE = 512 * 1024; // 512 KB
 
@@ -65,9 +65,16 @@ export async function encryptAndUploadChunks(
   senderUid: string,
   recipientUids: string[],
   onProgress: (progress: number) => void
-): Promise<{ mediaInfo: MediaInfo; encryptedAesKey: { [uid: string]: string } }> {
+): Promise<{ mediaInfo: MediaInfo; encryptedAesKey: { [uid: string]: string }, keyId: string }> {
   const fileId = doc(collection(firestore, '_')).id; // Generate a unique ID for the file
   const fileBuffer = await file.arrayBuffer();
+  
+  // Get sender's active key ID
+  const senderVaultRef = doc(firestore, 'userKeyVaults', senderUid);
+  const senderVaultSnap = await getDoc(senderVaultRef);
+  if (!senderVaultSnap.exists()) throw new Error("Sender's key vault not found.");
+  const senderActiveKeyId = senderVaultSnap.data().activeKeyId as string;
+
 
   // 1. Generate a single AES key for the entire file
   const aesKey = await window.crypto.subtle.generateKey(
@@ -115,7 +122,12 @@ export async function encryptAndUploadChunks(
   const encryptedAesKey: { [uid: string]: string } = {};
 
   for (const uid of allParticipantUids) {
-    const publicKey = await getPublicKey(uid);
+    const recipientVaultRef = doc(firestore, 'userKeyVaults', uid);
+    const recipientVaultSnap = await getDoc(recipientVaultRef);
+    if (!recipientVaultSnap.exists()) continue;
+    const recipientActiveKeyId = recipientVaultSnap.data().activeKeyId as string;
+
+    const publicKey = await getPublicKey(uid, recipientActiveKeyId);
     const encryptedKeyBuffer = await window.crypto.subtle.encrypt({ name: 'RSA-OAEP' }, publicKey, rawAesKey);
     encryptedAesKey[uid] = arrayBufferToBase64(encryptedKeyBuffer);
   }
@@ -129,7 +141,7 @@ export async function encryptAndUploadChunks(
     fileId,
   };
 
-  return { mediaInfo, encryptedAesKey };
+  return { mediaInfo, encryptedAesKey, keyId: senderActiveKeyId };
 }
 
 export async function decryptAndAssembleChunks(

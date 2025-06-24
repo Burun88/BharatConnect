@@ -11,17 +11,16 @@ export default function EncryptedChatBanner() {
     return (
         <Alert variant="destructive" className="m-2 rounded-lg border-primary/50 text-primary [&>svg]:text-primary bg-primary/10">
             <ShieldAlert className="h-4 w-4" />
-            <AlertTitle>Encrypted History</AlertTitle>
-            <AlertDescription className="flex flex-wrap items-baseline gap-x-1 text-balance">
-                <span>Past messages may be unreadable.</span>
+            <AlertTitle>Encrypted History & Read-Only</AlertTitle>
+            <AlertDescription className="flex flex-col items-start gap-1 text-balance">
+                <span>Some messages may be unreadable and you cannot send new messages on this device yet.</span>
                 <Button
                     variant="link"
                     onClick={() => router.push('/account')}
-                    className="p-0 h-auto text-primary underline align-baseline whitespace-normal"
+                    className="p-0 h-auto text-primary underline whitespace-normal text-left"
                 >
-                    Unlock your cloud backup
+                    To enable sending and read all messages, restore your main key from your backup.
                 </Button>
-                <span>in settings.</span>
             </AlertDescription>
         </Alert>
     );

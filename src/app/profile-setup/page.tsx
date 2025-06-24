@@ -17,7 +17,7 @@ import type { User } from '@/types';
 import { auth, signOutUser as fbSignOutUser } from '@/lib/firebase'; 
 import { createOrUpdateUserFullProfile } from '@/services/profileService';
 import { uploadProfileImage, deleteProfileImageByUrl } from '@/services/storageService';
-import { generateAndStoreKeyPair } from '@/services/encryptionService';
+import { generateInitialKeyPair } from '@/services/encryptionService';
 
 
 function ProfileSetupContent() {
@@ -39,8 +39,6 @@ function ProfileSetupContent() {
 
 
   useEffect(() => {
-    // AuthContext now handles redirection centrally. This effect's only job
-    // is to populate the form with data from the context.
     if (authUser) {
       const isGenericDisplayName =
         authUser.name === (authUser.email?.split('@')[0]) ||
@@ -69,8 +67,6 @@ function ProfileSetupContent() {
       
       setIsPageLoading(false);
     } else {
-      // If authUser is null (e.g., on initial load), keep showing the loader.
-      // The AuthContext will redirect if the user is not authenticated.
       setIsPageLoading(true);
     }
   }, [authUser, displayName, username, profilePicPreview, phoneNumber, bio]);
@@ -185,7 +181,7 @@ function ProfileSetupContent() {
       await createOrUpdateUserFullProfile(authUid, profileDataToSave);
       
       toast({ title: "Generating secure keys...", description: "Please wait, this is a one-time setup." });
-      await generateAndStoreKeyPair(authUid);
+      await generateInitialKeyPair(authUid);
       toast({ title: "Secure keys generated!", description: "Your account is now end-to-end encrypted." });
 
       const updatedProfileForContext: User = {
@@ -197,6 +193,7 @@ function ProfileSetupContent() {
         phone: phoneNumber.trim() || undefined,
         bio: bio.trim() || undefined,
         onboardingComplete: true,
+        activeKeyId: 'main', // The initial key is always 'main'
       };
       setAuthUser(updatedProfileForContext);
 

@@ -2,14 +2,13 @@
 'use client';
 
 import { firestore, serverTimestamp } from '@/lib/firebase';
-import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import type { EncryptedKeyPackage } from '@/types';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import type { EncryptedKeyPackage, UserKeyVault, UserKeyInfo } from '@/types';
 
 // --- Helper Functions ---
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = '';
   const bytes = new Uint8Array(buffer);
-  const len = bytes.byteLength;
   for (let i = 0; i < len; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
@@ -26,7 +25,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-// --- RSA Key Management ---
+// --- RSA & AES Key Algorithm Definitions ---
 const rsaKeygenParams: RsaHashedKeyGenParams = {
   name: 'RSA-OAEP',
   modulusLength: 2048,
@@ -34,86 +33,134 @@ const rsaKeygenParams: RsaHashedKeyGenParams = {
   hash: 'SHA-256',
 };
 
-export const rsaImportParams: RsaHashedImportParams = {
+const rsaImportParams: RsaHashedImportParams = {
   name: 'RSA-OAEP',
   hash: 'SHA-256',
 };
-
-/**
- * Generates an RSA key pair if one doesn't exist.
- * Stores public key in Firestore and private key in localStorage.
- * CRITICAL: This function now checks for an existing public key and will NOT overwrite it.
- */
-export async function generateAndStoreKeyPair(uid: string): Promise<void> {
-  try {
-    const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
-    const docSnap = await getDoc(userDocRef);
-
-    if (docSnap.exists() && docSnap.data().publicKey) {
-      console.log(`[Encryption] Public key already exists for user ${uid}. Skipping key generation.`);
-      return;
-    }
-
-    const keyPair = await window.crypto.subtle.generateKey(rsaKeygenParams, true, ['encrypt', 'decrypt']);
-
-    const publicKeyBuffer = await window.crypto.subtle.exportKey('spki', keyPair.publicKey);
-    const publicKeyBase64 = arrayBufferToBase64(publicKeyBuffer);
-
-    const privateKeyBuffer = await window.crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
-    const privateKeyBase64 = arrayBufferToBase64(privateKeyBuffer);
-
-    await setDoc(userDocRef, { publicKey: publicKeyBase64 }, { merge: true });
-    localStorage.setItem(`privateKey_${uid}`, privateKeyBase64);
-
-    console.warn(`[Encryption] NEW E2EE Key pair generated and stored for user ${uid}.`);
-  } catch (error) {
-    console.error('[Encryption] Error generating key pair:', error);
-    throw new Error('Could not generate or store encryption keys.');
-  }
-}
-
-/**
- * Retrieves the user's private key from localStorage.
- */
-export async function getPrivateKey(uid: string): Promise<CryptoKey> {
-  const privateKeyBase64 = localStorage.getItem(`privateKey_${uid}`);
-  if (!privateKeyBase64) {
-    throw new Error('Private key not found in local storage.');
-  }
-
-  const privateKeyBuffer = base64ToArrayBuffer(privateKeyBase64);
-  return window.crypto.subtle.importKey('pkcs8', privateKeyBuffer, rsaImportParams, true, ['decrypt']);
-}
-
-/**
- * Fetches a user's public key from Firestore.
- */
-export async function getPublicKey(uid: string): Promise<CryptoKey> {
-  const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
-  const userDocSnap = await getDoc(userDocRef);
-
-  if (!userDocSnap.exists() || !userDocSnap.data()?.publicKey) {
-    throw new Error(`Public key not found for user ${uid}.`);
-  }
-
-  const publicKeyBase64 = userDocSnap.data().publicKey;
-  const publicKeyBuffer = base64ToArrayBuffer(publicKeyBase64);
-
-  return window.crypto.subtle.importKey('spki', publicKeyBuffer, rsaImportParams, true, ['encrypt']);
-}
-
-// --- Message Encryption / Decryption ---
 
 const aesKeygenParams: AesKeyGenParams = {
   name: 'AES-GCM',
   length: 256,
 };
 
+// --- Local Key Vault Management ---
+async function getLocalKeyVault(uid: string): Promise<Record<string, CryptoKey>> {
+  const vault: Record<string, CryptoKey> = {};
+  const storedVaultJSON = localStorage.getItem(`keyVault_${uid}`);
+  if (!storedVaultJSON) return vault;
+
+  const storedVault = JSON.parse(storedVaultJSON) as Record<string, string>;
+  for (const keyId in storedVault) {
+    const privateKeyBase64 = storedVault[keyId];
+    const privateKeyBuffer = base64ToArrayBuffer(privateKeyBase64);
+    vault[keyId] = await window.crypto.subtle.importKey('pkcs8', privateKeyBuffer, rsaImportParams, true, ['decrypt']);
+  }
+  return vault;
+}
+
+async function saveKeyToLocalVault(uid: string, keyId: string, privateKey: CryptoKey): Promise<void> {
+  const storedVaultJSON = localStorage.getItem(`keyVault_${uid}`);
+  const storedVault = storedVaultJSON ? (JSON.parse(storedVaultJSON) as Record<string, string>) : {};
+  
+  const privateKeyBuffer = await window.crypto.subtle.exportKey('pkcs8', privateKey);
+  storedVault[keyId] = arrayBufferToBase64(privateKeyBuffer);
+  
+  localStorage.setItem(`keyVault_${uid}`, JSON.stringify(storedVault));
+}
+
+export function hasLocalKeys(uid: string): boolean {
+  return !!localStorage.getItem(`keyVault_${uid}`);
+}
+
+// --- Remote Key Vault & Key Management ---
+
+/**
+ * Fetches a user's public key from their Firestore key vault.
+ */
+export async function getPublicKey(uid: string, keyId: string): Promise<CryptoKey> {
+  const vaultRef = doc(firestore, 'userKeyVaults', uid);
+  const vaultSnap = await getDoc(vaultRef);
+
+  if (!vaultSnap.exists()) throw new Error(`Key vault not found for user ${uid}.`);
+  
+  const vaultData = vaultSnap.data() as UserKeyVault;
+  const keyInfo = vaultData.keys[keyId];
+
+  if (!keyInfo) throw new Error(`Key ID ${keyId} not found in vault for user ${uid}.`);
+
+  const publicKeyBuffer = base64ToArrayBuffer(keyInfo.publicKey);
+  return window.crypto.subtle.importKey('spki', publicKeyBuffer, rsaImportParams, true, ['encrypt']);
+}
+
+/**
+ * Generates the first "main" key pair for a user during profile setup.
+ */
+export async function generateInitialKeyPair(uid: string): Promise<void> {
+  const vaultRef = doc(firestore, 'userKeyVaults', uid);
+  const vaultSnap = await getDoc(vaultRef);
+
+  if (vaultSnap.exists()) {
+    console.log(`[Encryption] Key vault already exists for user ${uid}. Skipping initial key generation.`);
+    return;
+  }
+
+  const keyPair = await window.crypto.subtle.generateKey(rsaKeygenParams, true, ['encrypt', 'decrypt']);
+  const publicKeyBuffer = await window.crypto.subtle.exportKey('spki', keyPair.publicKey);
+
+  const keyId = 'main';
+  const newKeyInfo: UserKeyInfo = {
+    type: 'main',
+    publicKey: arrayBufferToBase64(publicKeyBuffer),
+    createdAt: serverTimestamp(),
+  };
+
+  const newVault: UserKeyVault = {
+    activeKeyId: keyId,
+    keys: { [keyId]: newKeyInfo },
+  };
+
+  await setDoc(vaultRef, newVault);
+  await saveKeyToLocalVault(uid, keyId, keyPair.privateKey);
+  console.log(`[Encryption] Initial 'main' key pair created for user ${uid}.`);
+}
+
+/**
+ * Generates a temporary "session" key for a user on a new device.
+ */
+export async function generateSessionKeyPair(uid: string): Promise<void> {
+  const keyPair = await window.crypto.subtle.generateKey(rsaKeygenParams, true, ['encrypt', 'decrypt']);
+  const publicKeyBuffer = await window.crypto.subtle.exportKey('spki', keyPair.publicKey);
+
+  const keyId = `session_${Date.now()}`;
+  const newKeyInfo: UserKeyInfo = {
+    type: 'session',
+    publicKey: arrayBufferToBase64(publicKeyBuffer),
+    createdAt: serverTimestamp(),
+  };
+
+  const vaultRef = doc(firestore, 'userKeyVaults', uid);
+  await updateDoc(vaultRef, {
+    [`keys.${keyId}`]: newKeyInfo,
+    activeKeyId: keyId,
+  });
+
+  await saveKeyToLocalVault(uid, keyId, keyPair.privateKey);
+  console.log(`[Encryption] New session key ${keyId} created for user ${uid}.`);
+}
+
+
+// --- Message Encryption / Decryption ---
+
 /**
  * Encrypts a text message for one or more recipients.
  */
 export async function encryptMessage(text: string, recipientUids: string[], senderUid: string) {
   try {
+    const senderVaultRef = doc(firestore, 'userKeyVaults', senderUid);
+    const senderVaultSnap = await getDoc(senderVaultRef);
+    if (!senderVaultSnap.exists()) throw new Error("Sender's key vault not found.");
+    const senderActiveKeyId = senderVaultSnap.data().activeKeyId;
+
     const aesKey = await window.crypto.subtle.generateKey(aesKeygenParams, true, ['encrypt', 'decrypt']);
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
     const encodedMessage = new TextEncoder().encode(text);
@@ -123,12 +170,18 @@ export async function encryptMessage(text: string, recipientUids: string[], send
     const encryptedKeys: { [uid: string]: string } = {};
 
     for (const uid of allParticipantUids) {
-      const publicKey = await getPublicKey(uid);
+      const recipientVaultRef = doc(firestore, 'userKeyVaults', uid);
+      const recipientVaultSnap = await getDoc(recipientVaultRef);
+      if (!recipientVaultSnap.exists()) continue; // Skip if recipient has no vault
+      const recipientActiveKeyId = recipientVaultSnap.data().activeKeyId;
+
+      const publicKey = await getPublicKey(uid, recipientActiveKeyId);
       const encryptedAesKeyBuffer = await window.crypto.subtle.encrypt({ name: 'RSA-OAEP' }, publicKey, rawAesKey);
       encryptedKeys[uid] = arrayBufferToBase64(encryptedAesKeyBuffer);
     }
 
     return {
+      keyId: senderActiveKeyId, // Tag message with the key used to encrypt
       encryptedText: arrayBufferToBase64(encryptedMessageBuffer),
       iv: arrayBufferToBase64(iv),
       encryptedKeys,
@@ -140,17 +193,24 @@ export async function encryptMessage(text: string, recipientUids: string[], send
 }
 
 /**
- * Decrypts a message payload.
+ * Decrypts a message payload using the multi-key vault.
  */
 export async function decryptMessage(payload: any, myUid: string): Promise<string> {
   try {
-    const { encryptedText, iv: ivBase64, encryptedKeys } = payload;
+    const { encryptedText, iv: ivBase64, encryptedKeys, keyId = 'main' } = payload;
+    
     if (!encryptedText || !ivBase64 || !encryptedKeys || !encryptedKeys[myUid]) {
-      if (payload.text) return payload.text;
+      if (payload.text) return payload.text; // For unencrypted system messages
       return '[Message not encrypted for you]';
     }
 
-    const privateKey = await getPrivateKey(myUid);
+    const localVault = await getLocalKeyVault(myUid);
+    const privateKey = localVault[keyId];
+
+    if (!privateKey) {
+      return `[Encrypted message - Restore key to read]`;
+    }
+    
     const encryptedAesKeyBase64 = encryptedKeys[myUid];
     const encryptedAesKeyBuffer = base64ToArrayBuffer(encryptedAesKeyBase64);
     const rawAesKey = await window.crypto.subtle.decrypt({ name: 'RSA-OAEP' }, privateKey, encryptedAesKeyBuffer);
@@ -161,16 +221,13 @@ export async function decryptMessage(payload: any, myUid: string): Promise<strin
 
     return new TextDecoder().decode(decryptedMessageBuffer);
   } catch (error) {
-    console.error('[Encryption] Failed to decrypt message:', error);
-    throw new Error('[Message could not be decrypted]');
+    console.error(`[Encryption] Failed to decrypt message with keyId ${payload.keyId || 'main'}:`, error);
+    return '[Message could not be decrypted]';
   }
 }
 
 // --- Cloud Backup Encryption / Decryption ---
 
-/**
- * Derives a 256-bit AES key from a password/PIN and salt using PBKDF2.
- */
 async function deriveKeyFromPin(pin: string, salt: Uint8Array): Promise<CryptoKey> {
   const encoder = new TextEncoder();
   const pinBuffer = encoder.encode(pin);
@@ -184,12 +241,6 @@ async function deriveKeyFromPin(pin: string, salt: Uint8Array): Promise<CryptoKe
   );
 }
 
-/**
- * Encrypts the user's private key for cloud backup.
- * @param privateKey The user's raw private key string from localStorage.
- * @param pin The user-provided PIN for encryption.
- * @returns The encrypted package ready for Firestore.
- */
 export async function encryptPrivateKeyForCloud(privateKeyBase64: string, pin: string): Promise<EncryptedKeyPackage> {
   const salt = window.crypto.getRandomValues(new Uint8Array(16));
   const iv = window.crypto.getRandomValues(new Uint8Array(12));
@@ -198,7 +249,6 @@ export async function encryptPrivateKeyForCloud(privateKeyBase64: string, pin: s
   const privateKeyBuffer = new TextEncoder().encode(privateKeyBase64);
   const ciphertext = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, derivedKey, privateKeyBuffer);
   
-  // Create a check value to verify PIN on decryption without exposing the key
   const checkText = new TextEncoder().encode("OK");
   const checkValueCipher = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, derivedKey, checkText);
 
@@ -207,16 +257,10 @@ export async function encryptPrivateKeyForCloud(privateKeyBase64: string, pin: s
     iv: arrayBufferToBase64(iv),
     ciphertext: arrayBufferToBase64(ciphertext),
     checkValue: arrayBufferToBase64(checkValueCipher),
-    lastBackupTimestamp: serverTimestamp(), // Add timestamp here
+    lastBackupTimestamp: serverTimestamp(),
   };
 }
 
-/**
- * Decrypts the cloud backup package to restore the private key.
- * @param encryptedPackage The package from Firestore.
- * @param pin The user-provided PIN.
- * @returns The user's private key as a base64 string.
- */
 export async function decryptPrivateKeyFromCloud(encryptedPackage: EncryptedKeyPackage, pin: string): Promise<string> {
   try {
     const salt = base64ToArrayBuffer(encryptedPackage.salt);
@@ -226,15 +270,11 @@ export async function decryptPrivateKeyFromCloud(encryptedPackage: EncryptedKeyP
 
     const derivedKey = await deriveKeyFromPin(pin, salt);
 
-    // First, try to decrypt the check value to verify the PIN is correct.
     const decryptedCheckBuffer = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, derivedKey, checkValueCipher);
-    const decryptedCheckText = new TextDecoder().decode(decryptedCheckBuffer);
-
-    if (decryptedCheckText !== "OK") {
+    if (new TextDecoder().decode(decryptedCheckBuffer) !== "OK") {
       throw new Error('Decryption check failed.');
     }
-
-    // If check passes, decrypt the actual private key.
+    
     const decryptedKeyBuffer = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, derivedKey, ciphertext);
     return new TextDecoder().decode(decryptedKeyBuffer);
   } catch (error) {
@@ -243,32 +283,37 @@ export async function decryptPrivateKeyFromCloud(encryptedPackage: EncryptedKeyP
   }
 }
 
-// --- Firestore Backup Service ---
-
-/**
- * Stores the encrypted key package in Firestore.
- */
 export async function storeEncryptedKeyInFirestore(uid: string, encryptedPackage: EncryptedKeyPackage): Promise<void> {
   const backupDocRef = doc(firestore, 'userBackups', uid);
   await setDoc(backupDocRef, encryptedPackage);
 }
 
-/**
- * Retrieves the encrypted key package from Firestore.
- */
 export async function getEncryptedKeyFromFirestore(uid: string): Promise<EncryptedKeyPackage | null> {
   const backupDocRef = doc(firestore, 'userBackups', uid);
   const docSnap = await getDoc(backupDocRef);
-  if (docSnap.exists()) {
-    return docSnap.data() as EncryptedKeyPackage;
-  }
-  return null;
+  return docSnap.exists() ? docSnap.data() as EncryptedKeyPackage : null;
 }
 
-/**
- * Deletes the encrypted key package from Firestore.
- */
 export async function deleteEncryptedKeyFromFirestore(uid: string): Promise<void> {
   const backupDocRef = doc(firestore, 'userBackups', uid);
   await deleteDoc(backupDocRef);
+}
+
+/**
+ * Special handler for restoring the main key.
+ * It saves the key to the local vault and sets it as active in Firestore.
+ */
+export async function restoreMainKey(uid: string, pin: string): Promise<void> {
+  const encryptedPackage = await getEncryptedKeyFromFirestore(uid);
+  if (!encryptedPackage) {
+    throw new Error("No cloud backup found to restore.");
+  }
+  const privateKeyBase64 = await decryptPrivateKeyFromCloud(encryptedPackage, pin);
+  const privateKeyBuffer = base64ToArrayBuffer(privateKeyBase64);
+  const privateKey = await window.crypto.subtle.importKey('pkcs8', privateKeyBuffer, rsaImportParams, true, ['decrypt']);
+
+  await saveKeyToLocalVault(uid, 'main', privateKey);
+
+  const vaultRef = doc(firestore, 'userKeyVaults', uid);
+  await updateDoc(vaultRef, { activeKeyId: 'main' });
 }

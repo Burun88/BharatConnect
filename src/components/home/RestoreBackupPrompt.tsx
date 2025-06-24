@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, ShieldCheck, KeyRound } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { decryptPrivateKeyFromCloud, getEncryptedKeyFromFirestore } from '@/services/encryptionService';
+import { restoreMainKey } from '@/services/encryptionService';
 
 interface RestoreBackupPromptProps {
   isOpen: boolean;
@@ -39,18 +39,11 @@ export default function RestoreBackupPrompt({ isOpen, onClose }: RestoreBackupPr
     setIsProcessing(true);
 
     try {
-      const encryptedPackage = await getEncryptedKeyFromFirestore(authUser.id);
-      if (!encryptedPackage) {
-        throw new Error('No cloud backup found for your account.');
-      }
-
-      const privateKeyBase64 = await decryptPrivateKeyFromCloud(encryptedPackage, pin);
-
-      localStorage.setItem(`privateKey_${authUser.id}`, privateKeyBase64);
+      await restoreMainKey(authUser.id, pin);
 
       toast({
         title: 'Restore Successful',
-        description: 'Your encryption key has been restored. Reloading...',
+        description: 'Your main encryption key has been restored. Reloading...',
         variant: 'default',
         action: <ShieldCheck className="w-5 h-5 text-green-500" />,
       });
@@ -70,8 +63,8 @@ export default function RestoreBackupPrompt({ isOpen, onClose }: RestoreBackupPr
 
   const handleNoBackup = () => {
     toast({
-        title: "Continuing Without Backup",
-        description: "Past chats will remain unreadable on this device."
+        title: "Continuing Without Main Key",
+        description: "Old chats will be unreadable. New chats will use a temporary key."
     });
     onClose(false);
   }

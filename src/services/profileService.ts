@@ -4,7 +4,7 @@ import { doc, setDoc, serverTimestamp, getDoc, updateDoc, Timestamp } from 'fire
 import { updateProfile } from 'firebase/auth';
 import type { User } from '@/types'; // Import the User type
 
-// BharatConnectFirestoreUser no longer contains direct aura fields. Aura is in 'auras' collection.
+// publicKey has been removed, as it's now managed in the userKeyVault
 export interface BharatConnectFirestoreUser {
   id: string;
   email: string;
@@ -17,13 +17,11 @@ export interface BharatConnectFirestoreUser {
   onboardingComplete: boolean;
   languagePreference?: string;
   status?: string;
-  publicKey?: string; // For E2EE
-  // currentAuraId and auraExpiresAt removed
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
 
-// UserProfileUpdateData no longer contains direct aura fields.
+// publicKey has been removed
 export type UserProfileUpdateData = {
   email: string;
   username: string;
@@ -33,8 +31,6 @@ export type UserProfileUpdateData = {
   photoURL?: string | null;
   phoneNumber?: string | null;
   bio?: string | null;
-  publicKey?: string;
-  // currentAuraId and auraExpiresAt removed
 };
 
 export async function createOrUpdateUserFullProfile(
@@ -48,7 +44,6 @@ export async function createOrUpdateUserFullProfile(
 
   const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
 
-  // Map profileData to Firestore structure, excluding undefined aura fields
   const firestoreData: Partial<Omit<BharatConnectFirestoreUser, 'id' | 'createdAt' | 'updatedAt'>> = {
     email: profileData.email.toLowerCase(),
     username: profileData.username.toLowerCase(),
@@ -58,7 +53,6 @@ export async function createOrUpdateUserFullProfile(
     ...(profileData.photoURL !== undefined && { photoURL: profileData.photoURL }),
     ...(profileData.phoneNumber !== undefined && { phoneNumber: profileData.phoneNumber }),
     ...(profileData.bio !== undefined && { bio: profileData.bio }),
-    ...(profileData.publicKey !== undefined && { publicKey: profileData.publicKey }),
   };
 
   const finalFirestorePayload: any = {};
@@ -97,35 +91,33 @@ export async function createOrUpdateUserFullProfile(
   } catch (error) { console.error(`[SVC_PROF] Error saving/updating profile for ${uid}:`, error); throw error; }
 }
 
-// getUserFullProfile now returns a Promise<User | null>.
-// Aura data needs to be fetched separately from the 'auras' collection.
 export async function getUserFullProfile(
   uid: string
 ): Promise<User | null> {
-  console.warn(`[SVC_PROF] getUserFullProfile called for UID: ${uid}.`);
   if (!firestore) { console.error("[SVC_PROF] Firestore instance is not available!"); return null; }
   if (!uid) return null;
 
   try {
     const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
-    const docSnap = await getDoc(userDocRef);
-    if (docSnap.exists()) {
-      const data = docSnap.data() as BharatConnectFirestoreUser; // Data from Firestore
+    const userVaultRef = doc(firestore, 'userKeyVaults', uid);
+    
+    const [userDocSnap, userVaultSnap] = await Promise.all([getDoc(userDocRef), getDoc(userVaultRef)]);
+    
+    if (userDocSnap.exists()) {
+      const data = userDocSnap.data() as Omit<BharatConnectFirestoreUser, 'publicKey'>;
+      const vaultData = userVaultSnap.exists() ? userVaultSnap.data() : null;
 
-      // Map to the client-side User type
       const clientUser: User = {
-        id: uid, // Use the passed uid or docSnap.id
-        name: data.originalDisplayName || data.displayName || 'User', // Map to 'name'
+        id: uid,
+        name: data.originalDisplayName || data.displayName || 'User',
         email: data.email,
         username: data.username,
-        avatarUrl: data.photoURL || undefined, // Map photoURL to avatarUrl
-        phone: data.phoneNumber || undefined, // Map phoneNumber to phone
+        avatarUrl: data.photoURL || undefined,
+        phone: data.phoneNumber || undefined,
         bio: data.bio || undefined,
         onboardingComplete: data.onboardingComplete || false,
         status: data.status || undefined,
-        publicKey: data.publicKey || undefined,
-        // hasViewedStatus is a client-side property, not stored in Firestore profile directly for this general fetch.
-        // It might be part of a specific context (like status updates list). For general profile, it's usually not included.
+        activeKeyId: vaultData?.activeKeyId || undefined,
       };
       return clientUser;
     } else {

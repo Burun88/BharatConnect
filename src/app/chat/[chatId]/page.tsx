@@ -27,7 +27,7 @@ import EncryptedChatBanner from '@/components/chat/EncryptedChatBanner';
 
 import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 import { useElementHeight } from '@/hooks/useElementHeight';
-import { encryptMessage, decryptMessage } from '@/services/encryptionService';
+import { encryptMessage, decryptMessage, hasLocalKeys } from '@/services/encryptionService';
 import { encryptAndUploadChunks } from '@/services/storageService';
 
 const EMOJI_PICKER_HEIGHT_PX = 300;
@@ -65,7 +65,7 @@ export default function ChatPage() {
   const [contactActiveAura, setContactActiveAura] = useState<UserAura | null>(null);
   const [isContactTyping, setIsContactTyping] = useState(false);
   const [contactPresence, setContactPresence] = useState<ChatSpecificPresence | null>(null);
-  const [privateKeyExists, setPrivateKeyExists] = useState<boolean | null>(null);
+  const [localKeysExist, setLocalKeysExist] = useState<boolean | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomBarRef = useRef<HTMLDivElement>(null); 
@@ -96,8 +96,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (authUser?.id) {
-      const key = localStorage.getItem(`privateKey_${authUser.id}`);
-      setPrivateKeyExists(!!key);
+      setLocalKeysExist(hasLocalKeys(authUser.id));
     }
   }, [authUser?.id]);
 
@@ -110,9 +109,10 @@ export default function ChatPage() {
   }, [chatDetails, isPotentiallyNewChat]);
 
   const showInputArea = useMemo(() => {
+    if (!localKeysExist) return false;
     if (!chatDetails) return isPotentiallyNewChat; 
     return chatDetails.requestStatus === 'accepted' || (!chatDetails.requestStatus || chatDetails.requestStatus === 'none');
-  }, [chatDetails, isPotentiallyNewChat]);
+  }, [chatDetails, isPotentiallyNewChat, localKeysExist]);
 
   const showRequestSpecificUI = useMemo(() => {
       return chatDetails?.requestStatus && 
@@ -353,6 +353,7 @@ export default function ChatPage() {
           type: data.type || 'text',
           readBy: data.readBy || [],
           encryptedKeys: data.encryptedKeys,
+          keyId: data.keyId, // Include keyId
         };
 
         if (data.type === 'image') {
@@ -362,17 +363,12 @@ export default function ChatPage() {
             let decryptionError: 'DECRYPTION_FAILED' | undefined = undefined;
 
             if (data.encryptedText && currentUserId) {
-              if (privateKeyExists) {
-                try {
-                  decryptedText = await decryptMessage(data, currentUserId);
-                } catch (e) {
-                  console.error(`Decryption failed for message ${firestoreId}:`, e);
-                  decryptionError = 'DECRYPTION_FAILED';
-                  decryptedText = '[Message could not be decrypted]';
-                }
-              } else {
+              try {
+                decryptedText = await decryptMessage(data, currentUserId);
+              } catch (e: any) {
+                console.error(`Decryption failed for message ${firestoreId}:`, e);
                 decryptionError = 'DECRYPTION_FAILED';
-                decryptedText = '[Encrypted message - Restore backup to read]';
+                decryptedText = e.message || '[Message could not be decrypted]';
               }
             }
             baseMessage.text = decryptedText;
@@ -413,7 +409,7 @@ export default function ChatPage() {
       });
     });
     return () => unsubscribeMessages();
-  }, [effectiveChatId, currentUserId, toast, isChatActive, showRequestSpecificUI, privateKeyExists]);
+  }, [effectiveChatId, currentUserId, toast, isChatActive, showRequestSpecificUI]);
 
   const sendTextMessage = async (textToSend: string) => {
     if (!authUser?.id || !effectiveChatId || !contact) return;
@@ -433,6 +429,7 @@ export default function ChatPage() {
             lastMessage: {
                 senderId: currentSenderId, timestamp: serverTimestamp(), type: 'text' as const,
                 readBy: [currentSenderId], text: textToSend,
+                keyId: encryptedPayload.keyId,
                 iv: encryptedPayload.iv, encryptedKeys: encryptedPayload.encryptedKeys, encryptedText: encryptedPayload.encryptedText
             },
             updatedAt: serverTimestamp(), typingStatus: { [currentSenderId]: false }
@@ -458,14 +455,14 @@ export default function ChatPage() {
         };
         setMessages(prev => [...prev, tempMessage]);
 
-        const { mediaInfo, encryptedAesKey } = await encryptAndUploadChunks(
+        const { mediaInfo, encryptedAesKey, keyId } = await encryptAndUploadChunks(
             file, effectiveChatId, currentSenderId, [contact.id],
             (progress) => { /* Progress callback can be re-added here if needed */ }
         );
         
         const messageDataForFirestore = {
             senderId: currentSenderId, type: 'image' as const, timestamp: serverTimestamp(),
-            readBy: [currentSenderId], mediaInfo, encryptedKeys: encryptedAesKey,
+            readBy: [currentSenderId], mediaInfo, encryptedKeys: encryptedAesKey, keyId
         };
         const chatDocRef = doc(firestore, `chats/${effectiveChatId}`);
         const newMessageRef = collection(firestore, `chats/${effectiveChatId}/messages`);
@@ -477,6 +474,7 @@ export default function ChatPage() {
                 readBy: [currentSenderId],
                 mediaInfo: { fileName: mediaInfo.fileName, fileType: mediaInfo.fileType, fileId: mediaInfo.fileId },
                 encryptedKeys: encryptedAesKey,
+                keyId: keyId,
             },
             updatedAt: serverTimestamp(),
         });
@@ -608,7 +606,7 @@ export default function ChatPage() {
 
   const memoizedEmojiPicker = useMemo(() => <EmojiPicker onEmojiSelect={handleEmojiSelect} />, [handleEmojiSelect]);
 
-  if (isAuthLoading || isPageLoading || privateKeyExists === null) return ( <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary" /><p className="mt-4 text-muted-foreground text-center">Loading Chat...</p></div> );
+  if (isAuthLoading || isPageLoading || localKeysExist === null) return ( <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary" /><p className="mt-4 text-muted-foreground text-center">Loading Chat...</p></div> );
   if (!isAuthenticated && !isAuthLoading) return ( <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center"><p className="text-muted-foreground text-center">Redirecting...</p></div> );
   if (!initialRouteChatId || ((!chatDetails && !isPotentiallyNewChat) || (!contact && (isChatActive || showRequestSpecificUI )))) return ( <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background items-center justify-center p-4"><Card className="w-full max-w-md text-center"><CardHeader><MessageSquareX className="w-16 h-16 text-destructive mx-auto mb-4" /><CardTitle className="text-2xl">Chat Not Found</CardTitle></CardHeader><CardContent><p className="text-muted-foreground">The chat (ID: {effectiveChatId || initialRouteChatId}) could not be loaded.</p></CardContent><CardFooter className="flex flex-col space-y-3"><Button onClick={() => router.push('/')} className="w-full">Go to Chats</Button><Button variant="outline" onClick={() => router.back()} className="w-full">Go Back</Button></CardFooter></Card></div> );
 
@@ -625,7 +623,7 @@ export default function ChatPage() {
         onMoreOptionsClick={() => toast({ title: "Coming Soon!", description: "More chat options are on the way." })}
       />
       
-      {privateKeyExists === false && isChatActive && <EncryptedChatBanner />}
+      {localKeysExist === false && isChatActive && <EncryptedChatBanner />}
 
       {showRequestSpecificUI && chatDetails && contact && currentUserId ? (
         <ChatRequestDisplay

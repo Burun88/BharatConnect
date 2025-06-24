@@ -26,7 +26,7 @@ export type User = {
   hasViewedStatus?: boolean;
   onboardingComplete?: boolean;
   bio?: string | null;
-  publicKey?: string; // For E2EE
+  activeKeyId?: string; // Moved from profileService
   activeSession?: ActiveSession | null;
 };
 
@@ -45,6 +45,7 @@ export type Message = {
   senderId: string;
   timestamp: number;
   type: 'text' | 'image' | 'system' | 'file';
+  keyId?: string; // For multi-key support
   // For text messages
   text?: string; // Decrypted text, optional
   // For media messages
@@ -88,6 +89,7 @@ export type Chat = {
     senderId: string;
     timestamp: number;
     type: 'text' | 'image' | 'system' | 'file';
+    keyId?: string; // For multi-key support
     readBy?: string[];
     // For text
     text?: string;
@@ -108,6 +110,19 @@ export type Chat = {
   typingStatus?: { [uid:string]: boolean };
   chatSpecificPresence?: { [uid: string]: ChatSpecificPresence };
 };
+
+export interface UserKeyInfo {
+  type: 'main' | 'session';
+  publicKey: string;
+  createdAt: any; // Firestore Timestamp
+}
+
+export interface UserKeyVault {
+  activeKeyId: string;
+  keys: {
+    [keyId: string]: UserKeyInfo;
+  };
+}
 
 // Represents the encrypted private key package stored in Firestore.
 export type EncryptedKeyPackage = {
