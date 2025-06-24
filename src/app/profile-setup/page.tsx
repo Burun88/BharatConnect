@@ -203,7 +203,7 @@ function ProfileSetupContent() {
       });
 
       sessionStorage.setItem('justSignedUp', 'true');
-      router.push('/');
+      // The redirect is now handled globally by the AuthContext based on the state change
     } catch (error: any) {
       setError('Failed to save your profile or generate keys. Please try again.');
       toast({

@@ -9,7 +9,7 @@ import { auth, signInUser, signOutUser as fbSignOutUser, firestore, type Firebas
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { generateAndStoreKeyPair } from '@/services/encryptionService'; // Import key generation
+import { generateSessionKeyPair } from '@/services/encryptionService';
 
 interface AuthContextType {
   authUser: User | null;
