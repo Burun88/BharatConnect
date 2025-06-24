@@ -9,14 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserCircle2, Camera, Mail, AtSign, Loader2 } from 'lucide-react'; // Import Loader2
+import { UserCircle2, Camera, Mail, AtSign, Loader2, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import Logo from '@/components/shared/Logo';
 import type { LocalUserProfile } from '@/types';
 import { auth, signOutUser as fbSignOutUser } from '@/lib/firebase'; 
 import { createOrUpdateUserFullProfile } from '@/services/profileService';
-import { uploadProfileImage } from '@/services/storageService';
+import { uploadProfileImage, deleteProfileImageByUrl } from '@/services/storageService';
 import { generateAndStoreKeyPair } from '@/services/encryptionService';
 
 
@@ -44,17 +44,13 @@ function ProfileSetupContent() {
 
   useEffect(() => {
     const currentLocalProfile = userProfileLs;
-    console.log("[ProfileSetupPage] useEffect - userProfileLs:", currentLocalProfile);
-
+    
     if (currentLocalProfile?.uid) {
       setAuthUid(currentLocalProfile.uid);
       setAuthEmail(currentLocalProfile.email || '');
 
-      if (currentLocalProfile.onboardingComplete === true) {
-        console.log("[ProfileSetupPage] User from LS already onboarded. Redirecting to home.");
-        router.replace('/');
-        return; 
-      }
+      // Redirection is now handled by the central AuthContext to prevent loops.
+      // This page's responsibility is only to handle the profile setup form.
 
       const isGenericDisplayName =
         currentLocalProfile.displayName === (currentLocalProfile.email?.split('@')[0]) ||
@@ -83,8 +79,9 @@ function ProfileSetupContent() {
       
       setIsPageLoading(false);
     } else {
-      console.warn("[ProfileSetupPage] No UID in local profile or LS is null. Redirecting to login.");
-      router.replace('/login');
+      // If there's no UID in local storage, AuthContext will redirect to login.
+      // This just prevents the page from rendering anything while that happens.
+      setIsPageLoading(true);
     }
   }, [userProfileLs, router, displayName, username, profilePicPreview, phoneNumber, bio]);
 
@@ -113,7 +110,6 @@ function ProfileSetupContent() {
       setUsernameError('Username must be 3-20 characters, lowercase letters, numbers, or underscores only.');
       return false;
     }
-    // TODO: Implement server-side uniqueness check here in a real app
     return true;
   };
 
@@ -127,14 +123,14 @@ function ProfileSetupContent() {
       setError('User authentication information is missing. Please try logging in again.');
       toast({ title: "User Info Error", description: "UID or Email missing. Please login.", variant: "destructive" });
       setIsLoading(false);
-      router.push('/login');
+      // Let AuthContext handle the redirect if necessary
       return;
     }
 
     const trimmedDisplayName = displayName.trim();
-    const trimmedUsername = username.trim(); // Username is already validated to be non-empty
+    const trimmedUsername = username.trim();
 
-    if (!trimmedUsername) { // Should not happen if validateUsername works
+    if (!trimmedUsername) {
         setUsernameError('Username is required.');
         setIsLoading(false);
         return;
@@ -144,9 +140,9 @@ function ProfileSetupContent() {
         return;
     }
 
-    const finalDisplayName = trimmedDisplayName || trimmedUsername; // Use username if display name is empty
+    const finalDisplayName = trimmedDisplayName || trimmedUsername;
 
-    if (!finalDisplayName) { // Should not happen if username is mandatory
+    if (!finalDisplayName) {
       setError('Please enter your display name.');
       setIsLoading(false);
       return;
@@ -162,16 +158,24 @@ function ProfileSetupContent() {
 
     if (profilePicFile) {
       try {
-        console.log(`[ProfileSetupPage] Uploading new profile picture for UID: ${authUid}`);
         finalPhotoURL = await uploadProfileImage(authUid, profilePicFile);
         toast({ title: "Profile picture uploaded!" });
       } catch (uploadError: any) {
-        console.error("[ProfileSetupPage] Error uploading profile picture:", uploadError);
         setError('Failed to upload profile picture. Please try again.');
         toast({ variant: 'destructive', title: 'Upload Error', description: uploadError.message || 'Could not upload image.' });
         setIsLoading(false);
         return;
       }
+    } else if (!profilePicPreview) { // Check if user cleared the picture
+        if (userProfileLs?.photoURL) {
+            try {
+                await deleteProfileImageByUrl(userProfileLs.photoURL);
+                toast({ title: "Profile picture removed." });
+            } catch (deleteError: any) {
+                 toast({ variant: 'warning', title: 'Deletion Warning', description: `Could not delete old picture: ${deleteError.message}` });
+            }
+        }
+        finalPhotoURL = null;
     }
     
     const profileDataToSave = {
@@ -184,17 +188,13 @@ function ProfileSetupContent() {
       onboardingComplete: true,
     };
 
-    console.log("[ProfileSetupPage] Attempting to save to Firestore. UID:", authUid);
-    console.log("[ProfileSetupPage] Data to save:", JSON.stringify(profileDataToSave));
 
     try {
       await createOrUpdateUserFullProfile(authUid, profileDataToSave);
       
-      // Generate E2EE keys after profile is successfully created
       toast({ title: "Generating secure keys...", description: "Please wait, this is a one-time setup." });
       await generateAndStoreKeyPair(authUid);
       toast({ title: "Secure keys generated!", description: "Your account is now end-to-end encrypted." });
-
 
       const updatedProfileForLs: LocalUserProfile = {
         uid: authUid,
@@ -207,18 +207,15 @@ function ProfileSetupContent() {
         onboardingComplete: true,
       };
       setUserProfileLs(updatedProfileForLs);
-      console.log("[ProfileSetupPage] Profile saved to Firestore and LS updated:", updatedProfileForLs);
 
       toast({
         title: `Welcome, ${finalDisplayName}!`,
         description: 'Your BharatConnect account is ready.',
       });
 
-      // Set flag for initial backup prompt on homepage
       sessionStorage.setItem('justSignedUp', 'true');
-      router.push('/');
+      // No router.push('/') here. AuthContext will handle the redirect based on the updated userProfileLs state.
     } catch (error: any) {
-      console.error("[ProfileSetupPage] Error during handleSubmit (saving profile or keys):", error);
       setError('Failed to save your profile or generate keys. Please try again.');
       toast({
         variant: 'destructive',
@@ -236,9 +233,8 @@ function ProfileSetupContent() {
     fbSignOutUser(auth).then(() => {
         setUserProfileLs(null); 
         toast({ title: "Logged Out", description: "You have been logged out." });
-        router.push('/login');
+        // AuthContext will handle the redirect to login page.
       }).catch((error) => {
-        console.error("Error logging out:", error);
         toast({ title: "Logout Error", description: error.message, variant: "destructive" });
       }).finally(() => {
         setIsLoading(false);
@@ -247,7 +243,7 @@ function ProfileSetupContent() {
 
   if (isPageLoading) {
     return (
-      <div className="flex flex-col items-center justify-center flex-grow min-h-0 bg-background p-4 overflow-y-auto">
+      <div className="flex flex-col items-center justify-center flex-grow min-h-screen bg-background p-4 overflow-y-auto">
         <Loader2 className="animate-spin h-10 w-10 text-primary" />
         <p className="mt-4 text-muted-foreground text-center">Loading profile setup...</p>
       </div>
@@ -255,7 +251,7 @@ function ProfileSetupContent() {
   }
 
   return (
-    <div className="flex flex-col items-center bg-background p-4 flex-grow min-h-0 overflow-y-auto">
+    <div className="flex flex-col items-center bg-background p-4 flex-grow min-h-screen overflow-y-auto">
       <Card className="w-full max-w-md shadow-2xl my-auto">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-6">
@@ -282,7 +278,14 @@ function ProfileSetupContent() {
                 </div>
               </Label>
               <Input id="profile-pic-upload" type="file" accept="image/*,.heic,.heif" onChange={handleFileChange} className="hidden" />
-              <p className="text-xs text-muted-foreground">Tap to upload a profile picture (Optional)</p>
+              <div className="flex items-center gap-2">
+                 <p className="text-xs text-muted-foreground">Tap to upload a profile picture (Optional)</p>
+                 {profilePicPreview && (
+                    <Button variant="link" size="sm" className="h-auto p-0 text-xs text-destructive" onClick={() => setProfilePicPreview(null)}>
+                        <Trash2 className="w-3 h-3 mr-1"/> Remove
+                    </Button>
+                 )}
+              </div>
             </div>
 
             <div className="space-y-1">
@@ -375,7 +378,7 @@ export default function ProfileSetupPage() {
   return (
     <div className="flex flex-col h-[calc(var(--vh)*100)] bg-background">
       <Suspense fallback={
-        <div className="flex flex-col items-center justify-center flex-grow min-h-0 bg-background p-4 overflow-y-auto">
+        <div className="flex flex-col items-center justify-center flex-grow min-h-screen bg-background p-4 overflow-y-auto">
           <Loader2 className="animate-spin h-10 w-10 text-primary" />
           <p className="mt-4 text-muted-foreground text-center">Loading page details...</p>
         </div>
