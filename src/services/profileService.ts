@@ -1,7 +1,7 @@
 
 import { auth, firestore } from '@/lib/firebase';
-import { doc, setDoc, serverTimestamp, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
-import { updateProfile } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp, getDoc, updateDoc, Timestamp, writeBatch } from 'firebase/firestore';
+import { updateProfile, type User as FirebaseUser } from 'firebase/auth'; // Import FirebaseUser
 import type { User } from '@/types'; // Import the User type
 
 // publicKey has been removed, as it's now managed in the userKeyVault
@@ -32,6 +32,40 @@ export type UserProfileUpdateData = {
   phoneNumber?: string | null;
   bio?: string | null;
 };
+
+/**
+ * Creates the initial database documents for a new user right after signup.
+ * This function should only be called once when a user is created in Firebase Auth.
+ * @param user The FirebaseUser object from the user credential.
+ */
+export async function createInitialFirestoreProfile(user: FirebaseUser): Promise<void> {
+  const userDocRef = doc(firestore, 'bharatConnectUsers', user.uid);
+  const docSnap = await getDoc(userDocRef);
+
+  if (docSnap.exists()) {
+    console.log(`[SVC_PROF] Initial profile for ${user.uid} already exists. Skipping creation.`);
+    return;
+  }
+
+  const initialProfile: Omit<BharatConnectFirestoreUser, 'id' | 'createdAt' | 'updatedAt'> = {
+    email: user.email || '',
+    username: '', // Initially empty, to be set in profile setup
+    displayName: user.displayName || user.email?.split('@')[0] || 'New User',
+    onboardingComplete: false,
+    photoURL: user.photoURL || null,
+    bio: null,
+    phoneNumber: user.phoneNumber || null,
+  };
+
+  const vaultDocRef = doc(firestore, 'userKeyVaults', user.uid);
+
+  const batch = writeBatch(firestore);
+  batch.set(userDocRef, { ...initialProfile, id: user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  batch.set(vaultDocRef, { activeKeyId: null, keys: {} }); // Create empty key vault
+  
+  await batch.commit();
+  console.log(`[SVC_PROF] Created initial user profile and empty vault for ${user.uid}.`);
+}
 
 export async function createOrUpdateUserFullProfile(
   uid: string,

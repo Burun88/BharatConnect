@@ -115,32 +115,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               });
             }
           } else {
-             console.log(`[AuthContext] No Firestore profile found for ${firebaseUser.uid}. This is a new user.`);
-             const newUser: User = {
-                id: firebaseUser.uid,
-                email: firebaseUser.email || '',
-                name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-                avatarUrl: firebaseUser.photoURL || undefined,
-                onboardingComplete: false,
-             };
-             setUserFromLS(newUser);
-             const batch = writeBatch(firestore);
-             const userDocRef = doc(firestore, 'bharatConnectUsers', firebaseUser.uid);
-             const vaultDocRef = doc(firestore, 'userKeyVaults', firebaseUser.uid);
-             batch.set(userDocRef, { 
-                id: newUser.id, email: newUser.email, 
-                displayName: newUser.name, onboardingComplete: false, 
-                createdAt: serverTimestamp(), updatedAt: serverTimestamp() 
-             });
-             batch.set(vaultDocRef, { activeKeyId: null, keys: {} }); // Create empty vault
-             await batch.commit();
-             console.log(`[AuthContext] Created initial user and empty vault docs for ${firebaseUser.uid}`);
+            // Profile creation is now handled explicitly at signup.
+            // If the profile is not found here, it's a temporary sync issue or an error state.
+            // We will NOT create a new profile here to avoid the bug where existing users are reset.
+            console.warn(`[AuthContext] Firestore profile not found for user ${firebaseUser.uid}. This may be a temporary sync lag after signup.`);
+            // Do not resolve auth yet. Let's wait for the profile to appear.
+            // A production app might have a timeout here to prevent getting stuck.
           }
         } catch (error) {
           console.error("[AuthContext] Error during auth state change handling:", error);
           setUserFromLS(null);
         } finally {
-          setIsInitialAuthResolved(true);
+           // We only resolve if we are definitively logged out, or have found a profile.
+           // This prevents a "flash" of the login screen for existing users if their profile read is slow.
+           const finalProfile = await getUserFullProfile(firebaseUser.uid);
+           if (finalProfile || !firebaseUser) {
+             setIsInitialAuthResolved(true);
+           }
         }
       } else {
         setUserFromLS(null);

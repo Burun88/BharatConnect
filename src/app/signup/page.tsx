@@ -11,7 +11,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Logo from '@/components/shared/Logo';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { auth, createUser } from '@/lib/firebase'; 
+import { auth, createUser } from '@/lib/firebase';
+import { createInitialFirestoreProfile } from '@/services/profileService'; // Import the new service function
 import type { AuthStep } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
@@ -56,13 +57,13 @@ export default function SignupPage() {
     }
 
     try {
-      await createUser(auth, email, password);
-      // After user is created in Firebase Auth, the FirebaseAuthObserver
-      // will detect this change. It will then create the initial user
-      // object in localStorage and the AuthContext will handle routing
-      // to the profile setup page. We don't need to do anything else here.
-      
-      // router.push('/profile-setup'); // This is now handled by AuthContext
+      const userCredential = await createUser(auth, email, password);
+      // After successful Firebase Auth creation, explicitly create the initial DB profile
+      if (userCredential.user) {
+          await createInitialFirestoreProfile(userCredential.user);
+      }
+      // The onAuthUserChanged listener in AuthContext will now detect the Firebase user,
+      // find the newly created Firestore profile, and handle routing to profile-setup.
     } catch (err: any) {
       console.error("[Signup Page] Firebase Signup Error:", err);
       if (err.code === 'auth/email-already-in-use') {
