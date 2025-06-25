@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -67,7 +68,10 @@ export default function ChatBackupCard() {
     setIsProcessing(true);
 
     try {
-      const privateKeyBase64 = localStorage.getItem(`privateKey_${authUser.id}`);
+      const keyVaultJSON = localStorage.getItem(`keyVault_${authUser.id}`);
+      const keyVault = keyVaultJSON ? JSON.parse(keyVaultJSON) : {};
+      const privateKeyBase64 = keyVault['main'];
+
       if (!privateKeyBase64) {
         throw new Error('Your local encryption key is missing. Cannot create a backup.');
       }

@@ -57,7 +57,10 @@ export default function InitialBackupPrompt({ isOpen, onClose }: InitialBackupPr
     setIsProcessing(true);
 
     try {
-      const privateKeyBase64 = localStorage.getItem(`privateKey_${authUser.id}`);
+      const keyVaultJSON = localStorage.getItem(`keyVault_${authUser.id}`);
+      const keyVault = keyVaultJSON ? JSON.parse(keyVaultJSON) : {};
+      const privateKeyBase64 = keyVault['main'];
+
       if (!privateKeyBase64) {
         throw new Error('Your local encryption key is missing. Cannot create a backup.');
       }
@@ -86,7 +89,7 @@ export default function InitialBackupPrompt({ isOpen, onClose }: InitialBackupPr
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent onInteractOutside={(e) => { if (!isProcessing) e.preventDefault(); }} showCloseButton={false} className="max-w-sm">
+      <DialogContent onInteractOutside={(e) => { if (isProcessing) e.preventDefault(); }} showCloseButton={false} className="max-w-sm">
         {promptStep === 'initial' && (
           <>
             <DialogHeader className="items-center text-center">
