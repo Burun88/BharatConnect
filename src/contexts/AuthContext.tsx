@@ -1,15 +1,17 @@
 
 "use client";
 
-import { createContext, useContext, useState, useEffect, useMemo, type ReactNode, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, type ReactNode, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { User, ActiveSession } from '@/types';
-import { auth, signInUser, signOutUser as fbSignOutUser, firestore, type FirebaseUser } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, signInUser, signOutUser as fbSignOutUser, onAuthUserChanged, firestore, type FirebaseUser } from '@/lib/firebase';
+import { doc, getDoc, updateDoc, serverTimestamp, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { generateSessionKeyPair } from '@/services/encryptionService';
+import { generateSessionKeyPair, hasLocalKeys, generateInitialKeyPair } from '@/services/encryptionService';
+import { getUserFullProfile, createOrUpdateUserFullProfile } from '@/services/profileService';
+
 
 interface AuthContextType {
   authUser: User | null;
@@ -41,10 +43,8 @@ const getDeviceInfo = () => navigator.userAgent;
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [userFromLS, setUserFromLS] = useLocalStorage<User | null>('bharatconnect-user', null);
-  const [authStepFromLS, setAuthStepFromLS] = useLocalStorage<AuthStep>('bharatconnect-auth-step', 'initial_loading');
   const [localSessionId, setLocalSessionId] = useLocalStorage<string | null>('bharatconnect-session-id', null);
 
-  const [internalAuthStep, setInternalAuthStep] = useState<AuthStep>('initial_loading');
   const [isInitialAuthResolved, setIsInitialAuthResolved] = useState(false);
   const [sessionConflict, setSessionConflict] = useState<ActiveSession | null>(null);
   const [conflictingUser, setConflictingUser] = useState<FirebaseUser | null>(null);
@@ -52,13 +52,145 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const router = useRouter();
   const { toast } = useToast();
   const pathname = usePathname();
+  const sessionCheckUnsubscribeRef = useRef<() => void | undefined>();
 
-  const stableUser = useMemo(() => {
-    if (!userFromLS?.id) return null;
-    return userFromLS;
-  }, [userFromLS]);
+  const isAuthenticated = useMemo(() => !!(userFromLS?.id && userFromLS?.onboardingComplete), [userFromLS]);
 
-  const isAuthenticated = useMemo(() => !!(stableUser?.id && stableUser?.onboardingComplete), [stableUser]);
+  const authStep: AuthStep = useMemo(() => {
+    if (!isInitialAuthResolved) return 'initial_loading';
+    if (!userFromLS?.id) return 'welcome';
+    if (!userFromLS.onboardingComplete) return 'profile_setup';
+    return 'authenticated';
+  }, [isInitialAuthResolved, userFromLS]);
+
+  const upsertKeyVault = async (uid: string): Promise<void> => {
+    const vaultRef = doc(firestore, 'userKeyVaults', uid);
+    try {
+        const vaultSnap = await getDoc(vaultRef);
+        if (!vaultSnap.exists()) {
+            // This is a brand new user, vault doesn't exist yet.
+            // The vault will be created during the profile setup's `generateInitialKeyPair` call.
+            console.log(`[AuthContext] User vault for ${uid} does not exist. It will be created during profile setup.`);
+            return;
+        }
+
+        // This is an existing user on a new device.
+        console.log(`[AuthContext] User vault for ${uid} exists. Generating session key.`);
+        await generateSessionKeyPair(uid);
+
+    } catch (error) {
+        console.error(`[AuthContext] Error in upsertKeyVault for UID ${uid}:`, error);
+        // We throw the error so the calling function knows something went wrong.
+        throw new Error("Failed to create or update the key vault.");
+    }
+  };
+
+  useEffect(() => {
+    const authUnsubscribe = onAuthUserChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      if (sessionCheckUnsubscribeRef.current) {
+        sessionCheckUnsubscribeRef.current();
+        sessionCheckUnsubscribeRef.current = undefined;
+      }
+
+      if (firebaseUser) {
+        try {
+          const firestoreProfile = await getUserFullProfile(firebaseUser.uid);
+          
+          if (firestoreProfile) {
+            setUserFromLS(firestoreProfile);
+            if (firestoreProfile.onboardingComplete && !hasLocalKeys(firebaseUser.uid)) {
+              await upsertKeyVault(firebaseUser.uid);
+            }
+
+            if (localSessionId) {
+              const userDocRef = doc(firestore, 'bharatConnectUsers', firebaseUser.uid);
+              sessionCheckUnsubscribeRef.current = onSnapshot(userDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                  const activeSession = docSnap.data().activeSession as ActiveSession | undefined;
+                  if (activeSession?.sessionId && activeSession.sessionId !== localSessionId) {
+                    toast({ title: "Session Expired", description: "You signed in on another device.", variant: 'destructive' });
+                    fbSignOutUser(auth);
+                  }
+                }
+              });
+            }
+          } else {
+             console.log(`[AuthContext] No Firestore profile found for ${firebaseUser.uid}. This is a new user.`);
+             const newUser: User = {
+                id: firebaseUser.uid,
+                email: firebaseUser.email || '',
+                name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+                avatarUrl: firebaseUser.photoURL || undefined,
+                onboardingComplete: false,
+             };
+             setUserFromLS(newUser);
+             const batch = writeBatch(firestore);
+             const userDocRef = doc(firestore, 'bharatConnectUsers', firebaseUser.uid);
+             const vaultDocRef = doc(firestore, 'userKeyVaults', firebaseUser.uid);
+             batch.set(userDocRef, { 
+                id: newUser.id, email: newUser.email, 
+                displayName: newUser.name, onboardingComplete: false, 
+                createdAt: serverTimestamp(), updatedAt: serverTimestamp() 
+             });
+             batch.set(vaultDocRef, { activeKeyId: null, keys: {} }); // Create empty vault
+             await batch.commit();
+             console.log(`[AuthContext] Created initial user and empty vault docs for ${firebaseUser.uid}`);
+          }
+        } catch (error) {
+          console.error("[AuthContext] Error during auth state change handling:", error);
+          setUserFromLS(null);
+        } finally {
+          setIsInitialAuthResolved(true);
+        }
+      } else {
+        setUserFromLS(null);
+        if(userFromLS?.id) {
+          localStorage.removeItem(`keyVault_${userFromLS.id}`);
+        }
+        setLocalSessionId(null);
+        setIsInitialAuthResolved(true);
+      }
+    });
+
+    return () => {
+      authUnsubscribe();
+      if (sessionCheckUnsubscribeRef.current) {
+        sessionCheckUnsubscribeRef.current();
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localSessionId]);
+
+  // Routing Logic
+  useEffect(() => {
+    if (!isInitialAuthResolved) return;
+    const publicPaths = ['/welcome', '/login', '/signup', '/terms', '/privacy'];
+    const profileSetupPaths = ['/profile-setup', '/verify-phone', '/verify-otp'];
+    const isPublicPath = publicPaths.includes(pathname) || publicPaths.some(p => pathname.startsWith(p) && p !== '/');
+    const isProfileSetupPath = profileSetupPaths.includes(pathname) || profileSetupPaths.some(p => pathname.startsWith(p) && p !== '/');
+    let targetPath: string | null = null;
+    
+    if (sessionConflict) return;
+
+    switch (authStep) {
+      case 'welcome':
+      case 'login':
+      case 'signup':
+        if (!isPublicPath) targetPath = '/welcome'; break;
+      case 'profile_setup': if (!isProfileSetupPath) targetPath = '/profile-setup'; break;
+      case 'authenticated': if (isPublicPath || isProfileSetupPath) targetPath = '/'; break;
+      case 'initial_loading': break;
+      default:
+        if (!isAuthenticated && !isPublicPath && !isProfileSetupPath) targetPath = '/welcome';
+        else if (isAuthenticated && (isPublicPath || isProfileSetupPath)) targetPath = '/';
+        break;
+    }
+    
+    if (targetPath && targetPath !== pathname) {
+      router.replace(targetPath);
+    }
+  }, [authStep, pathname, router, isAuthenticated, isInitialAuthResolved, sessionConflict]);
+
 
   const establishSession = async (uid: string) => {
     const newSessionId = generateSessionId();
@@ -70,7 +202,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const userDocRef = doc(firestore, 'bharatConnectUsers', uid);
     await updateDoc(userDocRef, { activeSession: newSession });
     setLocalSessionId(newSessionId);
-    console.log(`[AuthContext] New session established: ${newSessionId}`);
   };
 
   const loginAndManageSession = async (email: string, pass: string) => {
@@ -81,100 +212,51 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     if (docSnap.exists()) {
       const existingSession = docSnap.data().activeSession as ActiveSession | undefined;
-      if (existingSession?.sessionId && existingSession.sessionId !== localSessionId) {
+      if (existingSession?.sessionId) {
         setConflictingUser(userCredential.user);
         setSessionConflict(existingSession);
-        return; // Halt the login process
+        return;
       }
     }
-    // No session conflict, proceed to establish a new session.
     await establishSession(uid);
-    // Observer will pick up user and redirect
   };
 
   const handleForceLogin = async () => {
     if (conflictingUser?.uid) {
-      // Establish a new session for this device.
       await establishSession(conflictingUser.uid);
-      // DO NOT generate new keys here. The observer will handle profile loading.
-      // If the private key is missing on this device, the UI should prompt for restore.
-      
-      // Signal to the homepage that a restore is the next logical step after this forceful login
-      sessionStorage.setItem('needs-restore-prompt', 'true');
-      
       setSessionConflict(null);
       setConflictingUser(null);
-      // The FirebaseAuthObserver will now see the logged-in user and handle the rest of the state updates.
     }
   };
 
   const handleCancelLogin = async () => {
-    await fbSignOutUser(auth); // Sign out from the new device
+    await fbSignOutUser(auth);
     setSessionConflict(null);
     setConflictingUser(null);
-    // Observer will clear user data, context will redirect to login/welcome.
   };
 
-  useEffect(() => {
-    let determinedStep: AuthStep;
-    if (!stableUser?.id) {
-      if (authStepFromLS === 'login' || authStepFromLS === 'signup') determinedStep = authStepFromLS;
-      else determinedStep = 'welcome';
-    } else if (!stableUser.onboardingComplete) {
-      determinedStep = 'profile_setup';
-    } else {
-      determinedStep = 'authenticated';
-    }
-    if (internalAuthStep !== determinedStep) setInternalAuthStep(determinedStep);
-    if (determinedStep !== authStepFromLS && authStepFromLS !== 'initial_loading') setAuthStepFromLS(determinedStep);
-    if (!isInitialAuthResolved) setIsInitialAuthResolved(true);
-  }, [stableUser, authStepFromLS, setAuthStepFromLS, isInitialAuthResolved, internalAuthStep]);
-
-  useEffect(() => {
-    if (!isInitialAuthResolved) return;
-    const publicPaths = ['/welcome', '/login', '/signup', '/terms', '/privacy'];
-    const profileSetupPaths = ['/profile-setup', '/verify-phone', '/verify-otp'];
-    const isPublicPath = publicPaths.includes(pathname);
-    const isProfileSetupPath = profileSetupPaths.includes(pathname);
-    let targetPath: string | null = null;
-
-    if (sessionConflict) return; // Don't redirect while conflict dialog is open
-
-    switch (internalAuthStep) {
-      case 'welcome': if (pathname !== '/welcome') targetPath = '/welcome'; break;
-      case 'login': if (pathname !== '/login') targetPath = '/login'; break;
-      case 'signup': if (pathname !== '/signup') targetPath = '/signup'; break;
-      case 'profile_setup': if (!isProfileSetupPath) targetPath = '/profile-setup'; break;
-      case 'authenticated': if (isPublicPath || isProfileSetupPath) targetPath = '/'; break;
-      default:
-        if (!isAuthenticated && !isPublicPath && !isProfileSetupPath) targetPath = '/welcome';
-        else if (isAuthenticated && (isPublicPath || isProfileSetupPath)) targetPath = '/';
-        break;
-    }
-    if (targetPath && targetPath !== pathname) router.replace(targetPath);
-  }, [internalAuthStep, pathname, router, isAuthenticated, isInitialAuthResolved, sessionConflict]);
-
   const logout = useCallback(async () => {
-    if (stableUser?.id) {
-        const userDocRef = doc(firestore, 'bharatConnectUsers', stableUser.id);
-        // Set the active session to null before signing out.
-        await updateDoc(userDocRef, { activeSession: null });
+    if (userFromLS?.id) {
+        try {
+            const userDocRef = doc(firestore, 'bharatConnectUsers', userFromLS.id);
+            await updateDoc(userDocRef, { activeSession: null });
+        } catch (error) {
+            console.warn("Could not clear active session on logout, may already be gone.", error);
+        }
     }
     await fbSignOutUser(auth);
-    setLocalSessionId(null);
-    // The observer will handle clearing user from LS and state will update.
     toast({ title: "Logged Out", description: "You have been successfully logged out." });
-  }, [stableUser?.id, setLocalSessionId, toast]);
+  }, [userFromLS?.id, toast]);
 
   const contextValue = useMemo(() => ({
-    authUser: stableUser,
+    authUser: userFromLS,
     setAuthUser: setUserFromLS,
     isAuthenticated,
     isAuthLoading: !isInitialAuthResolved,
-    authStep: internalAuthStep,
+    authStep,
     loginAndManageSession,
     logout
-  }), [stableUser, setUserFromLS, isAuthenticated, isInitialAuthResolved, internalAuthStep, loginAndManageSession, logout]);
+  }), [userFromLS, setUserFromLS, isAuthenticated, isInitialAuthResolved, authStep, loginAndManageSession, logout]);
 
   return (
     <AuthContext.Provider value={contextValue}>
@@ -184,7 +266,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 <AlertDialogHeader>
                     <AlertDialogTitle>Already Logged In</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Your account is already logged in on another device. To continue here, you must log out the other session.
+                        Your account is active on another device. Continuing here will log out the other session.
                         <br/><br/>
                         <span className="text-xs text-muted-foreground bg-muted p-2 rounded-md block">
                            Device Info: {sessionConflict?.deviceInfo || 'Unknown'}

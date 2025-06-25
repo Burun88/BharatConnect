@@ -3,7 +3,6 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ChatProvider } from '@/contexts/ChatContext';
-import FirebaseAuthObserver from '@/contexts/FirebaseAuthObserver';
 import DynamicVhSetter from '@/components/shared/DynamicVhSetter';
 import { Toaster } from '@/components/ui/toaster';
 import SplashScreen from '@/components/shared/SplashScreen';
@@ -28,7 +27,6 @@ export default function ClientProviders({ children }: ClientProvidersProps) {
   return (
     <AuthProvider>
       <ChatProvider>
-        <FirebaseAuthObserver />
         <FCMHandler />
         <IncomingCallManager />
         <DynamicVhSetter />
